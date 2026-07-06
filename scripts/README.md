@@ -311,27 +311,37 @@ If the brush width and a given design's randomized `stroke_width` diverge signif
 ## mondrian_path_preview.py
 
 Renders a `mondrian_robot_path.py` path plan into an SVG you can just open
-and look at — a rough "what will actually get painted" preview, not an
-exact vector reproduction of the design. Each brush/paint group is drawn
-in its real color at its real brush width, with a text legend mapping
-color → which brush/paint it is. Path generation itself is untouched;
-this script only renders.
+and look at. Two modes:
 
-把 `mondrian_robot_path.py` 生成的路径渲染成一份可以直接打开看的 SVG——是"大致涂成什么样"的预览，不是设计本身的精确矢量还原。每组画笔/颜料按实际颜色和实际笔刷宽度画出来，并带文字图例标注每个颜色对应哪支笔/颜料。路径生成逻辑本身不动，这个脚本只负责渲染。
+- **`fill`** (default): a rough "what will actually get painted" preview —
+  each brush/paint group drawn in its real color at its real brush width,
+  not an exact vector reproduction of the design.
+- **`trace`**: thin colored lines showing the raw path/trajectory itself
+  (e.g. the fill scan's zigzag back-and-forth pattern), instead of the
+  area it covers.
+
+Both modes include a text legend mapping color → which brush/paint it is.
+Path generation itself is untouched; this script only renders.
+
+把 `mondrian_robot_path.py` 生成的路径渲染成一份可以直接打开看的 SVG，两种模式：`fill`（默认）是"大致涂成什么样"的预览，每组画笔/颜料按实际颜色和实际笔刷宽度画出来；`trace` 是用细线画出实际的路径轨迹本身（比如涂色扫描的锯齿形来回走线），而不是它覆盖的色块区域。两种模式都带文字图例标注每个颜色对应哪支笔/颜料。路径生成逻辑本身不动，这个脚本只负责渲染。
 
 ### Usage / 运行
 
 ```bash
-# Random design, new seed every run
+# Random design, new seed every run - "fill" mode (paint coverage preview)
 python scripts/mondrian_path_preview.py
 
 # Reproduce a specific design
 python scripts/mondrian_path_preview.py --seed 2124073818
+
+# Show the raw path/trajectory lines instead of paint coverage
+python scripts/mondrian_path_preview.py --seed 2124073818 --mode trace
 ```
 
-Output is written to `output/mondrian_path_preview.svg` (git-ignored,
-regenerated each run — unlike `assets/mondrian_preview.svg` which is a
-checked-in fixed reference image).
+Output is written to `output/mondrian_path_preview.svg` (`fill` mode) or
+`output/mondrian_path_preview_trace.svg` (`trace` mode) — both git-ignored,
+regenerated each run, unlike `assets/mondrian_preview.svg` which is a
+checked-in fixed reference image.
 
 ### What it does / 做什么
 
@@ -349,8 +359,9 @@ checked-in fixed reference image).
 | Flag | Effect |
 | --- | --- |
 | `--seed N` | 复现某次具体的设计/路径。Reproduce a specific design/path. Omit for random. |
-| `--line-brush-width-mm` (default 6.0) | 描边组的渲染笔宽，同时也是传给 `build_mondrian_robot_path()` 的实际笔宽。Rendered brush width for the outline group — also the actual brush width passed to `build_mondrian_robot_path()`. |
-| `--fill-brush-width-mm` (default 6.0) | 色块组的渲染笔宽，同上。Rendered brush width for fill groups — same as above. |
+| `--mode fill\|trace` (default `fill`) | `fill` = 粗笔刷色块预览；`trace` = 细线画出实际路径轨迹（笔宽固定为 `TRACE_LINE_WIDTH_MM`，跟真实笔宽无关）。`fill` = thick brush-width coverage preview; `trace` = thin lines showing the actual path (fixed at `TRACE_LINE_WIDTH_MM`, unrelated to the real brush width). |
+| `--line-brush-width-mm` (default 6.0) | 描边组的渲染笔宽（仅 `fill` 模式），同时也是传给 `build_mondrian_robot_path()` 的实际笔宽。Rendered brush width for the outline group (`fill` mode only) — also the actual brush width passed to `build_mondrian_robot_path()`. |
+| `--fill-brush-width-mm` (default 6.0) | 色块组的渲染笔宽（仅 `fill` 模式），同上。Rendered brush width for fill groups (`fill` mode only) — same as above. |
 
 **Still open / 待办:** 预览目前只画笔触本身，没有画抬笔空移的轨迹（比如虚线表示"这里是抬笔移动，不落色"）；如果以后想确认换笔/空移路线是否合理，可以再加一层。
 The preview currently only draws the pen-down strokes, not the pen-up travel between them (e.g. as a dashed line). Could add that layer later if travel routes themselves need visual review.

@@ -3,5 +3,6 @@ output/apple_edges.svg
 output/sketch_robot_path.json
 output/mondrian_robot_path.json
 output/mondrian_path_preview.svg
+output/mondrian_path_preview_trace.svg
 __pycache__/
 *.pyc

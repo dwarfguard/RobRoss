@@ -8,7 +8,18 @@ sys.path.insert(0, os.path.dirname(__file__))
 import mondrian_robot_path as mrp  # noqa: E402  (reuses build_mondrian_robot_path, no path logic here)
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'output')
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'mondrian_path_preview.svg')
+
+# "fill" approximates actual paint coverage (thick, brush-width strokes).
+# "trace" shows the raw path/trajectory instead - thin colored lines so the
+# boustrophedon zigzag scan pattern itself is visible, not just the area
+# it covers.
+TRACE_LINE_WIDTH_MM = 0.8
+
+
+def output_path(mode):
+    suffix = "" if mode == "fill" else f"_{mode}"
+    return os.path.join(OUTPUT_DIR, f'mondrian_path_preview{suffix}.svg')
+
 
 LEGEND_ROW_HEIGHT_MM = 14.0
 LEGEND_SWATCH_SIZE_MM = 10.0
@@ -19,14 +30,16 @@ def tool_label(tool):
     return "outline / border" if tool["kind"] == "line" else "fill"
 
 
-def render_strokes(tool, brush_width_mm):
+def render_strokes(tool, mode, brush_width_mm):
+    stroke_width_mm = brush_width_mm if mode == "fill" else TRACE_LINE_WIDTH_MM
+    opacity = "0.85" if mode == "fill" else "1"
     elements = []
     for stroke in tool["strokes"]:
         points = " ".join(f"{x:.1f},{y:.1f}" for x, y in stroke)
         elements.append(
             f'<polyline points="{points}" fill="none" stroke="{escape(tool["color"])}" '
-            f'stroke-width="{brush_width_mm}" stroke-linecap="round" stroke-linejoin="round" '
-            f'opacity="0.85" />'
+            f'stroke-width="{stroke_width_mm}" stroke-linecap="round" stroke-linejoin="round" '
+            f'opacity="{opacity}" />'
         )
     return elements
 
@@ -51,7 +64,7 @@ def render_legend(tools, canvas_size_mm):
     return elements, y
 
 
-def render_preview_svg(result, line_brush_width_mm, fill_brush_width_mm):
+def render_preview_svg(result, mode, line_brush_width_mm, fill_brush_width_mm):
     canvas_size_mm = result["canvas_size_mm"]
     tools = result["tools"]
 
@@ -62,7 +75,7 @@ def render_preview_svg(result, line_brush_width_mm, fill_brush_width_mm):
     # top of the color instead of being partially hidden underneath it.
     for tool in sorted(tools, key=lambda t: t["kind"] == "line"):
         brush_width_mm = line_brush_width_mm if tool["kind"] == "line" else fill_brush_width_mm
-        svg_elements.extend(render_strokes(tool, brush_width_mm))
+        svg_elements.extend(render_strokes(tool, mode, brush_width_mm))
 
     legend_elements, total_height = render_legend(tools, canvas_size_mm)
     svg_elements.extend(legend_elements)
@@ -82,14 +95,18 @@ def render_preview_svg(result, line_brush_width_mm, fill_brush_width_mm):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Render a rough-coloring SVG preview of a Mondrian robot path plan, "
-                    "with a legend marking which color goes to which brush/paint.")
+        description="Render an SVG preview of a Mondrian robot path plan, with a legend "
+                    "marking which color goes to which brush/paint.")
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed for reproducible output (default: random each run).")
+    parser.add_argument("--mode", choices=["fill", "trace"], default="fill",
+                         help="'fill': thick brush-width strokes approximating actual paint "
+                              "coverage (default). 'trace': thin colored lines showing the raw "
+                              "path/trajectory (e.g. the fill scan's zigzag pattern) instead.")
     parser.add_argument("--line-brush-width-mm", type=float, default=mrp.DEFAULT_LINE_BRUSH_WIDTH_MM,
-                         help="Brush width used to draw the outline/border strokes.")
+                         help="Brush width used to draw the outline/border strokes (fill mode only).")
     parser.add_argument("--fill-brush-width-mm", type=float, default=mrp.DEFAULT_FILL_BRUSH_WIDTH_MM,
-                         help="Brush width used to draw the fill strokes.")
+                         help="Brush width used to draw the fill strokes (fill mode only).")
     args = parser.parse_args()
 
     seed = args.seed if args.seed is not None else random.SystemRandom().randrange(2**32)
@@ -99,13 +116,14 @@ def main():
         line_brush_width_mm=args.line_brush_width_mm,
         fill_brush_width_mm=args.fill_brush_width_mm,
     )
-    svg_content = render_preview_svg(result, args.line_brush_width_mm, args.fill_brush_width_mm)
+    svg_content = render_preview_svg(result, args.mode, args.line_brush_width_mm, args.fill_brush_width_mm)
 
+    out_path = output_path(args.mode)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write(svg_content)
 
-    print(f"Generated {OUTPUT_FILE} (seed={seed})")
+    print(f"Generated {out_path} (seed={seed})")
 
 
 if __name__ == "__main__":
