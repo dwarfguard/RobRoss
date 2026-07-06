@@ -8,10 +8,11 @@ when adding a new script, copy the section format used for
 this repo currently generates robot paths from two unrelated sources, and
 they are *not* variations of the same pipeline:
 
-- **Mondrian route** (`mondrian_generator.py` + `mondrian_robot_path.py`):
-  a procedurally generated vector design — exact rectangle/line geometry,
-  colors, and widths are all known up front. The robot both traces lines
-  *and* paints color fills.
+- **Mondrian route** (`mondrian_generator.py` + `mondrian_robot_path.py`,
+  previewed with `mondrian_path_preview.py`): a procedurally generated
+  vector design — exact rectangle/line geometry, colors, and widths are
+  all known up front. The robot both traces lines *and* paints color
+  fills.
 - **Sketch / outline-tracing route** (`canny.py` + `sketch_robot_path.py`):
   edges guessed from an arbitrary bitmap image via Canny edge detection.
   The robot only traces monochrome outlines, no fills.
@@ -304,3 +305,52 @@ wrote .../output/mondrian_robot_path.json
 
 **Still open / 待办:** 如果笔宽和某次设计随机出的 `stroke_width` 差异变大，黑线可能需要多趟平行扫线才能画满，目前按"一趟中心线"处理。具体机器人执行协议同样待硬件确认。
 If the brush width and a given design's randomized `stroke_width` diverge significantly, grid lines may need multiple parallel passes to fill cleanly — currently handled as a single centerline pass. The concrete robot execution protocol is likewise still pending from hardware.
+
+---
+
+## mondrian_path_preview.py
+
+Renders a `mondrian_robot_path.py` path plan into an SVG you can just open
+and look at — a rough "what will actually get painted" preview, not an
+exact vector reproduction of the design. Each brush/paint group is drawn
+in its real color at its real brush width, with a text legend mapping
+color → which brush/paint it is. Path generation itself is untouched;
+this script only renders.
+
+把 `mondrian_robot_path.py` 生成的路径渲染成一份可以直接打开看的 SVG——是"大致涂成什么样"的预览，不是设计本身的精确矢量还原。每组画笔/颜料按实际颜色和实际笔刷宽度画出来，并带文字图例标注每个颜色对应哪支笔/颜料。路径生成逻辑本身不动，这个脚本只负责渲染。
+
+### Usage / 运行
+
+```bash
+# Random design, new seed every run
+python scripts/mondrian_path_preview.py
+
+# Reproduce a specific design
+python scripts/mondrian_path_preview.py --seed 2124073818
+```
+
+Output is written to `output/mondrian_path_preview.svg` (git-ignored,
+regenerated each run — unlike `assets/mondrian_preview.svg` which is a
+checked-in fixed reference image).
+
+### What it does / 做什么
+
+1. `import mondrian_robot_path` 并调用 `build_mondrian_robot_path()` 拿到路径数据（复用现有路径生成逻辑，不重新实现）。
+   Imports `mondrian_robot_path` and calls `build_mondrian_robot_path()` to get the path data (reuses the existing path generation logic, doesn't reimplement it).
+2. `render_strokes()`：把每组的每条 stroke 画成一条粗 `<polyline>`——颜色用该组的实际颜色，`stroke-width` 用该组的实际笔刷宽度（line 组用 `line_brush_width_mm`，fill 组用 `fill_brush_width_mm`），圆头圆角让粗笔触看起来像大致涂色而不是精确矩形。
+   `render_strokes()`: draws each stroke in a group as a thick `<polyline>` — colored per-group, `stroke-width` set to that group's actual brush width (`line_brush_width_mm` for the line group, `fill_brush_width_mm` for fill groups), with round caps/joins so the thick strokes read as rough paint coverage rather than precise rectangles.
+3. 渲染顺序：先画所有色块组，黑色描边组最后画在最上面（跟 `mondrian_generator.py` 自己生成 SVG 时的图层顺序一致），这样网格线不会被色块盖住一部分。
+   Render order: fill groups are drawn first and the black outline group last (same layering as `mondrian_generator.py`'s own SVG output), so the grid lines don't end up partially hidden under the color fills.
+4. `render_legend()`：在画布下方按 `tools` 列表顺序画色块 + 文字标签（颜色、种类、stroke 数量），跟着实际用到的颜色走，不是写死的调色板。
+   `render_legend()`: draws a color swatch + text label (color, kind, stroke count) below the canvas for each entry in `tools`, driven by whatever colors actually got used — not a hardcoded palette.
+
+### Options / 可调参数
+
+| Flag | Effect |
+| --- | --- |
+| `--seed N` | 复现某次具体的设计/路径。Reproduce a specific design/path. Omit for random. |
+| `--line-brush-width-mm` (default 6.0) | 描边组的渲染笔宽，同时也是传给 `build_mondrian_robot_path()` 的实际笔宽。Rendered brush width for the outline group — also the actual brush width passed to `build_mondrian_robot_path()`. |
+| `--fill-brush-width-mm` (default 6.0) | 色块组的渲染笔宽，同上。Rendered brush width for fill groups — same as above. |
+
+**Still open / 待办:** 预览目前只画笔触本身，没有画抬笔空移的轨迹（比如虚线表示"这里是抬笔移动，不落色"）；如果以后想确认换笔/空移路线是否合理，可以再加一层。
+The preview currently only draws the pen-down strokes, not the pen-up travel between them (e.g. as a dashed line). Could add that layer later if travel routes themselves need visual review.

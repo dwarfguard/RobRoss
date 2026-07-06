@@ -2,5 +2,6 @@ output/apple_edges.png
 output/apple_edges.svg
 output/sketch_robot_path.json
 output/mondrian_robot_path.json
+output/mondrian_path_preview.svg
 __pycache__/
 *.pyc
