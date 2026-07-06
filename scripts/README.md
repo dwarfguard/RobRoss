@@ -12,11 +12,16 @@ they are *not* variations of the same pipeline:
   a procedurally generated vector design — exact rectangle/line geometry,
   colors, and widths are all known up front. The robot both traces lines
   *and* paints color fills.
-- **Sketch / outline-tracing route** (`canny.py` + `robot_path.py`): edges
-  guessed from an arbitrary bitmap image via Canny edge detection. The
-  robot only traces monochrome outlines, no fills.
+- **Sketch / outline-tracing route** (`canny.py` + `sketch_robot_path.py`):
+  edges guessed from an arbitrary bitmap image via Canny edge detection.
+  The robot only traces monochrome outlines, no fills.
 
-Mondrian 路线（`mondrian_generator.py` + `mondrian_robot_path.py`）是程序化生成的矢量设计，坐标/颜色/线宽全部精确已知，机器人既要描线也要涂色；素描/描边路线（`canny.py` + `robot_path.py`）是从任意位图图片猜测出的边缘，只描边不涂色。两条路线的路径生成逻辑相互独立，不要混着改。
+Mondrian 路线（`mondrian_generator.py` + `mondrian_robot_path.py`）是程序化生成的矢量设计，坐标/颜色/线宽全部精确已知，机器人既要描线也要涂色；素描/描边路线（`canny.py` + `sketch_robot_path.py`）是从任意位图图片猜测出的边缘，只描边不涂色。两条路线的路径生成逻辑相互独立，不要混着改；文件名也刻意用 `sketch_` / `mondrian_` 前缀分开，一眼能看出属于哪条路线。
+
+Both routes' entry-point functions return the same top-level shape —
+`{"canvas_size"/"canvas_size_mm": ..., "tools": [{"kind", "color", "strokes"}, ...]}`
+— so downstream code doesn't need to special-case which route produced the
+data.
 
 Both routes reuse the same greedy nearest-neighbor ordering logic from
 `path_ordering.py` (see below) rather than each reimplementing it.
@@ -96,7 +101,7 @@ tunable too.
 
 ---
 
-## canny.py / robot_path.py
+## canny.py / sketch_robot_path.py
 
 Image-to-robot-path pipeline for the sketch (outline-tracing) prototype:
 turns a source image into a smooth SVG line drawing, then into an ordered
@@ -108,7 +113,7 @@ Run in sequence:
 
 ```
 assets/apple.png -> scripts/canny.py -> output/apple_edges.png, output/apple_edges.svg
-                                     \-> scripts/robot_path.py -> ordered waypoints (Python data, no file output yet)
+                                     \-> scripts/sketch_robot_path.py -> {"canvas_size", "tools"} (also written to output/sketch_robot_path.json)
 ```
 
 ### canny.py — 图像转 SVG 线稿
@@ -146,12 +151,12 @@ python scripts/canny.py
 
 **Note when swapping images / 换图片注意:** 输入图必须先转成灰度、干净背景效果最好；复杂背景/低对比度图片会在 Canny 那一步产生大量噪点小环，导致 `strokes` 数量暴涨。Works best with clean-background, high-contrast source images — busy backgrounds or low contrast will flood `strokes` with tiny noise loops from Canny.
 
-### robot_path.py — SVG 线稿转机器人路径点
+### sketch_robot_path.py — SVG 线稿转机器人路径点
 
 **Usage / 运行:**
 
 ```bash
-python scripts/robot_path.py
+python scripts/sketch_robot_path.py
 ```
 
 这个脚本会 `import canny`，也就是说每次运行都会重新跑一遍上面的整个图像处理流程（包括重新生成 `output/apple_edges.png/svg`），不是读取现成的 SVG 文件。
@@ -165,19 +170,24 @@ This script `import`s `canny`, so every run re-executes the entire image pipelin
    `map_to_canvas()`: scales pixel coordinates onto the physical canvas size, preserving aspect ratio (uses the smaller of the width/height scale factors), with a choice of Y-axis origin.
 3. `order_strokes()`（来自 `path_ordering.py`，两条技术路线共用）：贪心最近邻算法，从 `home_position` 出发，每次找离当前笔位置最近的下一条线（开放线条会按端点就近自动反向），减少抬笔空移的总距离。
    `order_strokes()` (from `path_ordering.py`, shared by both technical routes): greedy nearest-neighbor — starting from `home_position`, repeatedly picks whichever remaining stroke has an endpoint closest to the pen's current position (open strokes may be reversed), to cut down total pen-up travel.
-4. `build_robot_path()` 把以上两步串起来，是给其他代码调用的主入口。
-   `build_robot_path()` chains the two steps together and is the main entry point for other code to call.
+4. `build_sketch_robot_path()` 把以上两步串起来，是给其他代码调用的主入口。
+   `build_sketch_robot_path()` chains the two steps together and is the main entry point for other code to call.
 
 **Output / 输出:** 返回 Python 数据结构，直接运行时也会顺手写一份调试用的 JSON（还没接具体的机器人协议 / 硬件画布尺寸，这两个待硬件那边定了再接）：
 Returns a Python data structure; running the script directly also writes a debug JSON dump (not yet wired to a specific robot protocol / real canvas size, both still pending from hardware):
 
 ```python
-list[list[(x, y)]]
-# 外层：每条连续落笔轨迹（轨迹之间是抬笔移动）
-# outer list: one continuous pen-down waypoint sequence per stroke (pen lifts between them)
+{
+    "canvas_size": (width, height),
+    "tools": [
+        {"kind": "line", "color": "black", "strokes": list[list[(x, y)]]},
+    ],
+}
+# 只有一个 tool（单色笔），和 mondrian_robot_path.py 的输出用同一套外层结构
+# only one tool (single monochrome pen); same top-level shape as mondrian_robot_path.py's output
 ```
 
-直接运行 `python scripts/robot_path.py` 会打印统计信息，并写出 `output/robot_path_preview.json`：
+直接运行 `python scripts/sketch_robot_path.py` 会打印统计信息，并写出 `output/sketch_robot_path.json`：
 
 ```
 strokes: 428
@@ -185,19 +195,20 @@ total points: 1761
 baseline pen-up travel: 26312.4
 optimized pen-up travel: 1498.2
 reduction: 94.3%
-wrote .../output/robot_path_preview.json
+wrote .../output/sketch_robot_path.json
 ```
 
 **Calling it from other code / 在自己代码里调用:**
 
 ```python
-from robot_path import build_robot_path
+from sketch_robot_path import build_sketch_robot_path
 
-waypoints = build_robot_path(
+result = build_sketch_robot_path(
     canvas_size=(300.0, 300.0),   # (width, height)，单位和原点待硬件确认 / unit + origin TBD from hardware
     origin="top-left",            # or "bottom-left"
     home_position=(0.0, 0.0),     # 笔的起始位置 / pen's starting position, same units as canvas_size
 )
+waypoints = result["tools"][0]["strokes"]
 ```
 
 **Options / 可调参数:**
@@ -215,16 +226,16 @@ Concrete output protocol (G-code, custom JSON, etc.) and the real physical canva
 
 ## path_ordering.py
 
-Shared greedy nearest-neighbor stroke ordering, used by both `robot_path.py`
-(sketch route) and `mondrian_robot_path.py` (Mondrian route) so the
-algorithm only lives in one place.
+Shared greedy nearest-neighbor stroke ordering, used by both
+`sketch_robot_path.py` (sketch route) and `mondrian_robot_path.py`
+(Mondrian route) so the algorithm only lives in one place.
 
-被 `robot_path.py`（素描路线）和 `mondrian_robot_path.py`（Mondrian 路线）共用的贪心最近邻路径排序逻辑，避免两边各写一份。
+被 `sketch_robot_path.py`（素描路线）和 `mondrian_robot_path.py`（Mondrian 路线）共用的贪心最近邻路径排序逻辑，避免两边各写一份。
 
 Exposes `order_strokes(strokes_data, home_position)` and
 `total_travel_distance(strokes_points, home_position)` — see the "How it
-works" note under `robot_path.py` above for what the algorithm does. Not
-meant to be run directly; import from it instead.
+works" note under `sketch_robot_path.py` above for what the algorithm does.
+Not meant to be run directly; import from it instead.
 
 ---
 

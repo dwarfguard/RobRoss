@@ -12,7 +12,20 @@ DEFAULT_CANVAS_SIZE = (300.0, 300.0)  # placeholder (width, height), unit TBD
 DEFAULT_HOME_POSITION = (0.0, 0.0)
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'output')
-DEBUG_OUTPUT_PATH = os.path.join(OUTPUT_DIR, 'robot_path_preview.json')
+DEBUG_OUTPUT_PATH = os.path.join(OUTPUT_DIR, 'sketch_robot_path.json')
+
+
+def _canvas_strokes_data(canvas_size, origin):
+    """Simplified, canvas-scaled (points, closed) pairs for every stroke,
+    still in canny.strokes order (i.e. not yet distance-ordered)."""
+    img_h, img_w = canny.skeleton.shape
+    image_size = (img_w, img_h)
+    strokes_data = []
+    for points_yx, closed in canny.strokes:
+        simplified_xy = canny.simplify(points_yx, closed)
+        canvas_points = map_to_canvas(simplified_xy, image_size, canvas_size, origin)
+        strokes_data.append((canvas_points, closed))
+    return strokes_data
 
 
 def map_to_canvas(points_xy, image_size, canvas_size, origin="top-left"):
@@ -32,31 +45,20 @@ def map_to_canvas(points_xy, image_size, canvas_size, origin="top-left"):
     return mapped
 
 
-def build_robot_path(canvas_size=DEFAULT_CANVAS_SIZE, origin="top-left",
-                      home_position=DEFAULT_HOME_POSITION):
-    """Returns list[list[(x, y)]]: one continuous pen-down waypoint sequence
-    per stroke, ordered to minimize pen-up travel, scaled onto canvas_size."""
-    img_h, img_w = canny.skeleton.shape
-    image_size = (img_w, img_h)
-
-    strokes_data = []
-    for points_yx, closed in canny.strokes:
-        simplified_xy = canny.simplify(points_yx, closed)
-        canvas_points = map_to_canvas(simplified_xy, image_size, canvas_size, origin)
-        strokes_data.append((canvas_points, closed))
-
-    return order_strokes(strokes_data, home_position)
+def build_sketch_robot_path(canvas_size=DEFAULT_CANVAS_SIZE, origin="top-left",
+                             home_position=DEFAULT_HOME_POSITION):
+    """Returns {"canvas_size": (w, h), "tools": [{"kind": "line", "color": "black",
+    "strokes": list[list[(x, y)]]}]} - single monochrome pen tool, ordered to
+    minimize pen-up travel, scaled onto canvas_size. Same top-level shape as
+    mondrian_robot_path.build_mondrian_robot_path() so both routes' output is
+    easy to consume the same way, even though this route only has one tool."""
+    strokes_data = _canvas_strokes_data(canvas_size, origin)
+    ordered = order_strokes(strokes_data, home_position)
+    return {"canvas_size": canvas_size, "tools": [{"kind": "line", "color": "black", "strokes": ordered}]}
 
 
 if __name__ == "__main__":
-    img_h, img_w = canny.skeleton.shape
-    image_size = (img_w, img_h)
-
-    strokes_data = []
-    for points_yx, closed in canny.strokes:
-        simplified_xy = canny.simplify(points_yx, closed)
-        canvas_points = map_to_canvas(simplified_xy, image_size, DEFAULT_CANVAS_SIZE, "top-left")
-        strokes_data.append((canvas_points, closed))
+    strokes_data = _canvas_strokes_data(DEFAULT_CANVAS_SIZE, "top-left")
 
     baseline_distance = total_travel_distance(
         [points for points, _ in strokes_data], DEFAULT_HOME_POSITION
@@ -71,7 +73,8 @@ if __name__ == "__main__":
     print(f"optimized pen-up travel: {ordered_distance:.1f}")
     print(f"reduction: {(1 - ordered_distance / baseline_distance) * 100:.1f}%")
 
+    result = {"canvas_size": DEFAULT_CANVAS_SIZE, "tools": [{"kind": "line", "color": "black", "strokes": ordered}]}
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(DEBUG_OUTPUT_PATH, 'w') as f:
-        json.dump({"canvas_size": DEFAULT_CANVAS_SIZE, "strokes": ordered}, f)
+        json.dump(result, f)
     print(f"wrote {DEBUG_OUTPUT_PATH}")
