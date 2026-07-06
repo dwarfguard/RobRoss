@@ -116,4 +116,99 @@ paint mixing.
 - Batch mode: generate N variations at once into `output/`.
 - Real fill strategies (e.g. `horizontal_stripes`) instead of the
   current `solid_fill` placeholder, once the robot supports them.
-- Translate `painting_plan.json` into actual robot motion/G-code.
+
+---
+
+## generate_painting_paths.py
+
+Converts the abstract paint operations in `painting_plan.json` into
+concrete robot-style stroke path commands (horizontal stripe fills for
+rectangles, single strokes for lines). This script is read-only with
+respect to the Mondrian layout: it never generates a new random layout,
+it only reads the plan that `mondrian_generator.py` already produced.
+
+One run produces two outputs from the *same* command list:
+
+- `output/painting_paths.json` — ordered stroke commands for a robot to
+  follow.
+- `output/path_preview.svg` — visual preview of those stroke paths.
+
+### Usage
+
+```bash
+python3 scripts/generate_painting_paths.py
+```
+
+Requires `output/painting_plan.json` to already exist (run
+`mondrian_generator.py` first). Every run prints a confirmation for each
+file, e.g.:
+
+```
+Generated output/painting_paths.json
+Generated output/path_preview.svg
+```
+
+### How it works
+
+1. `load_painting_plan()` reads `output/painting_plan.json`, raising a
+   clear error pointing at `mondrian_generator.py` if it's missing.
+2. `build_commands()` walks the plan's `operations` list in the order
+   it's already in (so grid lines that are already last stay last), and
+   converts each one:
+   - `rectangle_to_commands()` insets the rectangle by `EDGE_INSET_MM`,
+     computes horizontal stripe row centers via
+     `compute_stripe_row_centers()` (spaced using `TOOL_WIDTH_MM` and
+     `STROKE_OVERLAP_RATIO`), and emits alternating left-to-right /
+     right-to-left (boustrophedon) `paint_stroke` commands per row.
+     Rectangles too small to paint after the inset are skipped.
+   - `line_to_commands()` emits one `select_tool -> dip_paint ->
+     move_to -> lower_tool -> paint_stroke -> lift_tool` sequence per
+     line.
+3. `build_painting_paths()` assembles the JSON: project/style/version,
+   `source_file`, canvas metadata (copied from the plan),
+   `path_settings`, the full `commands` list, and a `debug` summary
+   (command counts, estimated total paint travel distance in mm).
+4. `render_svg()` draws the same commands: paint strokes as
+   semi-transparent colored lines (so overlapping stripes show up as
+   visibly darker bands) and travel moves as dashed gray lines, so the
+   boustrophedon order is actually visible instead of looking like one
+   solid block.
+5. `main()` creates `output/` if needed, loads the plan, builds the
+   command list once, and writes both files from it.
+
+### Tuning knobs (top of file)
+
+| Constant | Effect |
+| --- | --- |
+| `TOOL_WIDTH_MM` | Width of a single paint stroke/stripe. |
+| `STROKE_OVERLAP_RATIO` | How much each stripe overlaps the previous one (0-1). |
+| `EDGE_INSET_MM` | How far inside a rectangle's edge strokes are kept. |
+| `STROKE_PREVIEW_OPACITY` | Preview-only: stroke transparency in `path_preview.svg`, so overlaps are visible. |
+| `TRAVEL_LINE_COLOR` / `TRAVEL_LINE_WIDTH_MM` | Preview-only: styling of the dashed tool-travel lines. |
+
+### Command primitives
+
+Each entry in `painting_paths.json["commands"]` is one of:
+
+| Command | Key fields | Meaning |
+| --- | --- | --- |
+| `select_tool` | `color` | Switch to the tool/brush for this color. |
+| `dip_paint` | `color` | Reload paint before the next stroke(s). |
+| `move_to` | `x_mm`, `y_mm` | Travel move with the tool lifted. |
+| `lower_tool` | — | Put the tool down on the canvas. |
+| `paint_stroke` | `color`, `from_mm`, `to_mm` | Drag the tool in a straight line while painting. |
+| `lift_tool` | — | Raise the tool off the canvas. |
+
+Every command also carries a `label` tying it back to the source
+operation (e.g. `blue_block_1_row3`), for debugging. This is still an
+intermediate representation, not real robot motor commands — no actual
+motor coordinates, timing, or hardware I/O yet.
+
+### Ideas for future features
+
+- CLI flags to point at a different input plan / output location.
+- Vertical or diagonal fill strategies, selectable per rectangle
+  (matching a future `fill_strategy` field in the plan).
+- Smarter travel ordering (e.g. nearest-neighbor) instead of following
+  plan order exactly, once travel time matters.
+- Translate `painting_paths.json` into actual robot motion/G-code.

@@ -1,0 +1,1698 @@
+{
+  "project": "R.O.B Ross",
+  "style": "mondrian",
+  "version": "0.1",
+  "source_file": "output/painting_plan.json",
+  "units": "mm",
+  "canvas": {
+    "width_mm": 304.8,
+    "height_mm": 304.8,
+    "width_in": 12,
+    "height_in": 12,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 10.0,
+    "stroke_overlap_ratio": 0.25,
+    "edge_inset_mm": 3.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "blue_block_1",
+      "color": "#1d4ed8"
+    },
+    {
+      "command": "dip_paint",
+      "label": "blue_block_1",
+      "color": "#1d4ed8"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row1",
+      "x_mm": 182.84,
+      "y_mm": 97.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row1"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row1",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        97.46
+      ],
+      "to_mm": [
+        301.8,
+        97.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row1"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row2",
+      "x_mm": 301.8,
+      "y_mm": 104.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row2"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row2",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        104.96
+      ],
+      "to_mm": [
+        182.84,
+        104.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row2"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row3",
+      "x_mm": 182.84,
+      "y_mm": 112.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row3"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row3",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        112.46
+      ],
+      "to_mm": [
+        301.8,
+        112.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row3"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row4",
+      "x_mm": 301.8,
+      "y_mm": 119.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row4"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row4",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        119.96
+      ],
+      "to_mm": [
+        182.84,
+        119.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row4"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row5",
+      "x_mm": 182.84,
+      "y_mm": 127.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row5"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row5",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        127.46
+      ],
+      "to_mm": [
+        301.8,
+        127.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row5"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row6",
+      "x_mm": 301.8,
+      "y_mm": 134.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row6"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row6",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        134.96
+      ],
+      "to_mm": [
+        182.84,
+        134.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row6"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row7",
+      "x_mm": 182.84,
+      "y_mm": 142.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row7"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row7",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        142.46
+      ],
+      "to_mm": [
+        301.8,
+        142.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row7"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row8",
+      "x_mm": 301.8,
+      "y_mm": 149.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row8"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row8",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        149.96
+      ],
+      "to_mm": [
+        182.84,
+        149.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row8"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row9",
+      "x_mm": 182.84,
+      "y_mm": 157.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row9"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row9",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        157.46
+      ],
+      "to_mm": [
+        301.8,
+        157.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row9"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row10",
+      "x_mm": 301.8,
+      "y_mm": 164.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row10"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row10",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        164.96
+      ],
+      "to_mm": [
+        182.84,
+        164.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row10"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row11",
+      "x_mm": 182.84,
+      "y_mm": 172.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row11"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row11",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        172.46
+      ],
+      "to_mm": [
+        301.8,
+        172.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row11"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row12",
+      "x_mm": 301.8,
+      "y_mm": 179.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row12"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row12",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        179.96
+      ],
+      "to_mm": [
+        182.84,
+        179.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row12"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row13",
+      "x_mm": 182.84,
+      "y_mm": 187.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row13"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row13",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        187.46
+      ],
+      "to_mm": [
+        301.8,
+        187.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row13"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row14",
+      "x_mm": 301.8,
+      "y_mm": 194.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row14"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row14",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        194.96
+      ],
+      "to_mm": [
+        182.84,
+        194.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row14"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row15",
+      "x_mm": 182.84,
+      "y_mm": 202.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row15"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row15",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        202.46
+      ],
+      "to_mm": [
+        301.8,
+        202.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row15"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row16",
+      "x_mm": 301.8,
+      "y_mm": 209.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row16"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row16",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        209.96
+      ],
+      "to_mm": [
+        182.84,
+        209.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row16"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row17",
+      "x_mm": 182.84,
+      "y_mm": 217.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row17"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row17",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        217.46
+      ],
+      "to_mm": [
+        301.8,
+        217.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row17"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row18",
+      "x_mm": 301.8,
+      "y_mm": 224.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row18"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row18",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        224.96
+      ],
+      "to_mm": [
+        182.84,
+        224.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row18"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row19",
+      "x_mm": 182.84,
+      "y_mm": 232.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row19"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row19",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        232.46
+      ],
+      "to_mm": [
+        301.8,
+        232.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row19"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row20",
+      "x_mm": 301.8,
+      "y_mm": 239.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row20"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row20",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        239.96
+      ],
+      "to_mm": [
+        182.84,
+        239.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row20"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row21",
+      "x_mm": 182.84,
+      "y_mm": 247.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row21"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row21",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        247.46
+      ],
+      "to_mm": [
+        301.8,
+        247.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row21"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row22",
+      "x_mm": 301.8,
+      "y_mm": 254.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row22"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row22",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        254.96
+      ],
+      "to_mm": [
+        182.84,
+        254.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row22"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row23",
+      "x_mm": 182.84,
+      "y_mm": 262.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row23"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row23",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        262.46
+      ],
+      "to_mm": [
+        301.8,
+        262.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row23"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row24",
+      "x_mm": 301.8,
+      "y_mm": 269.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row24"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row24",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        269.96
+      ],
+      "to_mm": [
+        182.84,
+        269.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row24"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row25",
+      "x_mm": 182.84,
+      "y_mm": 277.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row25"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row25",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        277.46
+      ],
+      "to_mm": [
+        301.8,
+        277.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row25"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row26",
+      "x_mm": 301.8,
+      "y_mm": 284.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row26"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row26",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        284.96
+      ],
+      "to_mm": [
+        182.84,
+        284.96
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row26"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row27",
+      "x_mm": 182.84,
+      "y_mm": 292.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row27"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row27",
+      "color": "#1d4ed8",
+      "from_mm": [
+        182.84,
+        292.46
+      ],
+      "to_mm": [
+        301.8,
+        292.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row27"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1_row28",
+      "x_mm": 301.8,
+      "y_mm": 296.8
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1_row28"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "blue_block_1_row28",
+      "color": "#1d4ed8",
+      "from_mm": [
+        301.8,
+        296.8
+      ],
+      "to_mm": [
+        182.84,
+        296.8
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1_row28"
+    },
+    {
+      "command": "select_tool",
+      "label": "yellow_block_1",
+      "color": "#f7c600"
+    },
+    {
+      "command": "dip_paint",
+      "label": "yellow_block_1",
+      "color": "#f7c600"
+    },
+    {
+      "command": "move_to",
+      "label": "yellow_block_1_row1",
+      "x_mm": 3.0,
+      "y_mm": 171.5
+    },
+    {
+      "command": "lower_tool",
+      "label": "yellow_block_1_row1"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "yellow_block_1_row1",
+      "color": "#f7c600",
+      "from_mm": [
+        3.0,
+        171.5
+      ],
+      "to_mm": [
+        176.84,
+        171.5
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "yellow_block_1_row1"
+    },
+    {
+      "command": "move_to",
+      "label": "yellow_block_1_row2",
+      "x_mm": 176.84,
+      "y_mm": 179.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "yellow_block_1_row2"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "yellow_block_1_row2",
+      "color": "#f7c600",
+      "from_mm": [
+        176.84,
+        179.0
+      ],
+      "to_mm": [
+        3.0,
+        179.0
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "yellow_block_1_row2"
+    },
+    {
+      "command": "move_to",
+      "label": "yellow_block_1_row3",
+      "x_mm": 3.0,
+      "y_mm": 186.5
+    },
+    {
+      "command": "lower_tool",
+      "label": "yellow_block_1_row3"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "yellow_block_1_row3",
+      "color": "#f7c600",
+      "from_mm": [
+        3.0,
+        186.5
+      ],
+      "to_mm": [
+        176.84,
+        186.5
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "yellow_block_1_row3"
+    },
+    {
+      "command": "move_to",
+      "label": "yellow_block_1_row4",
+      "x_mm": 176.84,
+      "y_mm": 194.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "yellow_block_1_row4"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "yellow_block_1_row4",
+      "color": "#f7c600",
+      "from_mm": [
+        176.84,
+        194.0
+      ],
+      "to_mm": [
+        3.0,
+        194.0
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "yellow_block_1_row4"
+    },
+    {
+      "command": "move_to",
+      "label": "yellow_block_1_row5",
+      "x_mm": 3.0,
+      "y_mm": 201.5
+    },
+    {
+      "command": "lower_tool",
+      "label": "yellow_block_1_row5"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "yellow_block_1_row5",
+      "color": "#f7c600",
+      "from_mm": [
+        3.0,
+        201.5
+      ],
+      "to_mm": [
+        176.84,
+        201.5
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "yellow_block_1_row5"
+    },
+    {
+      "command": "move_to",
+      "label": "yellow_block_1_row6",
+      "x_mm": 176.84,
+      "y_mm": 207.75
+    },
+    {
+      "command": "lower_tool",
+      "label": "yellow_block_1_row6"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "yellow_block_1_row6",
+      "color": "#f7c600",
+      "from_mm": [
+        176.84,
+        207.75
+      ],
+      "to_mm": [
+        3.0,
+        207.75
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "yellow_block_1_row6"
+    },
+    {
+      "command": "select_tool",
+      "label": "red_block_1",
+      "color": "#d62828"
+    },
+    {
+      "command": "dip_paint",
+      "label": "red_block_1",
+      "color": "#d62828"
+    },
+    {
+      "command": "move_to",
+      "label": "red_block_1_row1",
+      "x_mm": 106.5,
+      "y_mm": 223.75
+    },
+    {
+      "command": "lower_tool",
+      "label": "red_block_1_row1"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "red_block_1_row1",
+      "color": "#d62828",
+      "from_mm": [
+        106.5,
+        223.75
+      ],
+      "to_mm": [
+        176.84,
+        223.75
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "red_block_1_row1"
+    },
+    {
+      "command": "move_to",
+      "label": "red_block_1_row2",
+      "x_mm": 176.84,
+      "y_mm": 231.25
+    },
+    {
+      "command": "lower_tool",
+      "label": "red_block_1_row2"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "red_block_1_row2",
+      "color": "#d62828",
+      "from_mm": [
+        176.84,
+        231.25
+      ],
+      "to_mm": [
+        106.5,
+        231.25
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "red_block_1_row2"
+    },
+    {
+      "command": "move_to",
+      "label": "red_block_1_row3",
+      "x_mm": 106.5,
+      "y_mm": 238.75
+    },
+    {
+      "command": "lower_tool",
+      "label": "red_block_1_row3"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "red_block_1_row3",
+      "color": "#d62828",
+      "from_mm": [
+        106.5,
+        238.75
+      ],
+      "to_mm": [
+        176.84,
+        238.75
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "red_block_1_row3"
+    },
+    {
+      "command": "move_to",
+      "label": "red_block_1_row4",
+      "x_mm": 176.84,
+      "y_mm": 246.25
+    },
+    {
+      "command": "lower_tool",
+      "label": "red_block_1_row4"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "red_block_1_row4",
+      "color": "#d62828",
+      "from_mm": [
+        176.84,
+        246.25
+      ],
+      "to_mm": [
+        106.5,
+        246.25
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "red_block_1_row4"
+    },
+    {
+      "command": "move_to",
+      "label": "red_block_1_row5",
+      "x_mm": 106.5,
+      "y_mm": 251.68
+    },
+    {
+      "command": "lower_tool",
+      "label": "red_block_1_row5"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "red_block_1_row5",
+      "color": "#d62828",
+      "from_mm": [
+        106.5,
+        251.68
+      ],
+      "to_mm": [
+        176.84,
+        251.68
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "red_block_1_row5"
+    },
+    {
+      "command": "select_tool",
+      "label": "gray_block_1",
+      "color": "#e5e5e5"
+    },
+    {
+      "command": "dip_paint",
+      "label": "gray_block_1",
+      "color": "#e5e5e5"
+    },
+    {
+      "command": "move_to",
+      "label": "gray_block_1_row1",
+      "x_mm": 3.0,
+      "y_mm": 223.75
+    },
+    {
+      "command": "lower_tool",
+      "label": "gray_block_1_row1"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "gray_block_1_row1",
+      "color": "#e5e5e5",
+      "from_mm": [
+        3.0,
+        223.75
+      ],
+      "to_mm": [
+        100.5,
+        223.75
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "gray_block_1_row1"
+    },
+    {
+      "command": "move_to",
+      "label": "gray_block_1_row2",
+      "x_mm": 100.5,
+      "y_mm": 231.25
+    },
+    {
+      "command": "lower_tool",
+      "label": "gray_block_1_row2"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "gray_block_1_row2",
+      "color": "#e5e5e5",
+      "from_mm": [
+        100.5,
+        231.25
+      ],
+      "to_mm": [
+        3.0,
+        231.25
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "gray_block_1_row2"
+    },
+    {
+      "command": "move_to",
+      "label": "gray_block_1_row3",
+      "x_mm": 3.0,
+      "y_mm": 238.75
+    },
+    {
+      "command": "lower_tool",
+      "label": "gray_block_1_row3"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "gray_block_1_row3",
+      "color": "#e5e5e5",
+      "from_mm": [
+        3.0,
+        238.75
+      ],
+      "to_mm": [
+        100.5,
+        238.75
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "gray_block_1_row3"
+    },
+    {
+      "command": "move_to",
+      "label": "gray_block_1_row4",
+      "x_mm": 100.5,
+      "y_mm": 246.25
+    },
+    {
+      "command": "lower_tool",
+      "label": "gray_block_1_row4"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "gray_block_1_row4",
+      "color": "#e5e5e5",
+      "from_mm": [
+        100.5,
+        246.25
+      ],
+      "to_mm": [
+        3.0,
+        246.25
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "gray_block_1_row4"
+    },
+    {
+      "command": "move_to",
+      "label": "gray_block_1_row5",
+      "x_mm": 3.0,
+      "y_mm": 251.68
+    },
+    {
+      "command": "lower_tool",
+      "label": "gray_block_1_row5"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "gray_block_1_row5",
+      "color": "#e5e5e5",
+      "from_mm": [
+        3.0,
+        251.68
+      ],
+      "to_mm": [
+        100.5,
+        251.68
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "gray_block_1_row5"
+    },
+    {
+      "command": "select_tool",
+      "label": "grid_line_1",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_1",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_1",
+      "x_mm": 103.5,
+      "y_mm": 215.75
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_1"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "grid_line_1",
+      "color": "black",
+      "from_mm": [
+        103.5,
+        215.75
+      ],
+      "to_mm": [
+        103.5,
+        259.68
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_1"
+    },
+    {
+      "command": "select_tool",
+      "label": "grid_line_2",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_2",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_2",
+      "x_mm": 0,
+      "y_mm": 259.68
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_2"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "grid_line_2",
+      "color": "black",
+      "from_mm": [
+        0,
+        259.68
+      ],
+      "to_mm": [
+        179.84,
+        259.68
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_2"
+    },
+    {
+      "command": "select_tool",
+      "label": "grid_line_3",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_3",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_3",
+      "x_mm": 0,
+      "y_mm": 215.75
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_3"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "grid_line_3",
+      "color": "black",
+      "from_mm": [
+        0,
+        215.75
+      ],
+      "to_mm": [
+        179.84,
+        215.75
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_3"
+    },
+    {
+      "command": "select_tool",
+      "label": "grid_line_4",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_4",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_4",
+      "x_mm": 0,
+      "y_mm": 163.5
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_4"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "grid_line_4",
+      "color": "black",
+      "from_mm": [
+        0,
+        163.5
+      ],
+      "to_mm": [
+        179.84,
+        163.5
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_4"
+    },
+    {
+      "command": "select_tool",
+      "label": "grid_line_5",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_5",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_5",
+      "x_mm": 246.99,
+      "y_mm": 0
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_5"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "grid_line_5",
+      "color": "black",
+      "from_mm": [
+        246.99,
+        0
+      ],
+      "to_mm": [
+        246.99,
+        45.27
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_5"
+    },
+    {
+      "command": "select_tool",
+      "label": "grid_line_6",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_6",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_6",
+      "x_mm": 179.84,
+      "y_mm": 45.27
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_6"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "grid_line_6",
+      "color": "black",
+      "from_mm": [
+        179.84,
+        45.27
+      ],
+      "to_mm": [
+        304.8,
+        45.27
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_6"
+    },
+    {
+      "command": "select_tool",
+      "label": "grid_line_7",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_7",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_7",
+      "x_mm": 179.84,
+      "y_mm": 89.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_7"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "grid_line_7",
+      "color": "black",
+      "from_mm": [
+        179.84,
+        89.46
+      ],
+      "to_mm": [
+        304.8,
+        89.46
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_7"
+    },
+    {
+      "command": "select_tool",
+      "label": "grid_line_8",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_8",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_8",
+      "x_mm": 179.84,
+      "y_mm": 0
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_8"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "grid_line_8",
+      "color": "black",
+      "from_mm": [
+        179.84,
+        0
+      ],
+      "to_mm": [
+        179.84,
+        304.8
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_8"
+    },
+    {
+      "command": "select_tool",
+      "label": "border_top",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "border_top",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "border_top",
+      "x_mm": 0,
+      "y_mm": 0
+    },
+    {
+      "command": "lower_tool",
+      "label": "border_top"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "border_top",
+      "color": "black",
+      "from_mm": [
+        0,
+        0
+      ],
+      "to_mm": [
+        304.8,
+        0
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "border_top"
+    },
+    {
+      "command": "select_tool",
+      "label": "border_bottom",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "border_bottom",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "border_bottom",
+      "x_mm": 0,
+      "y_mm": 304.8
+    },
+    {
+      "command": "lower_tool",
+      "label": "border_bottom"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "border_bottom",
+      "color": "black",
+      "from_mm": [
+        0,
+        304.8
+      ],
+      "to_mm": [
+        304.8,
+        304.8
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "border_bottom"
+    },
+    {
+      "command": "select_tool",
+      "label": "border_left",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "border_left",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "border_left",
+      "x_mm": 0,
+      "y_mm": 0
+    },
+    {
+      "command": "lower_tool",
+      "label": "border_left"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "border_left",
+      "color": "black",
+      "from_mm": [
+        0,
+        0
+      ],
+      "to_mm": [
+        0,
+        304.8
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "border_left"
+    },
+    {
+      "command": "select_tool",
+      "label": "border_right",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "border_right",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "border_right",
+      "x_mm": 304.8,
+      "y_mm": 0
+    },
+    {
+      "command": "lower_tool",
+      "label": "border_right"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "border_right",
+      "color": "black",
+      "from_mm": [
+        304.8,
+        0
+      ],
+      "to_mm": [
+        304.8,
+        304.8
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "border_right"
+    }
+  ],
+  "debug": {
+    "num_commands": 256,
+    "num_paint_stroke_commands": 56,
+    "estimated_total_paint_distance_mm": 7615.76
+  }
+}
