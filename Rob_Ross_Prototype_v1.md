@@ -7,10 +7,10 @@ The first prototype should focus on reliability, simplicity, and visual clarity 
 Prototype MVP:
 - 12-inch canvas
 - Acrylic paint
-- Premixed colors
+- Premixed colors 8
 - No live color mixer
 - Preset artworks only
-- Mondrian Artstyle
+- Mondrian Artstyle / Sketch Outline Tracing
 - Dedicated brushes or sponge tools for each color
 - Target completion time: 30 minutes
 
