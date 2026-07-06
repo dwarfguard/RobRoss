@@ -1,0 +1,26 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="12in"
+  height="12in"
+  viewBox="0 0 304.8 304.8"
+>
+  <rect x="0" y="0" width="304.8" height="304.8" fill="white" />
+  <rect x="0" y="0" width="95" height="120" fill="#d62828" />
+  <rect x="101" y="0" width="203.8" height="55" fill="white" />
+  <rect x="101" y="61" width="85" height="59" fill="#f7c600" />
+  <rect x="192" y="61" width="112.8" height="120" fill="white" />
+  <rect x="0" y="126" width="95" height="178.8" fill="white" />
+  <rect x="101" y="126" width="85" height="90" fill="white" />
+  <rect x="101" y="222" width="203.8" height="82.8" fill="#1d4ed8" />
+  <rect x="192" y="187" width="112.8" height="29" fill="#e5e5e5" />
+  <line x1="98" y1="0" x2="98" y2="304.8" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+  <line x1="189" y1="61" x2="189" y2="304.8" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+  <line x1="0" y1="123" x2="189" y2="123" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+  <line x1="98" y1="58" x2="304.8" y2="58" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+  <line x1="189" y1="184" x2="304.8" y2="184" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+  <line x1="98" y1="219" x2="304.8" y2="219" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+  <line x1="0" y1="0" x2="304.8" y2="0" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+  <line x1="0" y1="304.8" x2="304.8" y2="304.8" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+  <line x1="0" y1="0" x2="0" y2="304.8" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+  <line x1="304.8" y1="0" x2="304.8" y2="304.8" stroke="black" stroke-width="6.0" stroke-linecap="square" />
+</svg>
