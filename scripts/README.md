@@ -45,13 +45,14 @@ python3 scripts/mondrian_generator.py
 python3 scripts/mondrian_generator.py --seed 2124073818
 ```
 
-Output is written to `output/mondrian_preview.svg` (directory is created
-if missing).
+Output is written to `assets/mondrian_preview.svg` (checked into git as a
+reference preview, unlike the git-ignored debug outputs from the other
+scripts - directory is created if missing).
 
 Every run prints the seed used, e.g.:
 
 ```
-Generated output/mondrian_preview.svg (seed=2124073818)
+Generated assets/mondrian_preview.svg (seed=2124073818)
 ```
 
 Copy that seed value into `--seed` to regenerate the exact same graphic
@@ -97,7 +98,7 @@ tunable too.
   tuning).
 - Export to PNG/PDF alongside SVG.
 - Alternate palettes (e.g. monochrome, pastel) selectable via flag.
-- Batch mode: generate N variations at once into `output/`.
+- Batch mode: generate N variations at once into `assets/`.
 
 ---
 

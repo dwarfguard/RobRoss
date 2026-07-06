@@ -8,8 +8,12 @@ from html import escape
 # 12 inches = 304.8 mm
 CANVAS_SIZE_MM = 304.8
 
-OUTPUT_DIR = Path("output")
-OUTPUT_FILE = OUTPUT_DIR / "mondrian_preview.svg"
+# Resolved relative to this file, not the current working directory, so it
+# always lands in the same place regardless of where the script is invoked
+# from (a bare Path("assets") previously created a stray scripts/output/ dir
+# when run with cwd=scripts/).
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
+OUTPUT_FILE = ASSETS_DIR / "mondrian_preview.svg"
 
 # Classic De Stijl palette.
 ACCENT_COLORS = ["#d62828", "#f7c600", "#1d4ed8"]  # red, yellow, blue
@@ -190,7 +194,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    ASSETS_DIR.mkdir(exist_ok=True)
 
     # Resolve the seed up front so we can report it, even when it was
     # picked randomly, so this exact graphic can be reproduced later.
