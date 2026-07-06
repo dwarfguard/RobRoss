@@ -63,6 +63,8 @@ This project currently involves three core technical roles: project coordination
 
 ### Project Coordinator and Software Contributor / 项目协调与软件参与
 
+Bryan
+
 The project coordinator is responsible for keeping the product direction, prototype scope, documentation, team communication, and development milestones aligned. This role also contributes to software development, especially in areas related to artwork preparation, path generation, prototype testing, and documentation.
 
 项目协调者负责统一产品方向、原型范围、文档、团队沟通和开发节点。同时，该角色也会参与软件开发，尤其是作品预处理、路径生成、原型测试和文档整理等部分。
@@ -87,11 +89,15 @@ Key responsibilities:
 
 ### Dedicated Software Developer / 专职软件开发
 
+Raymond
+
 The dedicated software developer is responsible for the main software architecture, robot control integration, code quality, and implementation of the software systems required for the prototype.
 
 专职软件开发者负责主要软件架构、机器人控制集成、代码质量，以及原型所需软件系统的实现。
 
 ### Dedicated Hardware Engineer / 专职硬件工程师
+
+Francois
 
 The dedicated hardware engineer is responsible for the robot arm setup, end effector design, brush or tool mounting, canvas stand, paint station, safety considerations, and physical reliability of the prototype.
 
