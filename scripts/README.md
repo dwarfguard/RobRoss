@@ -4,6 +4,23 @@ Utility scripts for this repo. Each script gets its own section below —
 when adding a new script, copy the section format used for
 `mondrian_generator.py`.
 
+**Two independent technical routes to the robot / 两条独立的技术路线:**
+this repo currently generates robot paths from two unrelated sources, and
+they are *not* variations of the same pipeline:
+
+- **Mondrian route** (`mondrian_generator.py` + `mondrian_robot_path.py`):
+  a procedurally generated vector design — exact rectangle/line geometry,
+  colors, and widths are all known up front. The robot both traces lines
+  *and* paints color fills.
+- **Sketch / outline-tracing route** (`canny.py` + `robot_path.py`): edges
+  guessed from an arbitrary bitmap image via Canny edge detection. The
+  robot only traces monochrome outlines, no fills.
+
+Mondrian 路线（`mondrian_generator.py` + `mondrian_robot_path.py`）是程序化生成的矢量设计，坐标/颜色/线宽全部精确已知，机器人既要描线也要涂色；素描/描边路线（`canny.py` + `robot_path.py`）是从任意位图图片猜测出的边缘，只描边不涂色。两条路线的路径生成逻辑相互独立，不要混着改。
+
+Both routes reuse the same greedy nearest-neighbor ordering logic from
+`path_ordering.py` (see below) rather than each reimplementing it.
+
 ---
 
 ## mondrian_generator.py
@@ -146,13 +163,13 @@ This script `import`s `canny`, so every run re-executes the entire image pipelin
    Reuses `canny.strokes` (raw pixel points) and `canny.simplify()` to get each stroke's simplified pixel coordinates.
 2. `map_to_canvas()`：把像素坐标等比缩放到物理画布尺寸，保持长宽比（取宽高缩放比中较小的一个），可选择坐标系原点朝上还是朝下。
    `map_to_canvas()`: scales pixel coordinates onto the physical canvas size, preserving aspect ratio (uses the smaller of the width/height scale factors), with a choice of Y-axis origin.
-3. `order_strokes()`：贪心最近邻算法，从 `home_position` 出发，每次找离当前笔位置最近的下一条线（开放线条会按端点就近自动反向），减少抬笔空移的总距离。
-   `order_strokes()`: greedy nearest-neighbor — starting from `home_position`, repeatedly picks whichever remaining stroke has an endpoint closest to the pen's current position (open strokes may be reversed), to cut down total pen-up travel.
+3. `order_strokes()`（来自 `path_ordering.py`，两条技术路线共用）：贪心最近邻算法，从 `home_position` 出发，每次找离当前笔位置最近的下一条线（开放线条会按端点就近自动反向），减少抬笔空移的总距离。
+   `order_strokes()` (from `path_ordering.py`, shared by both technical routes): greedy nearest-neighbor — starting from `home_position`, repeatedly picks whichever remaining stroke has an endpoint closest to the pen's current position (open strokes may be reversed), to cut down total pen-up travel.
 4. `build_robot_path()` 把以上两步串起来，是给其他代码调用的主入口。
    `build_robot_path()` chains the two steps together and is the main entry point for other code to call.
 
-**Output / 输出:** 不写文件，直接返回 Python 数据结构（还没接具体的机器人协议 / 硬件画布尺寸，这两个待硬件那边定了再接）：
-No file output — returns a Python data structure directly (not yet wired to a specific robot protocol / real canvas size, both still pending from hardware):
+**Output / 输出:** 返回 Python 数据结构，直接运行时也会顺手写一份调试用的 JSON（还没接具体的机器人协议 / 硬件画布尺寸，这两个待硬件那边定了再接）：
+Returns a Python data structure; running the script directly also writes a debug JSON dump (not yet wired to a specific robot protocol / real canvas size, both still pending from hardware):
 
 ```python
 list[list[(x, y)]]
@@ -160,7 +177,7 @@ list[list[(x, y)]]
 # outer list: one continuous pen-down waypoint sequence per stroke (pen lifts between them)
 ```
 
-直接运行 `python scripts/robot_path.py` 会打印统计信息，不返回文件：
+直接运行 `python scripts/robot_path.py` 会打印统计信息，并写出 `output/robot_path_preview.json`：
 
 ```
 strokes: 428
@@ -168,6 +185,7 @@ total points: 1761
 baseline pen-up travel: 26312.4
 optimized pen-up travel: 1498.2
 reduction: 94.3%
+wrote .../output/robot_path_preview.json
 ```
 
 **Calling it from other code / 在自己代码里调用:**
@@ -192,3 +210,85 @@ waypoints = build_robot_path(
 
 **Still open / 待办:** 具体输出协议（G-code、自定义 JSON 等）和画布真实物理尺寸/单位，等硬件那边定下来后再对接。
 Concrete output protocol (G-code, custom JSON, etc.) and the real physical canvas size/unit are still pending from the hardware side.
+
+---
+
+## path_ordering.py
+
+Shared greedy nearest-neighbor stroke ordering, used by both `robot_path.py`
+(sketch route) and `mondrian_robot_path.py` (Mondrian route) so the
+algorithm only lives in one place.
+
+被 `robot_path.py`（素描路线）和 `mondrian_robot_path.py`（Mondrian 路线）共用的贪心最近邻路径排序逻辑，避免两边各写一份。
+
+Exposes `order_strokes(strokes_data, home_position)` and
+`total_travel_distance(strokes_points, home_position)` — see the "How it
+works" note under `robot_path.py` above for what the algorithm does. Not
+meant to be run directly; import from it instead.
+
+---
+
+## mondrian_robot_path.py
+
+Converts a `mondrian_generator.py` design into robot paths: traces the
+black grid/border lines, and paints the color-filled cells. This is the
+**Mondrian technical route** — see the note at the top of this file for
+how it differs from the sketch/outline-tracing route.
+
+把 `mondrian_generator.py` 生成的设计转换成机器人路径：描黑色网格/边框线，并给色块涂色。这是 **Mondrian 技术路线**，跟素描/描边路线是两码事（见本文件开头的说明）。
+
+### Usage / 运行
+
+```bash
+python scripts/mondrian_robot_path.py
+```
+
+This `import`s `mondrian_generator` directly and calls
+`generate_mondrian_design()` — it does not parse the SVG file, and (unlike
+`mondrian_generator.py`'s CLI) does not currently take a `--seed` flag;
+edit the `seed=None` argument in the `__main__` block if you need a
+reproducible design.
+直接 `import mondrian_generator` 并调用 `generate_mondrian_design()`，不解析 SVG 文件；目前 `__main__` 里没有 `--seed` 命令行参数，需要复现某个设计的话直接改 `__main__` 里的 `seed=None`。
+
+**What it does / 做什么:**
+
+1. `trace_line()`：黑色网格/边框线走中心线一趟描完（笔宽和设计线宽基本一致，不用多趟扫）。
+   `trace_line()`: each grid/border line is drawn in a single centerline pass (brush width and the design's line width are close enough that one pass suffices).
+2. `fill_rect()`：给色块生成锯齿形（boustrophedon）扫描路径——四周先各内缩 `brush_width_mm / 2`，避免和已经画好的黑线重叠出界；行距等于笔宽；整块色一次落笔、一次抬笔画完。
+   `fill_rect()`: generates a boustrophedon scan path for a color cell — insets each edge by `brush_width_mm / 2` so the fill doesn't paint over the already-drawn grid lines, row spacing equals the brush width, and the whole cell is one continuous pen-down stroke.
+3. `build_mondrian_robot_path()`：调用 `mondrian_generator.generate_mondrian_design()` 拿到矩形/线条数据（复用现有数据，不重新解析 SVG），黑线单独一组，色块按颜色分组（对应"每种颜色专用画笔"的现实约束，见 `docs/Rob_Ross_Discuss.md`），组内用 `path_ordering.order_strokes()` 排序减少空移。
+   `build_mondrian_robot_path()`: calls `mondrian_generator.generate_mondrian_design()` to get rectangle/line data (reusing existing data, no SVG re-parsing), groups the black lines separately from each fill color (matching the "dedicated brush per color" constraint in `docs/Rob_Ross_Discuss.md`), and orders strokes within each group with `path_ordering.order_strokes()` to cut down travel.
+
+**Output / 输出:**
+
+```python
+{
+    "canvas_size_mm": float,
+    "tools": [
+        {"kind": "line", "color": "black", "strokes": list[list[(x, y)]]},
+        {"kind": "fill", "color": "#d62828", "strokes": list[list[(x, y)]]},
+        ...
+    ],
+}
+```
+
+一组是"黑线描边"，其余每组对应一种色块颜色（涂色时按组切换画笔/颜料，组内顺序已经排好）。直接运行会为每组打印统计信息，并写出调试用的 `output/mondrian_robot_path.json`：
+One group is the black line trace, and each remaining group is one fill color (switch brush/paint between groups when painting; strokes within a group are already ordered). Running the script directly prints per-group stats and writes a debug `output/mondrian_robot_path.json`:
+
+```
+[line] color=black strokes=12 points=24 travel=689.7mm
+[fill] color=#f7c600 strokes=1 points=26 travel=266.7mm
+[fill] color=#1d4ed8 strokes=1 points=26 travel=210.4mm
+wrote .../output/mondrian_robot_path.json
+```
+
+**Options / 可调参数:**
+
+| Parameter | Effect |
+| --- | --- |
+| `line_brush_width_mm` (default 6.0) | 描黑线用的笔宽，决定要不要多趟扫（当前固定一趟）。Brush width for the line trace — currently always a single pass regardless of this value. |
+| `fill_brush_width_mm` (default 6.0) | 涂色笔宽，决定扫描行距和四周内缩量。Fill brush width — drives scan row spacing and the inset margin from each cell edge. |
+| `home_position=(x, y)` | 笔的起始位置，影响每组排序算法第一条线怎么选。Pen's starting position — affects which stroke each group's ordering picks first. |
+
+**Still open / 待办:** 如果笔宽和某次设计随机出的 `stroke_width` 差异变大，黑线可能需要多趟平行扫线才能画满，目前按"一趟中心线"处理。具体机器人执行协议同样待硬件确认。
+If the brush width and a given design's randomized `stroke_width` diverge significantly, grid lines may need multiple parallel passes to fill cleanly — currently handled as a single centerline pass. The concrete robot execution protocol is likewise still pending from hardware.

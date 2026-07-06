@@ -38,6 +38,13 @@ class Line:
     stroke_width: float = 6.0
 
 
+@dataclass
+class MondrianDesign:
+    rectangles: list
+    lines: list
+    canvas_size_mm: float
+
+
 def svg_rect(rect: Rect) -> str:
     return (
         f'<rect x="{rect.x}" y="{rect.y}" '
@@ -100,9 +107,11 @@ def subdivide(x, y, w, h, depth, min_size, rng):
     return leaves, lines
 
 
-def generate_mondrian_svg(seed: int | None = None) -> str:
+def generate_mondrian_design(seed: int | None = None) -> MondrianDesign:
     """
-    Generate a randomized Mondrian-style SVG.
+    Generate the randomized Mondrian-style design as raw data (rectangles +
+    grid/border lines), with no SVG serialization. Other code (e.g. robot
+    path generation) should call this directly instead of re-parsing SVG.
 
     Coordinate system:
     - Units are millimeters.
@@ -143,12 +152,19 @@ def generate_mondrian_svg(seed: int | None = None) -> str:
         Line(CANVAS_SIZE_MM, 0, CANVAS_SIZE_MM, CANVAS_SIZE_MM, stroke_width=stroke_width),
     ])
 
+    return MondrianDesign(rectangles=rectangles, lines=lines, canvas_size_mm=CANVAS_SIZE_MM)
+
+
+def generate_mondrian_svg(seed: int | None = None) -> str:
+    """Generate a randomized Mondrian-style SVG string."""
+    design = generate_mondrian_design(seed)
+
     svg_elements = []
 
-    for rect in rectangles:
+    for rect in design.rectangles:
         svg_elements.append(svg_rect(rect))
 
-    for line in lines:
+    for line in design.lines:
         svg_elements.append(svg_line(line))
 
     svg_body = "\n  ".join(svg_elements)

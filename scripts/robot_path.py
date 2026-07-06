@@ -1,14 +1,18 @@
-import math
+import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 import canny  # noqa: E402  (reruns edge detection/skeletonization, gives us `strokes` + `simplify`)
+from path_ordering import order_strokes, total_travel_distance  # noqa: E402
 
 # Canvas physical size/origin are still TBD from the hardware side - keep them
 # as parameters so nothing here is hard-coded to a guessed number.
 DEFAULT_CANVAS_SIZE = (300.0, 300.0)  # placeholder (width, height), unit TBD
 DEFAULT_HOME_POSITION = (0.0, 0.0)
+
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'output')
+DEBUG_OUTPUT_PATH = os.path.join(OUTPUT_DIR, 'robot_path_preview.json')
 
 
 def map_to_canvas(points_xy, image_size, canvas_size, origin="top-left"):
@@ -26,46 +30,6 @@ def map_to_canvas(points_xy, image_size, canvas_size, origin="top-left"):
             cy = canvas_h - cy
         mapped.append((cx, cy))
     return mapped
-
-
-def order_strokes(strokes_data, home_position=DEFAULT_HOME_POSITION):
-    """Greedy nearest-neighbor ordering to cut down pen-up travel. Open
-    strokes may be walked in reverse if that end is closer to the pen's
-    current position; closed strokes (loops) keep their existing start
-    point since either direction covers the same ground."""
-    remaining = list(range(len(strokes_data)))
-    ordered = []
-    current = home_position
-    while remaining:
-        best_idx = best_reverse = None
-        best_dist = math.inf
-        for idx in remaining:
-            points, closed = strokes_data[idx]
-            d_start = math.dist(current, points[0])
-            if d_start < best_dist:
-                best_dist, best_idx, best_reverse = d_start, idx, False
-            if not closed:
-                d_end = math.dist(current, points[-1])
-                if d_end < best_dist:
-                    best_dist, best_idx, best_reverse = d_end, idx, True
-        points, _ = strokes_data[best_idx]
-        if best_reverse:
-            points = list(reversed(points))
-        ordered.append(points)
-        current = points[-1]
-        remaining.remove(best_idx)
-    return ordered
-
-
-def total_travel_distance(strokes_points, home_position=DEFAULT_HOME_POSITION):
-    """Sum of pen-up jumps between the end of one stroke and the start of
-    the next, in stroke-list order."""
-    total = 0.0
-    current = home_position
-    for points in strokes_points:
-        total += math.dist(current, points[0])
-        current = points[-1]
-    return total
 
 
 def build_robot_path(canvas_size=DEFAULT_CANVAS_SIZE, origin="top-left",
@@ -106,3 +70,8 @@ if __name__ == "__main__":
     print(f"baseline pen-up travel: {baseline_distance:.1f}")
     print(f"optimized pen-up travel: {ordered_distance:.1f}")
     print(f"reduction: {(1 - ordered_distance / baseline_distance) * 100:.1f}%")
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(DEBUG_OUTPUT_PATH, 'w') as f:
+        json.dump({"canvas_size": DEFAULT_CANVAS_SIZE, "strokes": ordered}, f)
+    print(f"wrote {DEBUG_OUTPUT_PATH}")
