@@ -5,14 +5,20 @@
   viewBox="0 0 304.8 304.8"
 >
   <rect x="0" y="0" width="304.8" height="304.8" fill="white" />
-  <rect x="204.22287103913277" y="122.94922202635082" width="100.57712896086724" height="181.8507779736492" fill="#1d4ed8" />
-  <rect x="0" y="0" width="88.09982498631084" height="304.8" fill="#f7c600" />
-  <line x1="204.22287103913277" y1="68.26289812545826" x2="304.8" y2="68.26289812545826" stroke="black" stroke-width="6.349877733056189" stroke-linecap="square" />
-  <line x1="204.22287103913277" y1="122.94922202635082" x2="304.8" y2="122.94922202635082" stroke="black" stroke-width="6.349877733056189" stroke-linecap="square" />
-  <line x1="204.22287103913277" y1="0" x2="204.22287103913277" y2="304.8" stroke="black" stroke-width="6.349877733056189" stroke-linecap="square" />
-  <line x1="88.09982498631084" y1="0" x2="88.09982498631084" y2="304.8" stroke="black" stroke-width="6.349877733056189" stroke-linecap="square" />
-  <line x1="0" y1="0" x2="304.8" y2="0" stroke="black" stroke-width="6.349877733056189" stroke-linecap="square" />
-  <line x1="0" y1="304.8" x2="304.8" y2="304.8" stroke="black" stroke-width="6.349877733056189" stroke-linecap="square" />
-  <line x1="0" y1="0" x2="0" y2="304.8" stroke="black" stroke-width="6.349877733056189" stroke-linecap="square" />
-  <line x1="304.8" y1="0" x2="304.8" y2="304.8" stroke="black" stroke-width="6.349877733056189" stroke-linecap="square" />
+  <rect x="179.8421406371233" y="89.46201128870254" width="124.95785936287672" height="215.33798871129747" fill="#1d4ed8" />
+  <rect x="0" y="163.50302201330504" width="179.8421406371233" height="52.24826487561472" fill="#f7c600" />
+  <rect x="103.49727570089605" y="215.75128688891976" width="76.34486493622724" height="43.9332280668155" fill="#d62828" />
+  <rect x="0" y="215.75128688891976" width="103.49727570089605" height="43.9332280668155" fill="#e5e5e5" />
+  <line x1="103.49727570089605" y1="215.75128688891976" x2="103.49727570089605" y2="259.68451495573527" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="0" y1="259.68451495573527" x2="179.8421406371233" y2="259.68451495573527" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="0" y1="215.75128688891976" x2="179.8421406371233" y2="215.75128688891976" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="0" y1="163.50302201330504" x2="179.8421406371233" y2="163.50302201330504" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="246.989786369513" y1="0" x2="246.989786369513" y2="45.26986494512068" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="179.8421406371233" y1="45.26986494512068" x2="304.8" y2="45.26986494512068" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="179.8421406371233" y1="89.46201128870254" x2="304.8" y2="89.46201128870254" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="179.8421406371233" y1="0" x2="179.8421406371233" y2="304.8" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="0" y1="0" x2="304.8" y2="0" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="0" y1="304.8" x2="304.8" y2="304.8" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="0" y1="0" x2="0" y2="304.8" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
+  <line x1="304.8" y1="0" x2="304.8" y2="304.8" stroke="black" stroke-width="5.510591653242578" stroke-linecap="square" />
 </svg>
