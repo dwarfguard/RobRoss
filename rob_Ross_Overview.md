@@ -39,11 +39,15 @@ Commercial malls, cafés, and similar public consumer spaces. The installation c
 * Container for different types or colors of paint; can also secure brushes when not in use.  
 * 存放不同颜色或种类的颜料，也可在画笔不用时进行固定或收纳。
 
-**Robot Computer / 机器人电脑**
+**Robot Control System**
 
 * Computes pathing, movement, color selection, and brush selection to direct the robot claw in completing the selected painting.  
 * Continuously checks the canvas for mistakes, paint saturation, and adjusts accordingly.  
 * 负责计算绘画路径、机械臂动作、颜色选择和画笔选择；同时检测画面错误和颜料饱和度，并进行调整。
+* Artwork Preparation System
+* Robot Execution System
+* User Interface
+* Maintenance Interface
 
 **Color Mixer / 调色器**
 
@@ -85,3 +89,103 @@ Since the goal is customer attention and retention, faster is not always better.
 Because it may be difficult to fine-tune brush angles during each stroke, the team should compare regular rectangular brushes, circular brushes, and possibly sponge-like tools. A sponge may work similarly to a highlighter, creating broader strokes with simpler motion control.
 
 由于机械臂在每一笔中实时微调角度可能比较困难，需要比较矩形画笔、圆形画笔，甚至海绵类工具。海绵可能像荧光笔一样产生较宽的笔触，并降低控制难度。
+
+## First Prototype Direction / 第一版原型方向
+
+The first prototype should focus on reliability, simplicity, and visual clarity rather than full artistic flexibility.
+
+第一版原型应优先考虑稳定性、简单性和视觉清晰度，而不是一开始就追求完整的艺术自由度。
+
+Prototype MVP:
+- 12-inch canvas
+- Acrylic paint
+- Premixed colors
+- No live color mixer
+- Preset artworks only
+- Mondrian Artstyle
+- Dedicated brushes or sponge tools for each color
+- Target completion time: 30 minutes
+
+**Robot Control System / 机器人控制系统**
+
+For the first prototype, the system should use preprocessed painting instructions rather than real-time AI decision-making. The computer converts prepared artwork into robot movement paths, controls tool pickup, manages paint dipping, and executes the painting sequence.
+
+第一版原型应使用预处理好的绘画指令，而不是依赖实时 AI 判断。电脑负责将预设作品转换为机械臂路径，控制工具拿取、蘸取颜料和绘画顺序。
+
+## Not Recommended for First Prototype / 第一版暂不建议
+
+The following features may be valuable later, but should not be required for the first working prototype:
+
+以下功能未来可能有价值，但不应作为第一版原型的必要目标：
+
+- Live color mixing
+- Fully custom user-uploaded images
+- Real-time computer vision correction
+- AI-trained brush path generation
+- Complex brush angle control
+
+## Art Style Direction / 艺术风格方向
+
+Two candidate styles are currently being considered for the first prototype: Blobs and Mondrian-inspired geometric abstraction.
+
+目前第一版原型主要考虑两种艺术风格：Blobs（色块风格）和受 Mondrian 启发的几何抽象风格。
+
+### Option A: Blobs / 色块风格
+
+Blobs uses image simplification to group similar colors into larger painted regions. White space is intentionally left between regions to prevent unwanted paint mixing.
+
+Blobs 风格会将相近颜色归纳成较大的色块区域，并在色块之间保留白色间隙，避免颜料混合。
+
+Advantages:
+- More suitable for portraits, animals, landscapes, and souvenir-style images.
+- More visually personal and emotionally engaging.
+- Better long-term direction for customer-facing artwork.
+
+优点：
+- 更适合肖像、动物、风景和纪念品类图像。
+- 更有个性和情感价值。
+- 更适合作为长期产品方向。
+
+Challenges:
+- Requires more complex image processing.
+- Curved and irregular regions are harder for the robot to fill cleanly.
+- More difficult to debug during early hardware testing.
+
+挑战：
+- 图像处理更复杂。
+- 弯曲和不规则区域更难让机械臂稳定填色。
+- 初期硬件测试时更难排查问题。
+
+### Option B: Mondrian-Inspired / Mondrian 几何风格
+
+Mondrian-inspired artwork uses straight black lines, rectangular spaces, white background, and limited primary colors.
+
+Mondrian 风格使用直线网格、矩形区域、白色背景和有限的基础颜色。
+
+Advantages:
+- Easiest style for a first robot painting prototype.
+- Straight lines and rectangles are simple to program and test.
+- Requires fewer colors.
+- Easier to debug robot accuracy, brush pressure, and paint coverage.
+
+优点：
+- 最适合第一版机器人绘画原型。
+- 直线和矩形更容易编程和测试。
+- 需要的颜色较少。
+- 更容易测试机械臂精度、笔压和颜料覆盖效果。
+
+Challenges:
+- Less personalized than Blobs.
+- May feel more like a technical demo than a souvenir product.
+- Long-term artwork variety may be limited.
+
+挑战：
+- 个性化程度低于 Blobs。
+- 可能更像技术演示，而不是完整纪念品产品。
+- 长期作品变化空间较有限。
+
+### Recommendation / 建议
+
+The first prototype should use a Mondrian-inspired style to prove the robot painting system. Once the robot can reliably draw lines, fill rectangles, change colors, and complete a painting without human intervention, the team should move toward the Blobs style for more personalized and marketable artwork.
+
+建议第一版原型优先使用 Mondrian 几何风格，用来验证机器人绘画系统的稳定性。当机械臂能够稳定画线、填充矩形、切换颜色并独立完成作品后，再转向 Blobs 色块风格，以实现更个性化、更适合市场展示的作品。
