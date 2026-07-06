@@ -14,7 +14,9 @@ contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 height, width = edges.shape
 svg_paths = []
 for contour in contours:
-    points = contour.reshape(-1, 2)
+    epsilon = 0.002 * cv2.arcLength(contour, closed=False)
+    approx = cv2.approxPolyDP(contour, epsilon, closed=False)
+    points = approx.reshape(-1, 2)
     if len(points) < 2:
         continue
     d = f"M {points[0][0]} {points[0][1]} " + " ".join(f"L {x} {y}" for x, y in points[1:])
