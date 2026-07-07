@@ -5,29 +5,23 @@ from pathlib import Path
 from dataclasses import dataclass
 from html import escape
 
+from config_loader import load_config
 
-# 12 inches = 304.8 mm
-CANVAS_SIZE_MM = 304.8
-CANVAS_SIZE_IN = 12
+DEFAULT_CONFIG_FILE = "configs/demo_v1_a4_pen.json"
 
-OUTPUT_DIR = Path("output")
-SVG_OUTPUT_FILE = OUTPUT_DIR / "mondrian_preview.svg"
-JSON_OUTPUT_FILE = OUTPUT_DIR / "painting_plan.json"
+# Fallback color name, used when an accent color isn't in COLOR_NAMES below
+# (e.g. a custom palette supplied by a config).
+DEFAULT_COLOR_NAME = "block"
 
-# Classic De Stijl palette.
-ACCENT_COLORS = ["#d62828", "#f7c600", "#1d4ed8"]  # red, yellow, blue
-NEUTRAL_ACCENT = "#e5e5e5"  # occasional gray block, seen in some Mondrian works
-
-# Human-readable names for each color, used to build labels like "red_block_1".
+# Human-readable names for the classic De Stijl palette, used to build
+# labels like "red_block_1". Colors outside this map still work, they just
+# get a generic "block_N" label instead of "red_block_N".
 COLOR_NAMES = {
     "#d62828": "red",
     "#f7c600": "yellow",
     "#1d4ed8": "blue",
-    NEUTRAL_ACCENT: "gray",
+    "#e5e5e5": "gray",
 }
-
-MIN_CELL_FRACTION = 0.14  # smallest cell edge, as a fraction of canvas size
-MAX_SPLIT_DEPTH = 5
 
 
 @dataclass
@@ -69,20 +63,23 @@ def svg_line(line: Line) -> str:
     )
 
 
-def subdivide(x, y, w, h, depth, min_size, rng):
+def subdivide(x, y, w, h, depth, min_w, min_h, max_depth, rng):
     """
     Recursively split a rectangle into smaller cells, Mondrian-style.
+
+    min_w/min_h are the smallest allowed cell width/height on each axis, so
+    a non-square canvas doesn't produce slivers along its shorter side.
 
     Returns a tuple (leaf_cells, split_lines):
     - leaf_cells is a list of (x, y, w, h) tuples for undivided regions.
     - split_lines is a list of Line objects marking every cut made.
     """
-    can_split_v = w >= min_size * 2
-    can_split_h = h >= min_size * 2
+    can_split_v = w >= min_w * 2
+    can_split_h = h >= min_h * 2
 
     # Stop probability grows with depth so cells get progressively coarser.
     stop_chance = 0.12 + 0.15 * depth
-    if depth >= MAX_SPLIT_DEPTH or not (can_split_v or can_split_h) or rng.random() < stop_chance:
+    if depth >= max_depth or not (can_split_v or can_split_h) or rng.random() < stop_chance:
         return [(x, y, w, h)], []
 
     if can_split_v and can_split_h:
@@ -94,29 +91,30 @@ def subdivide(x, y, w, h, depth, min_size, rng):
     lines = []
 
     if vertical:
-        min_frac = min_size / w
+        min_frac = min_w / w
         frac = rng.uniform(min_frac, 1 - min_frac)
         split_x = x + w * frac
-        left_leaves, left_lines = subdivide(x, y, split_x - x, h, depth + 1, min_size, rng)
-        right_leaves, right_lines = subdivide(split_x, y, x + w - split_x, h, depth + 1, min_size, rng)
+        left_leaves, left_lines = subdivide(x, y, split_x - x, h, depth + 1, min_w, min_h, max_depth, rng)
+        right_leaves, right_lines = subdivide(split_x, y, x + w - split_x, h, depth + 1, min_w, min_h, max_depth, rng)
         leaves = left_leaves + right_leaves
         lines = left_lines + right_lines + [Line(split_x, y, split_x, y + h)]
     else:
-        min_frac = min_size / h
+        min_frac = min_h / h
         frac = rng.uniform(min_frac, 1 - min_frac)
         split_y = y + h * frac
-        top_leaves, top_lines = subdivide(x, y, w, split_y - y, depth + 1, min_size, rng)
-        bottom_leaves, bottom_lines = subdivide(x, split_y, w, y + h - split_y, depth + 1, min_size, rng)
+        top_leaves, top_lines = subdivide(x, y, w, split_y - y, depth + 1, min_w, min_h, max_depth, rng)
+        bottom_leaves, bottom_lines = subdivide(x, split_y, w, y + h - split_y, depth + 1, min_w, min_h, max_depth, rng)
         leaves = top_leaves + bottom_leaves
         lines = top_lines + bottom_lines + [Line(x, split_y, x + w, split_y)]
 
     return leaves, lines
 
 
-def generate_mondrian_layout(seed: int | None = None) -> tuple[list[Rect], list[Line]]:
+def generate_mondrian_layout(config: dict, seed: int | None = None) -> tuple[list[Rect], list[Line]]:
     """
     Generate a randomized Mondrian-style layout: the colored rectangles and
-    the black grid lines that go with them.
+    the black grid lines that go with them, sized and styled according to
+    `config` (canvas size, palette, stroke widths, etc.).
 
     This is the single source of truth for "what the robot should paint".
     Both the SVG preview and the JSON painting plan are built from the
@@ -131,50 +129,80 @@ def generate_mondrian_layout(seed: int | None = None) -> tuple[list[Rect], list[
     """
     rng = random.Random(seed)
 
-    min_size = CANVAS_SIZE_MM * MIN_CELL_FRACTION
-    leaves, lines = subdivide(0, 0, CANVAS_SIZE_MM, CANVAS_SIZE_MM, 0, min_size, rng)
+    canvas = config["canvas"]
+    width_mm = canvas["width_mm"]
+    height_mm = canvas["height_mm"]
 
-    # Background and color regions. The white background is only needed for
-    # the SVG preview (real canvases already start white), so it is not
-    # labeled and is filtered out of the painting plan later.
-    rectangles = [Rect(0, 0, CANVAS_SIZE_MM, CANVAS_SIZE_MM, "white")]
+    artwork = config["artwork"]
+    min_cell_fraction = artwork.get("min_cell_fraction", 0.14)
+    max_split_depth = artwork.get("max_split_depth", 5)
+    background_color = artwork.get("background_color", "white")
+    line_color = artwork.get("line_color", "black")
+    palette_mode = artwork.get("palette_mode", "color")
+    stroke_width_min = artwork.get("stroke_width_min_mm", 5.0)
+    stroke_width_max = artwork.get("stroke_width_max_mm", 8.0)
 
-    # Pick a handful of leaf cells to fill with accent colors; the rest
-    # stay white (the background already covers them).
-    accent_count = min(len(leaves), rng.randint(2, 4))
-    accent_cells = rng.sample(leaves, k=accent_count)
-    palette = ACCENT_COLORS.copy()
-    rng.shuffle(palette)
-    if rng.random() < 0.25:
-        palette.append(NEUTRAL_ACCENT)
+    min_w = width_mm * min_cell_fraction
+    min_h = height_mm * min_cell_fraction
+    leaves, lines = subdivide(0, 0, width_mm, height_mm, 0, min_w, min_h, max_split_depth, rng)
+
+    # Background and color regions. The background rect is only needed for
+    # the SVG preview (real canvases already start in background_color), so
+    # it is not labeled and is filtered out of the painting plan later.
+    rectangles = [Rect(0, 0, width_mm, height_mm, background_color)]
+
+    # Monochrome profiles (e.g. the pen-only Demo v1 target) skip colored
+    # fills entirely: no accent cells are picked, so only grid lines and
+    # the border remain, matching a pen/line-only artwork.
+    if palette_mode == "monochrome":
+        accent_cells = []
+        palette = []
+    else:
+        accent_colors = artwork.get("accent_colors", [])
+        neutral_accent_color = artwork.get("neutral_accent_color")
+        neutral_accent_probability = artwork.get("neutral_accent_probability", 0.0)
+
+        accent_count = min(len(leaves), rng.randint(2, 4)) if accent_colors else 0
+        accent_cells = rng.sample(leaves, k=accent_count) if accent_count else []
+        palette = accent_colors.copy()
+        rng.shuffle(palette)
+        if neutral_accent_color and rng.random() < neutral_accent_probability:
+            palette.append(neutral_accent_color)
 
     color_counts: dict[str, int] = {}
     for i, (cx, cy, cw, ch) in enumerate(accent_cells):
         color = palette[i % len(palette)]
         color_counts[color] = color_counts.get(color, 0) + 1
-        color_name = COLOR_NAMES.get(color, "block")
+        color_name = COLOR_NAMES.get(color, DEFAULT_COLOR_NAME)
         label = f"{color_name}_block_{color_counts[color]}"
         rectangles.append(Rect(cx, cy, cw, ch, color, label=label))
 
-    stroke_width = rng.uniform(5.0, 8.0)
+    stroke_width = rng.uniform(stroke_width_min, stroke_width_max)
     for i, line in enumerate(lines, start=1):
+        line.stroke = line_color
         line.stroke_width = stroke_width
         line.label = f"grid_line_{i}"
 
     # Outer border, added and labeled last so it paints after the interior
-    # grid lines.
+    # grid lines. Width and height are handled separately (not a single
+    # CANVAS_SIZE) so this works for non-square canvases like A4 portrait.
     lines.extend([
-        Line(0, 0, CANVAS_SIZE_MM, 0, stroke_width=stroke_width, label="border_top"),
-        Line(0, CANVAS_SIZE_MM, CANVAS_SIZE_MM, CANVAS_SIZE_MM, stroke_width=stroke_width, label="border_bottom"),
-        Line(0, 0, 0, CANVAS_SIZE_MM, stroke_width=stroke_width, label="border_left"),
-        Line(CANVAS_SIZE_MM, 0, CANVAS_SIZE_MM, CANVAS_SIZE_MM, stroke_width=stroke_width, label="border_right"),
+        Line(0, 0, width_mm, 0, stroke=line_color, stroke_width=stroke_width, label="border_top"),
+        Line(0, height_mm, width_mm, height_mm, stroke=line_color, stroke_width=stroke_width, label="border_bottom"),
+        Line(0, 0, 0, height_mm, stroke=line_color, stroke_width=stroke_width, label="border_left"),
+        Line(width_mm, 0, width_mm, height_mm, stroke=line_color, stroke_width=stroke_width, label="border_right"),
     ])
 
     return rectangles, lines
 
 
-def render_svg(rectangles: list[Rect], lines: list[Line]) -> str:
-    """Render the given rectangles and lines as an SVG document."""
+def render_svg(rectangles: list[Rect], lines: list[Line], canvas: dict) -> str:
+    """Render the given rectangles and lines as an SVG document sized to canvas."""
+    width_mm = canvas["width_mm"]
+    height_mm = canvas["height_mm"]
+    width_in = width_mm / 25.4
+    height_in = height_mm / 25.4
+
     svg_elements = []
 
     for rect in rectangles:
@@ -187,16 +215,16 @@ def render_svg(rectangles: list[Rect], lines: list[Line]) -> str:
 
     return f'''<svg
   xmlns="http://www.w3.org/2000/svg"
-  width="12in"
-  height="12in"
-  viewBox="0 0 {CANVAS_SIZE_MM} {CANVAS_SIZE_MM}"
+  width="{width_in}in"
+  height="{height_in}in"
+  viewBox="0 0 {width_mm} {height_mm}"
 >
   {svg_body}
 </svg>
 '''
 
 
-def build_painting_plan(rectangles: list[Rect], lines: list[Line], seed: int | None) -> dict:
+def build_painting_plan(rectangles: list[Rect], lines: list[Line], config: dict, config_path: Path, seed: int | None) -> dict:
     """
     Build a robot-friendly painting plan from the same rectangles and lines
     used to render the SVG.
@@ -204,11 +232,13 @@ def build_painting_plan(rectangles: list[Rect], lines: list[Line], seed: int | N
     Colored rectangles come first (painted first), and black grid lines
     come last, since they visually clean up imperfect rectangle edges.
     """
+    canvas = config["canvas"]
+    background_color = config["artwork"].get("background_color", "white")
     operations = []
 
-    # Only non-white rectangles are real paint operations: the canvas
-    # already starts white, so there is nothing to paint there.
-    colored_rects = [rect for rect in rectangles if rect.fill.lower() != "white"]
+    # Only non-background rectangles are real paint operations: the canvas
+    # already starts in background_color, so there is nothing to paint there.
+    colored_rects = [rect for rect in rectangles if rect.fill.lower() != background_color.lower()]
     for rect in colored_rects:
         operations.append({
             "operation": "paint_rectangle",
@@ -234,23 +264,27 @@ def build_painting_plan(rectangles: list[Rect], lines: list[Line], seed: int | N
     colors_used = sorted({rect.fill for rect in colored_rects})
 
     return {
-        "project": "R.O.B Ross",
-        "style": "mondrian",
+        "project": config.get("project", "R.O.B Ross"),
+        "style": config.get("style", "mondrian"),
         "version": "0.1",
+        "config": {
+            "profile_name": config.get("profile_name"),
+            "source_file": str(config_path),
+        },
         "canvas": {
-            "width_mm": CANVAS_SIZE_MM,
-            "height_mm": CANVAS_SIZE_MM,
-            "width_in": CANVAS_SIZE_IN,
-            "height_in": CANVAS_SIZE_IN,
-            "origin": "top-left",
+            "width_mm": canvas["width_mm"],
+            "height_mm": canvas["height_mm"],
+            "width_in": round(canvas["width_mm"] / 25.4, 4),
+            "height_in": round(canvas["height_mm"] / 25.4, 4),
+            "origin": canvas["origin"],
         },
         "units": "mm",
         "coordinate_system": {
-            "x_direction": "right",
-            "y_direction": "down",
+            "x_direction": canvas.get("x_direction", "right"),
+            "y_direction": canvas.get("y_direction", "down"),
         },
         "assumptions": [
-            "Canvas starts white.",
+            f"Canvas starts {background_color}.",
             "Colored rectangles are painted before black grid lines.",
             "Black grid lines are painted last to clean up rectangle edges.",
             "This is an intermediate painting plan, not final robot motor code.",
@@ -271,6 +305,11 @@ def main() -> None:
         description="Generate a randomized Mondrian-style SVG and a matching painting plan JSON."
     )
     parser.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG_FILE,
+        help=f"Path to a pipeline config JSON file (default: {DEFAULT_CONFIG_FILE}).",
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=None,
@@ -278,7 +317,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    config_path = Path(args.config)
+    config = load_config(config_path)
+
+    output = config["output"]
+    output_dir = Path(output["directory"])
+    svg_output_file = output_dir / output["preview_svg_file"]
+    json_output_file = output_dir / output["painting_plan_file"]
+
+    output_dir.mkdir(exist_ok=True)
 
     # Resolve the seed up front so we can report it, even when it was
     # picked randomly, so this exact graphic can be reproduced later.
@@ -286,17 +333,17 @@ def main() -> None:
 
     # Generate the layout once. Both the SVG and the JSON painting plan are
     # built from these same rectangles and lines, so they always match.
-    rectangles, lines = generate_mondrian_layout(seed=seed)
+    rectangles, lines = generate_mondrian_layout(config, seed=seed)
 
-    svg_content = render_svg(rectangles, lines)
-    with open(SVG_OUTPUT_FILE, "w", encoding="utf-8") as file:
+    svg_content = render_svg(rectangles, lines, config["canvas"])
+    with open(svg_output_file, "w", encoding="utf-8") as file:
         file.write(svg_content)
-    print(f"Generated {SVG_OUTPUT_FILE} (seed={seed})")
+    print(f"Generated {svg_output_file} (seed={seed})")
 
-    painting_plan = build_painting_plan(rectangles, lines, seed=seed)
-    with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as file:
+    painting_plan = build_painting_plan(rectangles, lines, config, config_path, seed=seed)
+    with open(json_output_file, "w", encoding="utf-8") as file:
         json.dump(painting_plan, file, indent=2)
-    print(f"Generated {JSON_OUTPUT_FILE} (seed={seed})")
+    print(f"Generated {json_output_file} (seed={seed})")
 
 
 if __name__ == "__main__":

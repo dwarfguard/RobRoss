@@ -1,0 +1,41 @@
+{
+  "profile_name": "mondrian_12x12_paint",
+  "project": "R.O.B Ross",
+  "style": "mondrian",
+
+  "canvas": {
+    "name": "12in square (legacy)",
+    "width_mm": 304.8,
+    "height_mm": 304.8,
+    "origin": "top-left",
+    "x_direction": "right",
+    "y_direction": "down"
+  },
+
+  "artwork": {
+    "background_color": "white",
+    "palette_mode": "color",
+    "line_color": "black",
+    "accent_colors": ["#d62828", "#f7c600", "#1d4ed8"],
+    "neutral_accent_color": "#e5e5e5",
+    "neutral_accent_probability": 0.25,
+    "min_cell_fraction": 0.14,
+    "max_split_depth": 5,
+    "stroke_width_min_mm": 5.0,
+    "stroke_width_max_mm": 8.0
+  },
+
+  "path_generation": {
+    "tool_width_mm": 10.0,
+    "stroke_overlap_ratio": 0.25,
+    "edge_inset_mm": 3.0
+  },
+
+  "output": {
+    "directory": "output",
+    "painting_plan_file": "painting_plan.json",
+    "painting_paths_file": "painting_paths.json",
+    "preview_svg_file": "mondrian_preview.svg",
+    "path_preview_svg_file": "path_preview.svg"
+  }
+}

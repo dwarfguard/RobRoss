@@ -1,23 +1,17 @@
+import argparse
 import json
 import math
 from html import escape
 from pathlib import Path
 
+from config_loader import load_config
 from path_validation import validate_painting_paths
 
 # This script does NOT generate a new random layout. It reads the layout
 # already decided by mondrian_generator.py and converts it into concrete
 # robot-style stroke paths.
 
-OUTPUT_DIR = Path("output")
-PLAN_INPUT_FILE = OUTPUT_DIR / "painting_plan.json"
-PATHS_OUTPUT_FILE = OUTPUT_DIR / "painting_paths.json"
-SVG_OUTPUT_FILE = OUTPUT_DIR / "path_preview.svg"
-
-# Path settings: tune these to match the real paintbrush/tool later.
-TOOL_WIDTH_MM = 10.0       # width of a single paint stroke
-STROKE_OVERLAP_RATIO = 0.25  # how much each stripe overlaps the previous one
-EDGE_INSET_MM = 3.0        # keep strokes this far inside a rectangle's edge
+DEFAULT_CONFIG_FILE = "configs/demo_v1_a4_pen.json"
 
 # Preview-only settings (do not affect painting_paths.json, just the SVG).
 # Strokes are drawn semi-transparent so overlapping stripes show up as a
@@ -33,7 +27,7 @@ def load_painting_plan(path: Path) -> dict:
     """Load the painting plan JSON produced by mondrian_generator.py."""
     if not path.exists():
         raise FileNotFoundError(
-            f"Could not find {path}. Run scripts/mondrian_generator.py first."
+            f"Could not find {path}. Run scripts/mondrian_generator.py first (with the same --config)."
         )
     with open(path, "r", encoding="utf-8") as file:
         return json.load(file)
@@ -76,22 +70,22 @@ def lift_tool(label: str) -> dict:
 
 # --- Converting painting_plan.json operations into stroke commands -----
 
-def compute_stripe_row_centers(y: float, height: float) -> list[float]:
+def compute_stripe_row_centers(y: float, height: float, tool_width_mm: float, stroke_overlap_ratio: float) -> list[float]:
     """
     Return the y-position of each horizontal stripe center needed to fill
     `height`, spaced so each stripe overlaps the previous one by
-    STROKE_OVERLAP_RATIO.
+    stroke_overlap_ratio.
     """
-    if height <= TOOL_WIDTH_MM:
+    if height <= tool_width_mm:
         # Rectangle is too short for more than one stripe; paint one
         # stroke straight down the middle.
         return [y + height / 2]
 
-    stripe_step = TOOL_WIDTH_MM * (1 - STROKE_OVERLAP_RATIO)
-    last_center = y + height - TOOL_WIDTH_MM / 2
+    stripe_step = tool_width_mm * (1 - stroke_overlap_ratio)
+    last_center = y + height - tool_width_mm / 2
 
     centers = []
-    center = y + TOOL_WIDTH_MM / 2
+    center = y + tool_width_mm / 2
     while center < last_center - 1e-9:
         centers.append(center)
         center += stripe_step
@@ -101,21 +95,25 @@ def compute_stripe_row_centers(y: float, height: float) -> list[float]:
     return centers
 
 
-def rectangle_to_commands(op: dict) -> list[dict]:
+def rectangle_to_commands(op: dict, path_settings: dict) -> list[dict]:
     """Convert one paint_rectangle operation into boustrophedon stripe strokes."""
     label = op["label"]
     color = op["color"]
 
-    x = op["x_mm"] + EDGE_INSET_MM
-    y = op["y_mm"] + EDGE_INSET_MM
-    width = op["width_mm"] - 2 * EDGE_INSET_MM
-    height = op["height_mm"] - 2 * EDGE_INSET_MM
+    tool_width_mm = path_settings["tool_width_mm"]
+    stroke_overlap_ratio = path_settings["stroke_overlap_ratio"]
+    edge_inset_mm = path_settings["edge_inset_mm"]
+
+    x = op["x_mm"] + edge_inset_mm
+    y = op["y_mm"] + edge_inset_mm
+    width = op["width_mm"] - 2 * edge_inset_mm
+    height = op["height_mm"] - 2 * edge_inset_mm
 
     if width <= 0 or height <= 0:
         print(f"Skipping {label}: too small to paint after edge inset")
         return []
 
-    row_centers = compute_stripe_row_centers(y, height)
+    row_centers = compute_stripe_row_centers(y, height, tool_width_mm, stroke_overlap_ratio)
     left_x = x
     right_x = x + width
 
@@ -154,7 +152,7 @@ def line_to_commands(op: dict) -> list[dict]:
     ]
 
 
-def build_commands(plan: dict) -> list[dict]:
+def build_commands(plan: dict, path_settings: dict) -> list[dict]:
     """
     Walk the painting plan's operations in order and convert each one into
     stroke commands. Operation order is preserved, so if the plan already
@@ -163,13 +161,13 @@ def build_commands(plan: dict) -> list[dict]:
     commands = []
     for op in plan["operations"]:
         if op["operation"] == "paint_rectangle":
-            commands.extend(rectangle_to_commands(op))
+            commands.extend(rectangle_to_commands(op, path_settings))
         elif op["operation"] == "paint_line":
             commands.extend(line_to_commands(op))
     return commands
 
 
-def build_painting_paths(plan: dict, commands: list[dict]) -> dict:
+def build_painting_paths(plan: dict, commands: list[dict], config: dict, config_path: Path, plan_path: Path) -> dict:
     """Assemble the full painting_paths.json structure."""
     stroke_commands = [cmd for cmd in commands if cmd["command"] == "paint_stroke"]
     total_distance = sum(
@@ -194,17 +192,23 @@ def build_painting_paths(plan: dict, commands: list[dict]) -> dict:
     num_fill_regions = sum(1 for op in plan["operations"] if op["operation"] == "paint_rectangle")
     num_grid_lines = sum(1 for op in plan["operations"] if op["operation"] == "paint_line")
 
+    path_generation = config["path_generation"]
+
     return {
         "project": plan["project"],
         "style": plan["style"],
         "version": "0.1",
-        "source_file": str(PLAN_INPUT_FILE),
+        "config": {
+            "profile_name": config.get("profile_name"),
+            "source_file": str(config_path),
+        },
+        "source_file": str(plan_path),
         "units": "mm",
         "canvas": plan["canvas"],
         "path_settings": {
-            "tool_width_mm": TOOL_WIDTH_MM,
-            "stroke_overlap_ratio": STROKE_OVERLAP_RATIO,
-            "edge_inset_mm": EDGE_INSET_MM,
+            "tool_width_mm": path_generation["tool_width_mm"],
+            "stroke_overlap_ratio": path_generation["stroke_overlap_ratio"],
+            "edge_inset_mm": path_generation["edge_inset_mm"],
         },
         "commands": commands,
         "debug": {
@@ -257,7 +261,7 @@ def render_svg(painting_paths: dict) -> str:
             x2, y2 = cmd["to_mm"]
             elements.append(
                 f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
-                f'stroke="{escape(cmd["color"])}" stroke-width="{TOOL_WIDTH_MM}" '
+                f'stroke="{escape(cmd["color"])}" stroke-width="{painting_paths["path_settings"]["tool_width_mm"]}" '
                 f'stroke-linecap="round" stroke-opacity="{STROKE_PREVIEW_OPACITY}" />'
             )
             last_point = (x2, y2)
@@ -276,23 +280,42 @@ def render_svg(painting_paths: dict) -> str:
 
 
 def main() -> None:
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    parser = argparse.ArgumentParser(
+        description="Convert a painting_plan.json into robot-style stroke path commands."
+    )
+    parser.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG_FILE,
+        help=f"Path to a pipeline config JSON file (default: {DEFAULT_CONFIG_FILE}).",
+    )
+    args = parser.parse_args()
 
-    plan = load_painting_plan(PLAN_INPUT_FILE)
-    commands = build_commands(plan)
-    painting_paths = build_painting_paths(plan, commands)
+    config_path = Path(args.config)
+    config = load_config(config_path)
+
+    output = config["output"]
+    output_dir = Path(output["directory"])
+    plan_input_file = output_dir / output["painting_plan_file"]
+    paths_output_file = output_dir / output["painting_paths_file"]
+    svg_output_file = output_dir / output["path_preview_svg_file"]
+
+    output_dir.mkdir(exist_ok=True)
+
+    plan = load_painting_plan(plan_input_file)
+    commands = build_commands(plan, config["path_generation"])
+    painting_paths = build_painting_paths(plan, commands, config, config_path, plan_input_file)
 
     validation = validate_painting_paths(painting_paths)
     painting_paths["validation"] = validation
 
-    with open(PATHS_OUTPUT_FILE, "w", encoding="utf-8") as file:
+    with open(paths_output_file, "w", encoding="utf-8") as file:
         json.dump(painting_paths, file, indent=2)
-    print(f"Generated {PATHS_OUTPUT_FILE}")
+    print(f"Generated {paths_output_file}")
 
     svg_content = render_svg(painting_paths)
-    with open(SVG_OUTPUT_FILE, "w", encoding="utf-8") as file:
+    with open(svg_output_file, "w", encoding="utf-8") as file:
         file.write(svg_content)
-    print(f"Generated {SVG_OUTPUT_FILE}")
+    print(f"Generated {svg_output_file}")
 
 
 if __name__ == "__main__":

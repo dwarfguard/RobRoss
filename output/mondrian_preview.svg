@@ -1,20 +1,16 @@
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  width="12in"
-  height="12in"
-  viewBox="0 0 304.8 304.8"
+  width="8.267716535433072in"
+  height="11.692913385826772in"
+  viewBox="0 0 210.0 297.0"
 >
-  <rect x="0" y="0" width="304.8" height="304.8" fill="white" />
-  <rect x="0" y="0" width="153.5615408816165" height="76.41946731453365" fill="#d62828" />
-  <rect x="153.5615408816165" y="0" width="81.23805792309065" height="76.41946731453365" fill="#f7c600" />
-  <rect x="0" y="76.41946731453365" width="234.79959880470716" height="228.38053268546636" fill="#1d4ed8" />
-  <rect x="234.79959880470716" y="0" width="70.00040119529285" height="205.2581113188633" fill="#d62828" />
-  <line x1="153.5615408816165" y1="0" x2="153.5615408816165" y2="76.41946731453365" stroke="black" stroke-width="7.521670385168262" stroke-linecap="square" />
-  <line x1="0" y1="76.41946731453365" x2="234.79959880470716" y2="76.41946731453365" stroke="black" stroke-width="7.521670385168262" stroke-linecap="square" />
-  <line x1="234.79959880470716" y1="205.2581113188633" x2="304.8" y2="205.2581113188633" stroke="black" stroke-width="7.521670385168262" stroke-linecap="square" />
-  <line x1="234.79959880470716" y1="0" x2="234.79959880470716" y2="304.8" stroke="black" stroke-width="7.521670385168262" stroke-linecap="square" />
-  <line x1="0" y1="0" x2="304.8" y2="0" stroke="black" stroke-width="7.521670385168262" stroke-linecap="square" />
-  <line x1="0" y1="304.8" x2="304.8" y2="304.8" stroke="black" stroke-width="7.521670385168262" stroke-linecap="square" />
-  <line x1="0" y1="0" x2="0" y2="304.8" stroke="black" stroke-width="7.521670385168262" stroke-linecap="square" />
-  <line x1="304.8" y1="0" x2="304.8" y2="304.8" stroke="black" stroke-width="7.521670385168262" stroke-linecap="square" />
+  <rect x="0" y="0" width="210.0" height="297.0" fill="white" />
+  <line x1="100.31245737535036" y1="135.02065728791163" x2="171.39325459121918" y2="135.02065728791163" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
+  <line x1="100.31245737535036" y1="59.49479613644518" x2="100.31245737535036" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
+  <line x1="171.39325459121918" y1="59.49479613644518" x2="171.39325459121918" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
+  <line x1="0" y1="59.49479613644518" x2="210.0" y2="59.49479613644518" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
+  <line x1="0" y1="0" x2="210.0" y2="0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
+  <line x1="0" y1="297.0" x2="210.0" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
+  <line x1="0" y1="0" x2="0" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
+  <line x1="210.0" y1="0" x2="210.0" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
 </svg>

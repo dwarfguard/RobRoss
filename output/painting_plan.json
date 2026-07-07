@@ -2,11 +2,15 @@
   "project": "R.O.B Ross",
   "style": "mondrian",
   "version": "0.1",
+  "config": {
+    "profile_name": "demo_v1_a4_pen",
+    "source_file": "configs/demo_v1_a4_pen.json"
+  },
   "canvas": {
-    "width_mm": 304.8,
-    "height_mm": 304.8,
-    "width_in": 12,
-    "height_in": 12,
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "width_in": 8.2677,
+    "height_in": 11.6929,
     "origin": "top-left"
   },
   "units": "mm",
@@ -22,100 +26,60 @@
   ],
   "operations": [
     {
-      "operation": "paint_rectangle",
-      "label": "red_block_1",
-      "color": "#d62828",
-      "x_mm": 0,
-      "y_mm": 0,
-      "width_mm": 153.56,
-      "height_mm": 76.42,
-      "fill_strategy": "solid_fill"
-    },
-    {
-      "operation": "paint_rectangle",
-      "label": "yellow_block_1",
-      "color": "#f7c600",
-      "x_mm": 153.56,
-      "y_mm": 0,
-      "width_mm": 81.24,
-      "height_mm": 76.42,
-      "fill_strategy": "solid_fill"
-    },
-    {
-      "operation": "paint_rectangle",
-      "label": "blue_block_1",
-      "color": "#1d4ed8",
-      "x_mm": 0,
-      "y_mm": 76.42,
-      "width_mm": 234.8,
-      "height_mm": 228.38,
-      "fill_strategy": "solid_fill"
-    },
-    {
-      "operation": "paint_rectangle",
-      "label": "red_block_2",
-      "color": "#d62828",
-      "x_mm": 234.8,
-      "y_mm": 0,
-      "width_mm": 70.0,
-      "height_mm": 205.26,
-      "fill_strategy": "solid_fill"
-    },
-    {
       "operation": "paint_line",
       "label": "grid_line_1",
       "color": "black",
       "from_mm": [
-        153.56,
-        0
+        100.31,
+        135.02
       ],
       "to_mm": [
-        153.56,
-        76.42
+        171.39,
+        135.02
       ],
-      "stroke_width_mm": 7.52
+      "stroke_width_mm": 4.61
     },
     {
       "operation": "paint_line",
       "label": "grid_line_2",
       "color": "black",
       "from_mm": [
-        0,
-        76.42
+        100.31,
+        59.49
       ],
       "to_mm": [
-        234.8,
-        76.42
+        100.31,
+        297.0
       ],
-      "stroke_width_mm": 7.52
+      "stroke_width_mm": 4.61
     },
     {
       "operation": "paint_line",
       "label": "grid_line_3",
       "color": "black",
       "from_mm": [
-        234.8,
-        205.26
+        171.39,
+        59.49
       ],
       "to_mm": [
-        304.8,
-        205.26
+        171.39,
+        297.0
       ],
-      "stroke_width_mm": 7.52
+      "stroke_width_mm": 4.61
     },
     {
       "operation": "paint_line",
       "label": "grid_line_4",
       "color": "black",
       "from_mm": [
-        234.8,
-        0
+        0,
+        59.49
       ],
       "to_mm": [
-        234.8,
-        304.8
+        210.0,
+        59.49
       ],
-      "stroke_width_mm": 7.52
+      "stroke_width_mm": 4.61
     },
     {
       "operation": "paint_line",
@@ -126,10 +90,10 @@
         0
       ],
       "to_mm": [
-        304.8,
+        210.0,
         0
       ],
-      "stroke_width_mm": 7.52
+      "stroke_width_mm": 4.61
     },
     {
       "operation": "paint_line",
@@ -137,13 +101,13 @@
       "color": "black",
       "from_mm": [
         0,
-        304.8
+        297.0
       ],
       "to_mm": [
-        304.8,
-        304.8
+        210.0,
+        297.0
       ],
-      "stroke_width_mm": 7.52
+      "stroke_width_mm": 4.61
     },
     {
       "operation": "paint_line",
@@ -155,34 +119,30 @@
       ],
       "to_mm": [
         0,
-        304.8
+        297.0
       ],
-      "stroke_width_mm": 7.52
+      "stroke_width_mm": 4.61
     },
     {
       "operation": "paint_line",
       "label": "border_right",
       "color": "black",
       "from_mm": [
-        304.8,
+        210.0,
         0
       ],
       "to_mm": [
-        304.8,
-        304.8
+        210.0,
+        297.0
       ],
-      "stroke_width_mm": 7.52
+      "stroke_width_mm": 4.61
     }
   ],
   "debug": {
-    "seed": 3288938335,
-    "num_rectangles": 4,
+    "seed": 567973436,
+    "num_rectangles": 0,
     "num_lines": 8,
-    "num_operations": 12,
-    "colors_used": [
-      "#1d4ed8",
-      "#d62828",
-      "#f7c600"
-    ]
+    "num_operations": 8,
+    "colors_used": []
   }
 }
