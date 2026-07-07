@@ -7,6 +7,7 @@
     "name": "A4 portrait",
     "width_mm": 210.0,
     "height_mm": 297.0,
+    "margin_mm": 10.0,
     "origin": "top-left",
     "x_direction": "right",
     "y_direction": "down"
@@ -18,9 +19,10 @@
     "line_color": "black",
     "accent_colors": [],
     "min_cell_fraction": 0.14,
+    "min_split_depth": 2,
     "max_split_depth": 5,
-    "stroke_width_min_mm": 3.0,
-    "stroke_width_max_mm": 5.0
+    "stroke_width_min_mm": 1.0,
+    "stroke_width_max_mm": 1.0
   },
 
   "path_generation": {

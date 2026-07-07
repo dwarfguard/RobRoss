@@ -5,19 +5,19 @@
   viewBox="0 0 210.0 297.0"
 >
   <rect x="0" y="0" width="210.0" height="297.0" fill="white" />
-  <line x1="100.31" y1="135.02" x2="171.39" y2="135.02" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
-  <line x1="171.39" y1="135.02" x2="100.31" y2="59.49" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <line x1="100.31" y1="59.49" x2="100.31" y2="297.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
-  <line x1="100.31" y1="297.0" x2="171.39" y2="59.49" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <line x1="171.39" y1="59.49" x2="171.39" y2="297.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
-  <line x1="171.39" y1="297.0" x2="0" y2="59.49" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <line x1="0" y1="59.49" x2="210.0" y2="59.49" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
-  <line x1="210.0" y1="59.49" x2="0" y2="0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <line x1="0" y1="0" x2="210.0" y2="0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
-  <line x1="210.0" y1="0" x2="0" y2="297.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <line x1="0" y1="297.0" x2="210.0" y2="297.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
-  <line x1="210.0" y1="297.0" x2="0" y2="0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <line x1="0" y1="0" x2="0" y2="297.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
-  <line x1="0" y1="297.0" x2="210.0" y2="0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <line x1="210.0" y1="0" x2="210.0" y2="297.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
+  <line x1="10.0" y1="171.81" x2="48.53" y2="171.81" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
+  <line x1="48.53" y1="171.81" x2="10.0" y2="130.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <line x1="10.0" y1="130.0" x2="48.53" y2="130.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
+  <line x1="48.53" y1="130.0" x2="158.86" y2="10.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <line x1="158.86" y1="10.0" x2="158.86" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
+  <line x1="158.86" y1="287.0" x2="48.53" y2="10.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <line x1="48.53" y1="10.0" x2="48.53" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
+  <line x1="48.53" y1="287.0" x2="10.0" y2="10.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <line x1="10.0" y1="10.0" x2="200.0" y2="10.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
+  <line x1="200.0" y1="10.0" x2="10.0" y2="287.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <line x1="10.0" y1="287.0" x2="200.0" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
+  <line x1="200.0" y1="287.0" x2="10.0" y2="10.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <line x1="10.0" y1="10.0" x2="10.0" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
+  <line x1="10.0" y1="287.0" x2="200.0" y2="10.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <line x1="200.0" y1="10.0" x2="200.0" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.55" />
 </svg>

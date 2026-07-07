@@ -1,6 +1,7 @@
 import argparse
 import json
 import math
+import sys
 from html import escape
 from pathlib import Path
 
@@ -316,6 +317,22 @@ def main() -> None:
     with open(svg_output_file, "w", encoding="utf-8") as file:
         file.write(svg_content)
     print(f"Generated {svg_output_file}")
+
+    # Surface the validation result on the console and in the exit code,
+    # so a failing file can't be mistaken for a good one. Output files are
+    # still written above (even on failure) so they can be inspected.
+    for warning in validation["warnings"]:
+        print(f"Validation warning: {warning}")
+    if validation["passed"]:
+        print(f"Validation passed ({len(validation['warnings'])} warnings).")
+    else:
+        for error in validation["errors"]:
+            print(f"Validation error: {error}")
+        print(
+            f"Validation FAILED with {len(validation['errors'])} error(s) — "
+            f"do not send {paths_output_file} to the robot."
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

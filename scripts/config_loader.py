@@ -48,6 +48,25 @@ def validate_config(config: dict) -> list:
     if origin != "top-left":
         errors.append(f"canvas.origin must be 'top-left', got {origin!r}.")
 
+    # margin_mm is optional (defaults to 0): how far the entire artwork,
+    # border included, stays inside the physical canvas/paper edge.
+    margin = canvas.get("margin_mm", 0.0)
+    if not _is_number(margin) or margin < 0:
+        errors.append(f"canvas.margin_mm must be a number >= 0, got {margin!r}.")
+    elif _is_number(width) and _is_number(height) and width > 0 and height > 0:
+        if 2 * margin >= min(width, height):
+            errors.append(
+                f"canvas.margin_mm ({margin!r}) is too large: twice the margin "
+                f"must be smaller than the canvas' short side ({min(width, height)!r} mm)."
+            )
+
+    artwork = config.get("artwork", {})
+    # min_split_depth is optional (defaults to 1): depths below it always
+    # subdivide, so a shallow random stop can't produce an empty artwork.
+    min_split_depth = artwork.get("min_split_depth", 1)
+    if not isinstance(min_split_depth, int) or isinstance(min_split_depth, bool) or min_split_depth < 0:
+        errors.append(f"artwork.min_split_depth must be an integer >= 0, got {min_split_depth!r}.")
+
     path_generation = config.get("path_generation", {})
     tool_width = path_generation.get("tool_width_mm")
     if not _is_number(tool_width) or tool_width <= 0:

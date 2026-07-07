@@ -121,6 +121,12 @@ Valid Demo v1 coordinate range:
 0 <= y <= 297
 ```
 
+The artwork is additionally generated with a safety margin
+(`canvas.margin_mm`, 10 mm in the Demo v1 config): every stroke,
+including the border, stays at least that far inside the paper edge, so
+the pen never draws right at the physical edge. For Demo v1 all strokes
+therefore fall within `10 <= x <= 200` and `10 <= y <= 287`.
+
 This coordinate system describes the paper/canvas, not the robot base coordinate system. A future robot adapter must transform paper coordinates into Aubo i5 robot poses.
 
 ---
@@ -324,6 +330,16 @@ Start: (80, 140)
 End:   (130, 140)
 Length: 50 mm
 ```
+
+Generate this line as a real path file with:
+
+```bash
+python3 scripts/generate_test_line.py
+```
+
+so the first stroke uses the same `painting_paths.json` format (and
+future robot adapter) as the full artwork. Output:
+`output/test_line_paths.json` and `output/test_line_preview.svg`.
 
 Check:
 

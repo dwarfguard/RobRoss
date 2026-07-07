@@ -50,7 +50,9 @@ with `select_tool`/`dip_paint` emitted once per color before its first stroke gr
 **Every command:**
 - Must have a `"command"` field — error otherwise.
 - Unknown command type — warning.
-- `move_to` must have numeric `x_mm`/`y_mm` — error otherwise.
+- `move_to` must have numeric `x_mm`/`y_mm`, inside canvas bounds — error
+  otherwise (the robot physically travels to `move_to` targets, so
+  out-of-bounds travel is as dangerous as an out-of-bounds stroke).
 - `select_tool`/`dip_paint`/`paint_stroke` should have `color` — warning if missing.
 - `paint_stroke` must have `from_mm`/`to_mm`, each a two-number list, both inside
   canvas bounds, with nonzero distance between them — error otherwise.

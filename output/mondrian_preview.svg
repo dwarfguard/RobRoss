@@ -5,12 +5,12 @@
   viewBox="0 0 210.0 297.0"
 >
   <rect x="0" y="0" width="210.0" height="297.0" fill="white" />
-  <line x1="100.31245737535036" y1="135.02065728791163" x2="171.39325459121918" y2="135.02065728791163" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
-  <line x1="100.31245737535036" y1="59.49479613644518" x2="100.31245737535036" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
-  <line x1="171.39325459121918" y1="59.49479613644518" x2="171.39325459121918" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
-  <line x1="0" y1="59.49479613644518" x2="210.0" y2="59.49479613644518" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
-  <line x1="0" y1="0" x2="210.0" y2="0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
-  <line x1="0" y1="297.0" x2="210.0" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
-  <line x1="0" y1="0" x2="0" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
-  <line x1="210.0" y1="0" x2="210.0" y2="297.0" stroke="black" stroke-width="4.613908085759063" stroke-linecap="square" />
+  <line x1="10.0" y1="171.81121323673653" x2="48.527137485096105" y2="171.81121323673653" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="10.0" y1="130.00029734642425" x2="48.527137485096105" y2="130.00029734642425" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="158.8641286379313" y1="10.0" x2="158.8641286379313" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="48.527137485096105" y1="10.0" x2="48.527137485096105" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="10.0" y1="10.0" x2="200.0" y2="10.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="10.0" y1="287.0" x2="200.0" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="10.0" y1="10.0" x2="10.0" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="200.0" y1="10.0" x2="200.0" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
 </svg>

@@ -197,6 +197,16 @@ End:   (130, 140)
 Length: 50 mm
 ```
 
+Generate this line as a real path file (same format as the full artwork,
+so the robot adapter is exercised the same way):
+
+```bash
+python3 scripts/generate_test_line.py
+```
+
+This writes `output/test_line_paths.json` and
+`output/test_line_preview.svg`, validated like any other path file.
+
 Checklist:
 
 - [ ] Robot moves to start point at travel height.

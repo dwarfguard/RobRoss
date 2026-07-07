@@ -7,6 +7,7 @@
     "name": "12in square (legacy)",
     "width_mm": 304.8,
     "height_mm": 304.8,
+    "margin_mm": 0.0,
     "origin": "top-left",
     "x_direction": "right",
     "y_direction": "down"
@@ -20,6 +21,7 @@
     "neutral_accent_color": "#e5e5e5",
     "neutral_accent_probability": 0.25,
     "min_cell_fraction": 0.14,
+    "min_split_depth": 2,
     "max_split_depth": 5,
     "stroke_width_min_mm": 5.0,
     "stroke_width_max_mm": 8.0

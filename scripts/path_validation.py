@@ -108,6 +108,10 @@ def validate_command(command: dict, index: int, canvas: dict) -> tuple:
         y = command.get("y_mm")
         if not is_number(x) or not is_number(y):
             errors.append(f"{desc} (move_to) must have numeric x_mm and y_mm.")
+        elif not point_inside_canvas([x, y], canvas):
+            # The robot physically travels to move_to targets, so an
+            # out-of-bounds travel is as dangerous as an out-of-bounds stroke.
+            errors.append(f"{desc} (move_to) [{x}, {y}] is outside canvas bounds.")
 
     elif command_type == "paint_stroke":
         if not command.get("color"):

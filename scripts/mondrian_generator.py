@@ -63,12 +63,16 @@ def svg_line(line: Line) -> str:
     )
 
 
-def subdivide(x, y, w, h, depth, min_w, min_h, max_depth, rng):
+def subdivide(x, y, w, h, depth, min_w, min_h, max_depth, min_split_depth, rng):
     """
     Recursively split a rectangle into smaller cells, Mondrian-style.
 
     min_w/min_h are the smallest allowed cell width/height on each axis, so
     a non-square canvas doesn't produce slivers along its shorter side.
+
+    Depths below min_split_depth always split (when the cell is big enough
+    to split at all), so a shallow random stop can never produce an empty,
+    border-only artwork.
 
     Returns a tuple (leaf_cells, split_lines):
     - leaf_cells is a list of (x, y, w, h) tuples for undivided regions.
@@ -77,9 +81,12 @@ def subdivide(x, y, w, h, depth, min_w, min_h, max_depth, rng):
     can_split_v = w >= min_w * 2
     can_split_h = h >= min_h * 2
 
+    if depth >= max_depth or not (can_split_v or can_split_h):
+        return [(x, y, w, h)], []
+
     # Stop probability grows with depth so cells get progressively coarser.
     stop_chance = 0.12 + 0.15 * depth
-    if depth >= max_depth or not (can_split_v or can_split_h) or rng.random() < stop_chance:
+    if depth >= min_split_depth and rng.random() < stop_chance:
         return [(x, y, w, h)], []
 
     if can_split_v and can_split_h:
@@ -94,16 +101,16 @@ def subdivide(x, y, w, h, depth, min_w, min_h, max_depth, rng):
         min_frac = min_w / w
         frac = rng.uniform(min_frac, 1 - min_frac)
         split_x = x + w * frac
-        left_leaves, left_lines = subdivide(x, y, split_x - x, h, depth + 1, min_w, min_h, max_depth, rng)
-        right_leaves, right_lines = subdivide(split_x, y, x + w - split_x, h, depth + 1, min_w, min_h, max_depth, rng)
+        left_leaves, left_lines = subdivide(x, y, split_x - x, h, depth + 1, min_w, min_h, max_depth, min_split_depth, rng)
+        right_leaves, right_lines = subdivide(split_x, y, x + w - split_x, h, depth + 1, min_w, min_h, max_depth, min_split_depth, rng)
         leaves = left_leaves + right_leaves
         lines = left_lines + right_lines + [Line(split_x, y, split_x, y + h)]
     else:
         min_frac = min_h / h
         frac = rng.uniform(min_frac, 1 - min_frac)
         split_y = y + h * frac
-        top_leaves, top_lines = subdivide(x, y, w, split_y - y, depth + 1, min_w, min_h, max_depth, rng)
-        bottom_leaves, bottom_lines = subdivide(x, split_y, w, y + h - split_y, depth + 1, min_w, min_h, max_depth, rng)
+        top_leaves, top_lines = subdivide(x, y, w, split_y - y, depth + 1, min_w, min_h, max_depth, min_split_depth, rng)
+        bottom_leaves, bottom_lines = subdivide(x, split_y, w, y + h - split_y, depth + 1, min_w, min_h, max_depth, min_split_depth, rng)
         leaves = top_leaves + bottom_leaves
         lines = top_lines + bottom_lines + [Line(x, split_y, x + w, split_y)]
 
@@ -132,19 +139,32 @@ def generate_mondrian_layout(config: dict, seed: int | None = None) -> tuple[lis
     canvas = config["canvas"]
     width_mm = canvas["width_mm"]
     height_mm = canvas["height_mm"]
+    margin_mm = canvas.get("margin_mm", 0.0)
 
     artwork = config["artwork"]
     min_cell_fraction = artwork.get("min_cell_fraction", 0.14)
     max_split_depth = artwork.get("max_split_depth", 5)
+    min_split_depth = artwork.get("min_split_depth", 1)
     background_color = artwork.get("background_color", "white")
     line_color = artwork.get("line_color", "black")
     palette_mode = artwork.get("palette_mode", "color")
     stroke_width_min = artwork.get("stroke_width_min_mm", 5.0)
     stroke_width_max = artwork.get("stroke_width_max_mm", 8.0)
 
-    min_w = width_mm * min_cell_fraction
-    min_h = height_mm * min_cell_fraction
-    leaves, lines = subdivide(0, 0, width_mm, height_mm, 0, min_w, min_h, max_split_depth, rng)
+    # Drawable region: the whole artwork, border included, is kept
+    # margin_mm inside the physical canvas/paper edge, so the tool never
+    # draws right at the edge (where calibration error or paper lift is
+    # most dangerous).
+    draw_x = margin_mm
+    draw_y = margin_mm
+    draw_w = width_mm - 2 * margin_mm
+    draw_h = height_mm - 2 * margin_mm
+
+    min_w = draw_w * min_cell_fraction
+    min_h = draw_h * min_cell_fraction
+    leaves, lines = subdivide(
+        draw_x, draw_y, draw_w, draw_h, 0, min_w, min_h, max_split_depth, min_split_depth, rng
+    )
 
     # Background and color regions. The background rect is only needed for
     # the SVG preview (real canvases already start in background_color), so
@@ -184,13 +204,14 @@ def generate_mondrian_layout(config: dict, seed: int | None = None) -> tuple[lis
         line.label = f"grid_line_{i}"
 
     # Outer border, added and labeled last so it paints after the interior
-    # grid lines. Width and height are handled separately (not a single
-    # CANVAS_SIZE) so this works for non-square canvases like A4 portrait.
+    # grid lines. It sits on the drawable region's edge (margin_mm inside
+    # the paper), and width/height are handled separately so this works for
+    # non-square canvases like A4 portrait.
     lines.extend([
-        Line(0, 0, width_mm, 0, stroke=line_color, stroke_width=stroke_width, label="border_top"),
-        Line(0, height_mm, width_mm, height_mm, stroke=line_color, stroke_width=stroke_width, label="border_bottom"),
-        Line(0, 0, 0, height_mm, stroke=line_color, stroke_width=stroke_width, label="border_left"),
-        Line(width_mm, 0, width_mm, height_mm, stroke=line_color, stroke_width=stroke_width, label="border_right"),
+        Line(draw_x, draw_y, draw_x + draw_w, draw_y, stroke=line_color, stroke_width=stroke_width, label="border_top"),
+        Line(draw_x, draw_y + draw_h, draw_x + draw_w, draw_y + draw_h, stroke=line_color, stroke_width=stroke_width, label="border_bottom"),
+        Line(draw_x, draw_y, draw_x, draw_y + draw_h, stroke=line_color, stroke_width=stroke_width, label="border_left"),
+        Line(draw_x + draw_w, draw_y, draw_x + draw_w, draw_y + draw_h, stroke=line_color, stroke_width=stroke_width, label="border_right"),
     ])
 
     return rectangles, lines
@@ -276,6 +297,7 @@ def build_painting_plan(rectangles: list[Rect], lines: list[Line], config: dict,
             "height_mm": canvas["height_mm"],
             "width_in": round(canvas["width_mm"] / 25.4, 4),
             "height_in": round(canvas["height_mm"] / 25.4, 4),
+            "margin_mm": canvas.get("margin_mm", 0.0),
             "origin": canvas["origin"],
         },
         "units": "mm",
@@ -285,6 +307,7 @@ def build_painting_plan(rectangles: list[Rect], lines: list[Line], config: dict,
         },
         "assumptions": [
             f"Canvas starts {background_color}.",
+            f"All strokes stay at least {canvas.get('margin_mm', 0.0)} mm inside the canvas edge.",
             "Colored rectangles are painted before black grid lines.",
             "Black grid lines are painted last to clean up rectangle edges.",
             "This is an intermediate painting plan, not final robot motor code.",

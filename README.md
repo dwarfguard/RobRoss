@@ -124,6 +124,19 @@ output/path_preview.svg
 output/painting_paths.json
 ```
 
+Generate the single 50 mm first-contact test line (see the hardware
+checklist) in the same path file format:
+
+```bash
+python3 scripts/generate_test_line.py
+```
+
+Run the unit tests:
+
+```bash
+python3 -m unittest discover tests
+```
+
 For the legacy 12-inch colored profile:
 
 ```bash
@@ -152,13 +165,19 @@ scripts/
   config_loader.py             Shared JSON config loading and validation
   mondrian_generator.py        Generates SVG preview and painting_plan.json
   generate_painting_paths.py   Converts painting_plan.json into painting_paths.json
+  generate_test_line.py        Generates the single 50 mm first-contact test line
   path_validation.py           Validates generated path command data
+
+tests/
+  test_*.py                    Unit tests (run: python3 -m unittest discover tests)
 
 output/
   mondrian_preview.svg         Human preview of generated artwork
   painting_plan.json           Intermediate artwork operations
   path_preview.svg             Human preview of generated stroke paths
   painting_paths.json          Intermediate robot-style path commands
+  test_line_paths.json         Single 50 mm test-line path file
+  test_line_preview.svg        Human preview of the test line
 ```
 
 ---
@@ -189,6 +208,12 @@ For Demo v1, valid A4 coordinates should stay within:
 0 <= x <= 210
 0 <= y <= 297
 ```
+
+In addition, the entire artwork (border included) is generated at least
+`canvas.margin_mm` inside the paper edge (10 mm in the Demo v1 config),
+so the pen never draws right at the physical paper edge. For Demo v1
+this means all strokes actually fall within `10 <= x <= 200` and
+`10 <= y <= 287`.
 
 ### Robot adapter
 

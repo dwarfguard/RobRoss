@@ -1,0 +1,72 @@
+{
+  "project": "R.O.B Ross",
+  "style": "test_line",
+  "version": "0.1",
+  "config": {
+    "profile_name": "demo_v1_a4_pen",
+    "source_file": "configs/demo_v1_a4_pen.json"
+  },
+  "units": "mm",
+  "canvas": {
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "width_in": 8.2677,
+    "height_in": 11.6929,
+    "margin_mm": 10.0,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 1.0,
+    "stroke_overlap_ratio": 0.0,
+    "edge_inset_mm": 5.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "test_line",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "test_line",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "test_line",
+      "x_mm": 80.0,
+      "y_mm": 140.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "test_line"
+    },
+    {
+      "command": "paint_stroke",
+      "label": "test_line",
+      "color": "black",
+      "from_mm": [
+        80.0,
+        140.0
+      ],
+      "to_mm": [
+        130.0,
+        140.0
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "test_line"
+    }
+  ],
+  "debug": {
+    "num_commands": 6,
+    "num_paint_stroke_commands": 1,
+    "estimated_total_paint_distance_mm": 50.0
+  },
+  "validation": {
+    "passed": true,
+    "errors": [],
+    "warnings": []
+  }
+}

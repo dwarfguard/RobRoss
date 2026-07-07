@@ -13,6 +13,7 @@
     "height_mm": 297.0,
     "width_in": 8.2677,
     "height_in": 11.6929,
+    "margin_mm": 10.0,
     "origin": "top-left"
   },
   "path_settings": {
@@ -34,8 +35,8 @@
     {
       "command": "move_to",
       "label": "grid_line_1",
-      "x_mm": 100.31,
-      "y_mm": 135.02
+      "x_mm": 10.0,
+      "y_mm": 171.81
     },
     {
       "command": "lower_tool",
@@ -46,12 +47,12 @@
       "label": "grid_line_1",
       "color": "black",
       "from_mm": [
-        100.31,
-        135.02
+        10.0,
+        171.81
       ],
       "to_mm": [
-        171.39,
-        135.02
+        48.53,
+        171.81
       ]
     },
     {
@@ -71,8 +72,8 @@
     {
       "command": "move_to",
       "label": "grid_line_2",
-      "x_mm": 100.31,
-      "y_mm": 59.49
+      "x_mm": 10.0,
+      "y_mm": 130.0
     },
     {
       "command": "lower_tool",
@@ -83,12 +84,12 @@
       "label": "grid_line_2",
       "color": "black",
       "from_mm": [
-        100.31,
-        59.49
+        10.0,
+        130.0
       ],
       "to_mm": [
-        100.31,
-        297.0
+        48.53,
+        130.0
       ]
     },
     {
@@ -108,8 +109,8 @@
     {
       "command": "move_to",
       "label": "grid_line_3",
-      "x_mm": 171.39,
-      "y_mm": 59.49
+      "x_mm": 158.86,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -120,12 +121,12 @@
       "label": "grid_line_3",
       "color": "black",
       "from_mm": [
-        171.39,
-        59.49
+        158.86,
+        10.0
       ],
       "to_mm": [
-        171.39,
-        297.0
+        158.86,
+        287.0
       ]
     },
     {
@@ -145,8 +146,8 @@
     {
       "command": "move_to",
       "label": "grid_line_4",
-      "x_mm": 0,
-      "y_mm": 59.49
+      "x_mm": 48.53,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -157,12 +158,12 @@
       "label": "grid_line_4",
       "color": "black",
       "from_mm": [
-        0,
-        59.49
+        48.53,
+        10.0
       ],
       "to_mm": [
-        210.0,
-        59.49
+        48.53,
+        287.0
       ]
     },
     {
@@ -182,8 +183,8 @@
     {
       "command": "move_to",
       "label": "border_top",
-      "x_mm": 0,
-      "y_mm": 0
+      "x_mm": 10.0,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -194,12 +195,12 @@
       "label": "border_top",
       "color": "black",
       "from_mm": [
-        0,
-        0
+        10.0,
+        10.0
       ],
       "to_mm": [
-        210.0,
-        0
+        200.0,
+        10.0
       ]
     },
     {
@@ -219,8 +220,8 @@
     {
       "command": "move_to",
       "label": "border_bottom",
-      "x_mm": 0,
-      "y_mm": 297.0
+      "x_mm": 10.0,
+      "y_mm": 287.0
     },
     {
       "command": "lower_tool",
@@ -231,12 +232,12 @@
       "label": "border_bottom",
       "color": "black",
       "from_mm": [
-        0,
-        297.0
+        10.0,
+        287.0
       ],
       "to_mm": [
-        210.0,
-        297.0
+        200.0,
+        287.0
       ]
     },
     {
@@ -256,8 +257,8 @@
     {
       "command": "move_to",
       "label": "border_left",
-      "x_mm": 0,
-      "y_mm": 0
+      "x_mm": 10.0,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -268,12 +269,12 @@
       "label": "border_left",
       "color": "black",
       "from_mm": [
-        0,
-        0
+        10.0,
+        10.0
       ],
       "to_mm": [
-        0,
-        297.0
+        10.0,
+        287.0
       ]
     },
     {
@@ -293,8 +294,8 @@
     {
       "command": "move_to",
       "label": "border_right",
-      "x_mm": 210.0,
-      "y_mm": 0
+      "x_mm": 200.0,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -305,12 +306,12 @@
       "label": "border_right",
       "color": "black",
       "from_mm": [
-        210.0,
-        0
+        200.0,
+        10.0
       ],
       "to_mm": [
-        210.0,
-        297.0
+        200.0,
+        287.0
       ]
     },
     {
@@ -321,7 +322,7 @@
   "debug": {
     "num_commands": 48,
     "num_paint_stroke_commands": 8,
-    "estimated_total_paint_distance_mm": 1770.1,
+    "estimated_total_paint_distance_mm": 1565.06,
     "num_fill_regions": 0,
     "num_grid_lines": 8,
     "num_select_tool_commands": 8,

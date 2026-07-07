@@ -33,18 +33,20 @@ settings from two different profiles.
 
 | Config | Canvas | Palette | Tool | Use case |
 | --- | --- | --- | --- | --- |
-| `configs/demo_v1_a4_pen.json` | 210mm x 297mm (A4 portrait) | monochrome (black lines only, no fills) | 1mm pen, 0% overlap, 5mm edge inset | Demo v1: first Aubo i5 hardware test — pen on paper. |
-| `configs/mondrian_12x12_paint.json` | 304.8mm x 304.8mm (12in square) | classic red/yellow/blue (+occasional gray) | 10mm brush, 25% overlap, 3mm edge inset | Original colored Mondrian behavior, preserved for backward compatibility. |
+| `configs/demo_v1_a4_pen.json` | 210mm x 297mm (A4 portrait), 10mm safety margin | monochrome (black lines only, no fills) | 1mm pen, 0% overlap, 5mm edge inset | Demo v1: first Aubo i5 hardware test — pen on paper. |
+| `configs/mondrian_12x12_paint.json` | 304.8mm x 304.8mm (12in square), no margin | classic red/yellow/blue (+occasional gray) | 10mm brush, 25% overlap, 3mm edge inset | Original colored Mondrian behavior, preserved for backward compatibility. |
 
 ### Important config fields
 
 | Field | Meaning |
 | --- | --- |
 | `canvas.width_mm` / `canvas.height_mm` | Canvas size. Not assumed square — width and height are always handled separately (including border generation). |
+| `canvas.margin_mm` | Safety margin: the entire artwork, border included, stays this far inside the physical canvas/paper edge, so the tool never draws right at the edge. Optional, defaults to `0`. Must satisfy `2 * margin < min(width, height)`. Demo v1 uses `10.0`. |
 | `canvas.origin` | Must currently be `"top-left"` (the only supported origin). |
 | `artwork.palette_mode` | `"monochrome"` skips all colored rectangle fills — only grid lines + border are generated (see [Demo v1 monochrome behavior](#demo-v1-monochrome-behavior)). `"color"` picks accent-colored blocks like the original generator. |
 | `artwork.accent_colors` / `artwork.neutral_accent_color` | Palette used in `"color"` mode. Ignored in `"monochrome"` mode. |
 | `artwork.min_cell_fraction` / `artwork.max_split_depth` | Recursive subdivision tuning — same meaning as the old `MIN_CELL_FRACTION`/`MAX_SPLIT_DEPTH` constants. |
+| `artwork.min_split_depth` | Depths below this always subdivide (when the cell is big enough), guaranteeing the artwork is never an empty border-only rectangle. Optional integer, defaults to `1`. Both current profiles use `2`. |
 | `path_generation.tool_width_mm` | Width of a single paint/pen stroke. |
 | `path_generation.stroke_overlap_ratio` | How much each fill stripe overlaps the previous one (`0 <= ratio < 1`). |
 | `path_generation.edge_inset_mm` | How far inside a rectangle's edge strokes are kept. |
@@ -319,9 +321,11 @@ and adds the result as a top-level `"validation"` key:
 "validation": { "passed": true, "errors": [], "warnings": [] }
 ```
 
-This does not stop the script from writing output on failure — it's a
-review aid, not a gate. See `docs/painting-paths-format.md` for the full
-rule set and `path_validation.py` below for the implementation.
+The result is also printed to the console, and the script exits with a
+non-zero status when validation reports errors (output files are still
+written first so a failing run can be inspected). See
+`docs/painting-paths-format.md` for the full rule set and
+`path_validation.py` below for the implementation.
 
 ### Debug summary fields
 
@@ -383,8 +387,50 @@ validation rules): `docs/painting-paths-format.md`.
 - Translate `painting_paths.json` into actual robot motion/G-code, once
   a robot calibration config (e.g. `configs/aubo_i5_lab_setup.json`)
   exists.
-- Have `main()` fail loudly (non-zero exit) when validation reports
-  errors, instead of only recording them under `"validation"`.
+
+---
+
+## generate_test_line.py
+
+Generates a `painting_paths.json`-format file containing a **single
+straight test line** — by default the 50 mm first-contact line from
+`docs/hardware-test-checklist.md` section 9 (from `(80, 140)` to
+`(130, 140)` on A4). This way the very first pen stroke on hardware
+exercises the exact same file format and future robot adapter as the
+real generated artwork, instead of a hand-entered line on the robot side.
+
+### Usage
+
+```bash
+# Default 50 mm checklist line, Demo v1 config
+python3 scripts/generate_test_line.py
+
+# Custom line
+python3 scripts/generate_test_line.py --start 80 140 --end 130 140
+```
+
+### Options
+
+| Flag | Description |
+| --- | --- |
+| `--config PATH` | Pipeline config (canvas size, tool settings, output directory). Defaults to `configs/demo_v1_a4_pen.json`. |
+| `--start X_MM Y_MM` | Line start point in mm. Default `80 140`. |
+| `--end X_MM Y_MM` | Line end point in mm. Default `130 140`. |
+
+### Outputs
+
+Written to the config's `output.directory`, with fixed names so they can
+never overwrite the real artwork outputs:
+
+```text
+output/test_line_paths.json     Single-stroke painting_paths-format file
+output/test_line_preview.svg    Visual preview of the test line
+```
+
+The file is validated with `path_validation.validate_painting_paths()`
+exactly like real artwork paths; the result is stored under
+`"validation"`, printed to the console, and the script exits non-zero if
+validation fails (e.g. the line leaves the canvas).
 
 ---
 
@@ -415,7 +461,7 @@ result = validate_painting_paths(painting_paths)
 | --- | --- |
 | `validate_painting_paths(painting_paths)` | Main entry point: validates canvas + every command, returns the result dict. |
 | `validate_canvas(canvas)` | Checks canvas exists, `width_mm`/`height_mm` are present and positive (error), `origin` is `"top-left"` (warning otherwise). Returns `(errors, warnings)`. |
-| `validate_command(command, index, canvas)` | Checks one command's structure against its type's rules (see `docs/painting-paths-format.md`). Unknown command types warn, not error. Returns `(errors, warnings)`. |
+| `validate_command(command, index, canvas)` | Checks one command's structure against its type's rules (see `docs/painting-paths-format.md`), including that `move_to` and `paint_stroke` coordinates stay inside canvas bounds — the robot physically travels to `move_to` targets, so those are bounds-checked too. Unknown command types warn, not error. Returns `(errors, warnings)`. |
 | `point_inside_canvas(point, canvas)` | `True` if `0 <= x <= width_mm` and `0 <= y <= height_mm`. |
 | `is_number(value)` | `True` for `int`/`float`, explicitly `False` for `bool`. |
 | `stroke_distance(from_point, to_point)` | Euclidean distance between two `[x, y]` points. |
