@@ -174,6 +174,8 @@ This script `import`s `canny`, so every run re-executes the entire image pipelin
    `order_strokes()` (from `path_ordering.py`, shared by both technical routes): greedy nearest-neighbor — starting from `home_position`, repeatedly picks whichever remaining stroke has an endpoint closest to the pen's current position (open strokes may be reversed), to cut down total pen-up travel.
 4. `build_sketch_robot_path()` 把以上两步串起来，是给其他代码调用的主入口。
    `build_sketch_robot_path()` chains the two steps together and is the main entry point for other code to call.
+5. 直接运行时还会调用 `path_validation.validate_robot_path()` 做结构校验（画布合法、坐标越界、stroke 退化等），结果存进输出 JSON 的 `"validation"` 字段。
+   Running the script directly also calls `path_validation.validate_robot_path()` for a structural sanity check (valid canvas, in-bounds coordinates, non-degenerate strokes), storing the result under a `"validation"` key in the output JSON.
 
 **Output / 输出:** 返回 Python 数据结构，直接运行时也会顺手写一份调试用的 JSON（还没接具体的机器人协议 / 硬件画布尺寸，这两个待硬件那边定了再接）：
 Returns a Python data structure; running the script directly also writes a debug JSON dump (not yet wired to a specific robot protocol / real canvas size, both still pending from hardware):
@@ -184,12 +186,13 @@ Returns a Python data structure; running the script directly also writes a debug
     "tools": [
         {"kind": "line", "color": "black", "strokes": list[list[(x, y)]]},
     ],
+    "validation": {"passed": bool, "errors": [...], "warnings": [...]},
 }
 # 只有一个 tool（单色笔），和 mondrian_robot_path.py 的输出用同一套外层结构
 # only one tool (single monochrome pen); same top-level shape as mondrian_robot_path.py's output
 ```
 
-直接运行 `python scripts/sketch_robot_path.py` 会打印统计信息，并写出 `output/sketch_robot_path.json`：
+直接运行 `python scripts/sketch_robot_path.py` 会打印统计信息、校验结果，并写出 `output/sketch_robot_path.json`：
 
 ```
 strokes: 428
@@ -197,6 +200,7 @@ total points: 1761
 baseline pen-up travel: 26312.4
 optimized pen-up travel: 1498.2
 reduction: 94.3%
+validation: passed=True errors=0 warnings=0
 wrote .../output/sketch_robot_path.json
 ```
 
@@ -241,6 +245,41 @@ Not meant to be run directly; import from it instead.
 
 ---
 
+## path_validation.py
+
+Shared structural sanity check for this repo's robot path output — the
+`{"canvas_size"/"canvas_size_mm": ..., "tools": [{"kind", "color", "strokes"}]}`
+shape returned by both `build_sketch_robot_path()` and
+`build_mondrian_robot_path()`. Both scripts call it automatically and stash
+the result under a `"validation"` key in their debug JSON output. Not meant
+to be run directly; import `validate_robot_path` from it instead.
+
+针对本仓库路径输出格式（`sketch_robot_path.py` 和 `mondrian_robot_path.py` 共用的那套 `{"canvas_size"/"canvas_size_mm", "tools": [...]}` 结构）的结构性校验，两个脚本都会自动调用，并把结果存进调试 JSON 的 `"validation"` 字段里。不直接运行，从里面 import `validate_robot_path` 用。
+
+**What it checks / 检查内容:**
+
+- 画布尺寸存在且合法（`canvas_size`/`canvas_size_mm` 是正数）——不满足报错。
+  Canvas size is present and valid (positive numbers) — error otherwise.
+- 每个 `tool` 的 `kind` 是已知值（`line`/`fill`）——未知值只报警告，不算错误（以后加新 kind 不会破坏校验）。
+  Each tool's `kind` is a known value (`line`/`fill`) — unknown values are a warning, not an error, so adding a new kind later won't break existing validation.
+- 每个 `tool` 有 `color` 字段——缺失报警告。
+  Each tool has a `color` field — warning if missing.
+- 每条 `stroke` 至少有 2 个点，每个点都是合法的 `(x, y)` 且落在画布范围内——不满足报错。
+  Each stroke has at least 2 points, and every point is a valid `(x, y)` within canvas bounds — error otherwise.
+- 每条 `stroke` 的总路径长度不为零（不是所有点都重合在一起）——退化则报错。
+  Each stroke has nonzero total path length (not all points coinciding) — error if degenerate.
+
+`validate_robot_path(result)` returns `{"passed": bool, "errors": [...], "warnings": [...]}`
+— `passed` is true iff `errors` is empty; warnings never affect it (same
+convention as `mondrian` branch's own `path_validation.py`, which validates
+a different, command-list-based path format — see that branch if you need
+the command-list version, this one is for our own strokes-based format).
+
+**Still open / 待办:** 目前只检查结构和坐标范围，没有检查"落在网格线上/色块边界内"这种更语义化的正确性（比如 fill stroke 是否真的待在对应色块矩形里），如果需要更强的校验可以再加。
+Currently only checks structure and coordinate bounds, not more semantic correctness like "does this fill stroke actually stay inside its rectangle" — could be extended later if needed.
+
+---
+
 ## mondrian_robot_path.py
 
 Converts a `mondrian_generator.py` design into robot paths: traces the
@@ -271,6 +310,8 @@ reproducible design.
    `fill_rect()`: generates a boustrophedon scan path for a color cell — insets each edge by `brush_width_mm / 2` so the fill doesn't paint over the already-drawn grid lines, row spacing equals the brush width, and the whole cell is one continuous pen-down stroke.
 3. `build_mondrian_robot_path()`：调用 `mondrian_generator.generate_mondrian_design()` 拿到矩形/线条数据（复用现有数据，不重新解析 SVG），黑线单独一组，色块按颜色分组（对应"每种颜色专用画笔"的现实约束，见 `docs/Rob_Ross_Discuss.md`），组内用 `path_ordering.order_strokes()` 排序减少空移。
    `build_mondrian_robot_path()`: calls `mondrian_generator.generate_mondrian_design()` to get rectangle/line data (reusing existing data, no SVG re-parsing), groups the black lines separately from each fill color (matching the "dedicated brush per color" constraint in `docs/Rob_Ross_Discuss.md`), and orders strokes within each group with `path_ordering.order_strokes()` to cut down travel.
+4. 直接运行时还会调用 `path_validation.validate_robot_path()` 做结构校验，结果存进输出 JSON 的 `"validation"` 字段。
+   Running the script directly also calls `path_validation.validate_robot_path()` for a structural sanity check, storing the result under a `"validation"` key in the output JSON.
 
 **Output / 输出:**
 
@@ -282,16 +323,18 @@ reproducible design.
         {"kind": "fill", "color": "#d62828", "strokes": list[list[(x, y)]]},
         ...
     ],
+    "validation": {"passed": bool, "errors": [...], "warnings": [...]},
 }
 ```
 
-一组是"黑线描边"，其余每组对应一种色块颜色（涂色时按组切换画笔/颜料，组内顺序已经排好）。直接运行会为每组打印统计信息，并写出调试用的 `output/mondrian_robot_path.json`：
-One group is the black line trace, and each remaining group is one fill color (switch brush/paint between groups when painting; strokes within a group are already ordered). Running the script directly prints per-group stats and writes a debug `output/mondrian_robot_path.json`:
+一组是"黑线描边"，其余每组对应一种色块颜色（涂色时按组切换画笔/颜料，组内顺序已经排好）。直接运行会为每组打印统计信息、校验结果，并写出调试用的 `output/mondrian_robot_path.json`：
+One group is the black line trace, and each remaining group is one fill color (switch brush/paint between groups when painting; strokes within a group are already ordered). Running the script directly prints per-group stats, validation results, and writes a debug `output/mondrian_robot_path.json`:
 
 ```
 [line] color=black strokes=12 points=24 travel=689.7mm
 [fill] color=#f7c600 strokes=1 points=26 travel=266.7mm
 [fill] color=#1d4ed8 strokes=1 points=26 travel=210.4mm
+validation: passed=True errors=0 warnings=0
 wrote .../output/mondrian_robot_path.json
 ```
 

@@ -6,6 +6,7 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(__file__))
 import mondrian_generator  # noqa: E402  (reuses Rect/Line design data, no SVG re-parsing)
 from path_ordering import order_strokes, total_travel_distance  # noqa: E402
+from path_validation import validate_robot_path  # noqa: E402
 
 # Robot brush widths in mm - separate knobs for the black grid-line brush and
 # the color-fill brush in case hardware ends up using different tools for
@@ -100,6 +101,15 @@ if __name__ == "__main__":
         travel = total_travel_distance(strokes, DEFAULT_HOME_POSITION)
         print(f"[{tool['kind']}] color={tool['color']} "
               f"strokes={len(strokes)} points={total_points} travel={travel:.1f}mm")
+
+    validation = validate_robot_path(result)
+    result["validation"] = validation
+    print(f"validation: passed={validation['passed']} "
+          f"errors={len(validation['errors'])} warnings={len(validation['warnings'])}")
+    for message in validation["errors"]:
+        print(f"  ERROR: {message}")
+    for message in validation["warnings"]:
+        print(f"  WARNING: {message}")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(DEBUG_OUTPUT_PATH, 'w') as f:

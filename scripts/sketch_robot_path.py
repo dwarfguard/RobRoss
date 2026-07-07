@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import canny  # noqa: E402  (reruns edge detection/skeletonization, gives us `strokes` + `simplify`)
 from path_ordering import order_strokes, total_travel_distance  # noqa: E402
+from path_validation import validate_robot_path  # noqa: E402
 
 # Canvas physical size/origin are still TBD from the hardware side - keep them
 # as parameters so nothing here is hard-coded to a guessed number.
@@ -74,6 +75,16 @@ if __name__ == "__main__":
     print(f"reduction: {(1 - ordered_distance / baseline_distance) * 100:.1f}%")
 
     result = {"canvas_size": DEFAULT_CANVAS_SIZE, "tools": [{"kind": "line", "color": "black", "strokes": ordered}]}
+
+    validation = validate_robot_path(result)
+    result["validation"] = validation
+    print(f"validation: passed={validation['passed']} "
+          f"errors={len(validation['errors'])} warnings={len(validation['warnings'])}")
+    for message in validation["errors"]:
+        print(f"  ERROR: {message}")
+    for message in validation["warnings"]:
+        print(f"  WARNING: {message}")
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(DEBUG_OUTPUT_PATH, 'w') as f:
         json.dump(result, f)
