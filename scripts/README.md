@@ -167,14 +167,47 @@ Generated output/path_preview.svg
 3. `build_painting_paths()` assembles the JSON: project/style/version,
    `source_file`, canvas metadata (copied from the plan),
    `path_settings`, the full `commands` list, and a `debug` summary
-   (command counts, estimated total paint travel distance in mm).
+   (command/region counts, estimated total paint travel distance in mm).
 4. `render_svg()` draws the same commands: paint strokes as
    semi-transparent colored lines (so overlapping stripes show up as
    visibly darker bands) and travel moves as dashed gray lines, so the
    boustrophedon order is actually visible instead of looking like one
    solid block.
 5. `main()` creates `output/` if needed, loads the plan, builds the
-   command list once, and writes both files from it.
+   command list, runs it through `path_validation.validate_painting_paths()`
+   and stores the result under `painting_paths["validation"]`, then writes
+   both files.
+
+### Validation
+
+Before writing `painting_paths.json`, `main()` calls
+`validate_painting_paths()` from [`path_validation.py`](#path_validationpy)
+and adds the result as a top-level `"validation"` key:
+
+```json
+"validation": { "passed": true, "errors": [], "warnings": [] }
+```
+
+This does not stop the script from writing output on failure — it's a
+review aid, not a gate. See `docs/painting-paths-format.md` for the full
+rule set and `path_validation.py` below for the implementation.
+
+### Debug summary fields
+
+`painting_paths.json["debug"]` includes:
+
+| Field | Meaning |
+| --- | --- |
+| `num_commands` | Total commands generated. |
+| `num_paint_stroke_commands` | Number of `paint_stroke` commands. |
+| `estimated_total_paint_distance_mm` | Sum of Euclidean stroke lengths. |
+| `num_fill_regions` | Number of `paint_rectangle` operations in the source plan. |
+| `num_grid_lines` | Number of `paint_line` operations in the source plan. |
+| `num_select_tool_commands` | Number of `select_tool` commands. |
+| `num_lift_tool_commands` | Number of `lift_tool` commands. |
+| `num_lower_tool_commands` | Number of `lower_tool` commands. |
+| `num_dip_paint_commands` | Number of `dip_paint` commands. |
+| `num_move_to_commands` | Number of `move_to` commands that are *pure travel* — i.e. **not** immediately followed by `lower_tool`. Under the current stripe/line generation, every `move_to` positions the tool right before painting, so this is normally `0`. |
 
 ### Tuning knobs (top of file)
 
@@ -204,6 +237,9 @@ operation (e.g. `blue_block_1_row3`), for debugging. This is still an
 intermediate representation, not real robot motor commands — no actual
 motor coordinates, timing, or hardware I/O yet.
 
+Full format reference (coordinate system, command fields, assumptions,
+validation rules): `docs/painting-paths-format.md`.
+
 ### Ideas for future features
 
 - CLI flags to point at a different input plan / output location.
@@ -212,3 +248,47 @@ motor coordinates, timing, or hardware I/O yet.
 - Smarter travel ordering (e.g. nearest-neighbor) instead of following
   plan order exactly, once travel time matters.
 - Translate `painting_paths.json` into actual robot motion/G-code.
+- Have `main()` fail loudly (non-zero exit) when validation reports
+  errors, instead of only recording them under `"validation"`.
+
+---
+
+## path_validation.py
+
+Importable module (no CLI) that validates `painting_paths.json`-style
+data: structurally correct commands, coordinates within canvas bounds,
+and safe enough for early software/hardware review. Used by
+`generate_painting_paths.py` (see [Validation](#validation) above) and
+safe to import from other scripts or tests.
+
+### Usage
+
+```python
+from path_validation import validate_painting_paths
+
+result = validate_painting_paths(painting_paths)
+# {"passed": bool, "errors": [...], "warnings": [...]}
+```
+
+`passed` is `true` iff `errors` is empty; `warnings` never affect it.
+
+### Functions
+
+| Function | Purpose |
+| --- | --- |
+| `validate_painting_paths(painting_paths)` | Main entry point: validates canvas + every command, returns the result dict. |
+| `validate_canvas(canvas)` | Checks canvas exists, `width_mm`/`height_mm` are present and positive (error), `origin` is `"top-left"` (warning otherwise). Returns `(errors, warnings)`. |
+| `validate_command(command, index, canvas)` | Checks one command's structure against its type's rules (see `docs/painting-paths-format.md`). Unknown command types warn, not error. Returns `(errors, warnings)`. |
+| `point_inside_canvas(point, canvas)` | `True` if `0 <= x <= width_mm` and `0 <= y <= height_mm`. |
+| `is_number(value)` | `True` for `int`/`float`, explicitly `False` for `bool`. |
+| `stroke_distance(from_point, to_point)` | Euclidean distance between two `[x, y]` points. |
+
+Full rule set (what's an error vs. a warning for each command type):
+`docs/painting-paths-format.md`.
+
+### Ideas for future features
+
+- A CLI wrapper to validate an arbitrary `painting_paths.json` file
+  on disk without importing it from another script.
+- Check that every `paint_stroke` is bracketed by `lower_tool`/`lift_tool`.
+- Warn on strokes shorter than the tool width (likely a dot, not a stroke).

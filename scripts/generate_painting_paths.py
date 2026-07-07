@@ -3,6 +3,8 @@ import math
 from html import escape
 from pathlib import Path
 
+from path_validation import validate_painting_paths
+
 # This script does NOT generate a new random layout. It reads the layout
 # already decided by mondrian_generator.py and converts it into concrete
 # robot-style stroke paths.
@@ -174,6 +176,24 @@ def build_painting_paths(plan: dict, commands: list[dict]) -> dict:
         math.dist(cmd["from_mm"], cmd["to_mm"]) for cmd in stroke_commands
     )
 
+    def count_commands(command_name: str) -> int:
+        return sum(1 for cmd in commands if cmd["command"] == command_name)
+
+    def count_travel_only_move_to() -> int:
+        # A move_to is "just travelling" if it is not immediately followed by
+        # lower_tool (i.e. it isn't positioning the tool to start a stroke).
+        count = 0
+        for index, cmd in enumerate(commands):
+            if cmd["command"] != "move_to":
+                continue
+            next_cmd = commands[index + 1] if index + 1 < len(commands) else None
+            if next_cmd is None or next_cmd["command"] != "lower_tool":
+                count += 1
+        return count
+
+    num_fill_regions = sum(1 for op in plan["operations"] if op["operation"] == "paint_rectangle")
+    num_grid_lines = sum(1 for op in plan["operations"] if op["operation"] == "paint_line")
+
     return {
         "project": plan["project"],
         "style": plan["style"],
@@ -191,6 +211,13 @@ def build_painting_paths(plan: dict, commands: list[dict]) -> dict:
             "num_commands": len(commands),
             "num_paint_stroke_commands": len(stroke_commands),
             "estimated_total_paint_distance_mm": round(total_distance, 2),
+            "num_fill_regions": num_fill_regions,
+            "num_grid_lines": num_grid_lines,
+            "num_select_tool_commands": count_commands("select_tool"),
+            "num_lift_tool_commands": count_commands("lift_tool"),
+            "num_lower_tool_commands": count_commands("lower_tool"),
+            "num_dip_paint_commands": count_commands("dip_paint"),
+            "num_move_to_commands": count_travel_only_move_to(),
         },
     }
 
@@ -254,6 +281,9 @@ def main() -> None:
     plan = load_painting_plan(PLAN_INPUT_FILE)
     commands = build_commands(plan)
     painting_paths = build_painting_paths(plan, commands)
+
+    validation = validate_painting_paths(painting_paths)
+    painting_paths["validation"] = validation
 
     with open(PATHS_OUTPUT_FILE, "w", encoding="utf-8") as file:
         json.dump(painting_paths, file, indent=2)
