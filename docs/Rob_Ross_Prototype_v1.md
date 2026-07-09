@@ -198,8 +198,13 @@ Expected outputs:
 output/mondrian_preview.svg
 output/painting_plan.json
 output/path_preview.svg
+output/path_animation.svg
 output/painting_paths.json
 ```
+
+`path_animation.svg` animates the stroke order (open in a web browser,
+reload to replay) — useful for reviewing execution order and travel
+moves before hardware testing.
 
 Review the SVG previews before using the JSON path data.
 

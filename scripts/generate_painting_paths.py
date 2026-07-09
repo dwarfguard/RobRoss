@@ -23,6 +23,20 @@ STROKE_PREVIEW_OPACITY = 0.55
 TRAVEL_LINE_COLOR = "#999999"
 TRAVEL_LINE_WIDTH_MM = 1.0
 
+# Animated-preview-only settings (do not affect painting_paths.json).
+# The animation plays strokes in command order at these constant speeds,
+# with a short pause for tool actions, so the pacing is watchable — these
+# are visual pacing knobs, not robot motion parameters.
+ANIMATION_PAINT_SPEED_MM_S = 50.0
+ANIMATION_TRAVEL_SPEED_MM_S = 200.0
+ANIMATION_TOOL_PAUSE_S = 0.15
+ANIMATION_UNDERLAY_OPACITY = 0.12
+ANIMATION_MARKER_COLOR = "#e63946"
+
+# Used when a config doesn't define output.path_animation_svg_file (the
+# field is optional so older/third-party configs keep working).
+DEFAULT_PATH_ANIMATION_SVG_FILE = "path_animation.svg"
+
 
 def load_painting_plan(path: Path) -> dict:
     """Load the painting plan JSON produced by mondrian_generator.py."""
@@ -280,6 +294,173 @@ def render_svg(painting_paths: dict) -> str:
 '''
 
 
+# --- Animated SVG preview -------------------------------------------------
+
+def build_animation_timeline(commands: list) -> tuple[list, float]:
+    """
+    Walk the commands in order and turn them into timed animation events.
+
+    Returns (events, total_duration_s). Each event is a dict with a "type"
+    ("place", "travel", "stroke", "lower_tool", "lift_tool", "dip_paint"),
+    a "start" time in seconds, and — for motion events — "from"/"to" points,
+    a "dur", and (strokes only) a "color".
+
+    Only the command list and geometry matter here, so this works for any
+    config profile: monochrome line-only paths and colored boustrophedon
+    fills produce the same kinds of events.
+    """
+    events = []
+    time_s = 0.0
+    position = None
+
+    for cmd in commands:
+        name = cmd["command"]
+
+        if name == "move_to":
+            target = (cmd["x_mm"], cmd["y_mm"])
+            if position is None:
+                events.append({"type": "place", "at": target, "start": time_s})
+            elif target != position:
+                dur = max(math.dist(position, target) / ANIMATION_TRAVEL_SPEED_MM_S, 0.02)
+                events.append({"type": "travel", "from": position, "to": target, "start": time_s, "dur": dur})
+                time_s += dur
+            position = target
+
+        elif name == "paint_stroke":
+            start_pt = tuple(cmd["from_mm"])
+            end_pt = tuple(cmd["to_mm"])
+            if position is None:
+                events.append({"type": "place", "at": start_pt, "start": time_s})
+            elif position != start_pt:
+                # Current generators always move_to the stroke start first,
+                # but stay robust for hand-written or future command lists.
+                dur = max(math.dist(position, start_pt) / ANIMATION_TRAVEL_SPEED_MM_S, 0.02)
+                events.append({"type": "travel", "from": position, "to": start_pt, "start": time_s, "dur": dur})
+                time_s += dur
+            dur = max(math.dist(start_pt, end_pt) / ANIMATION_PAINT_SPEED_MM_S, 0.02)
+            events.append({
+                "type": "stroke",
+                "from": start_pt,
+                "to": end_pt,
+                "color": cmd["color"],
+                "start": time_s,
+                "dur": dur,
+            })
+            time_s += dur
+            position = end_pt
+
+        elif name in ("lower_tool", "lift_tool", "dip_paint"):
+            events.append({"type": name, "start": time_s})
+            time_s += ANIMATION_TOOL_PAUSE_S
+
+        # select_tool costs no animation time.
+
+    return events, time_s
+
+
+def render_animated_svg(painting_paths: dict) -> str:
+    """
+    Render the commands as a self-contained animated SVG (SMIL, no
+    JavaScript): strokes draw themselves in command order, travel moves
+    appear as dashed gray lines, and a round marker follows the tool
+    (solid while lowered, faded while lifted). A faint underlay of the
+    finished artwork shows the target while it draws. Open in a web
+    browser; reload the page to replay.
+    """
+    canvas = painting_paths["canvas"]
+    width_mm = canvas["width_mm"]
+    height_mm = canvas["height_mm"]
+    width_in = canvas.get("width_in", width_mm / 25.4)
+    height_in = canvas.get("height_in", height_mm / 25.4)
+    tool_width = painting_paths["path_settings"]["tool_width_mm"]
+
+    events, total_s = build_animation_timeline(painting_paths["commands"])
+    strokes = [ev for ev in events if ev["type"] == "stroke"]
+
+    elements = [f'<rect x="0" y="0" width="{width_mm}" height="{height_mm}" fill="white" />']
+
+    # Faint underlay of the finished artwork, so the viewer can see the
+    # target composition while the animated strokes draw over it.
+    for ev in strokes:
+        elements.append(
+            f'<line x1="{ev["from"][0]}" y1="{ev["from"][1]}" '
+            f'x2="{ev["to"][0]}" y2="{ev["to"][1]}" '
+            f'stroke="{escape(ev["color"])}" stroke-width="{tool_width}" '
+            f'stroke-linecap="round" stroke-opacity="{ANIMATION_UNDERLAY_OPACITY}" />'
+        )
+
+    for ev in events:
+        start = round(ev["start"], 3)
+
+        if ev["type"] == "stroke":
+            length = round(max(math.dist(ev["from"], ev["to"]), 0.01), 2)
+            elements.append(
+                f'<line x1="{ev["from"][0]}" y1="{ev["from"][1]}" '
+                f'x2="{ev["to"][0]}" y2="{ev["to"][1]}" '
+                f'stroke="{escape(ev["color"])}" stroke-width="{tool_width}" '
+                f'stroke-linecap="round" stroke-opacity="{STROKE_PREVIEW_OPACITY}" '
+                f'stroke-dasharray="{length}" stroke-dashoffset="{length}">'
+                f'<animate attributeName="stroke-dashoffset" from="{length}" to="0" '
+                f'begin="{start}s" dur="{round(ev["dur"], 3)}s" fill="freeze" />'
+                f'</line>'
+            )
+
+        elif ev["type"] == "travel":
+            elements.append(
+                f'<line x1="{ev["from"][0]}" y1="{ev["from"][1]}" '
+                f'x2="{ev["to"][0]}" y2="{ev["to"][1]}" '
+                f'stroke="{TRAVEL_LINE_COLOR}" stroke-width="{TRAVEL_LINE_WIDTH_MM}" '
+                f'stroke-dasharray="4,3" opacity="0">'
+                f'<set attributeName="opacity" to="1" begin="{start}s" fill="freeze" />'
+                f'</line>'
+            )
+
+    # Tool marker on top: follows every motion event, solid while the tool
+    # is lowered and faded while it travels lifted.
+    motions = [ev for ev in events if ev["type"] in ("travel", "stroke")]
+    if motions:
+        first = next(ev for ev in events if ev["type"] in ("place", "travel", "stroke"))
+        marker_x, marker_y = first["at"] if first["type"] == "place" else first["from"]
+        marker_animations = []
+        for ev in events:
+            start = round(ev["start"], 3)
+            if ev["type"] in ("travel", "stroke"):
+                dur = round(ev["dur"], 3)
+                for attr, axis in (("cx", 0), ("cy", 1)):
+                    marker_animations.append(
+                        f'<animate attributeName="{attr}" from="{ev["from"][axis]}" '
+                        f'to="{ev["to"][axis]}" begin="{start}s" dur="{dur}s" fill="freeze" />'
+                    )
+            elif ev["type"] == "lower_tool":
+                marker_animations.append(
+                    f'<set attributeName="fill-opacity" to="0.9" begin="{start}s" fill="freeze" />'
+                )
+            elif ev["type"] == "lift_tool":
+                marker_animations.append(
+                    f'<set attributeName="fill-opacity" to="0.35" begin="{start}s" fill="freeze" />'
+                )
+        elements.append(
+            f'<circle cx="{marker_x}" cy="{marker_y}" r="{max(tool_width, 2.0)}" '
+            f'fill="{ANIMATION_MARKER_COLOR}" fill-opacity="0.35" '
+            f'stroke="{ANIMATION_MARKER_COLOR}" stroke-width="0.6">'
+            + "".join(marker_animations)
+            + '</circle>'
+        )
+
+    svg_body = "\n  ".join(elements)
+
+    return f'''<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="{width_in}in"
+  height="{height_in}in"
+  viewBox="0 0 {width_mm} {height_mm}"
+>
+  <title>Painting path animation (~{total_s:.0f} s) — open in a browser, reload to replay</title>
+  {svg_body}
+</svg>
+'''
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Convert a painting_plan.json into robot-style stroke path commands."
@@ -299,6 +480,9 @@ def main() -> None:
     plan_input_file = output_dir / output["painting_plan_file"]
     paths_output_file = output_dir / output["painting_paths_file"]
     svg_output_file = output_dir / output["path_preview_svg_file"]
+    animation_output_file = output_dir / (
+        output.get("path_animation_svg_file") or DEFAULT_PATH_ANIMATION_SVG_FILE
+    )
 
     output_dir.mkdir(exist_ok=True)
 
@@ -317,6 +501,15 @@ def main() -> None:
     with open(svg_output_file, "w", encoding="utf-8") as file:
         file.write(svg_content)
     print(f"Generated {svg_output_file}")
+
+    animated_svg_content = render_animated_svg(painting_paths)
+    with open(animation_output_file, "w", encoding="utf-8") as file:
+        file.write(animated_svg_content)
+    _, animation_duration_s = build_animation_timeline(commands)
+    print(
+        f"Generated {animation_output_file} "
+        f"(~{animation_duration_s:.0f}s animation — open in a web browser, reload to replay)"
+    )
 
     # Surface the validation result on the console and in the exit code,
     # so a failing file can't be mistaken for a good one. Output files are

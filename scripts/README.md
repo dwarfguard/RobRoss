@@ -52,6 +52,7 @@ settings from two different profiles.
 | `path_generation.edge_inset_mm` | How far inside a rectangle's edge strokes are kept. |
 | `output.directory` | Where all generated files go (`output/` for both current profiles). |
 | `output.painting_plan_file`, `.painting_paths_file`, `.preview_svg_file`, `.path_preview_svg_file` | Output file names within `output.directory`. |
+| `output.path_animation_svg_file` | Animated path preview file name. Optional — defaults to `path_animation.svg` so configs without it keep working. |
 
 Config files are loaded and validated by `config_loader.py` (see below) —
 both scripts fail with a clear, itemized error message if a config is
@@ -250,11 +251,14 @@ with respect to the Mondrian layout: it never generates a new random
 layout, it only reads the plan that `mondrian_generator.py` already
 produced.
 
-One run produces two outputs from the *same* command list:
+One run produces three outputs from the *same* command list:
 
 - `output/painting_paths.json` — ordered stroke commands for a robot to
   follow.
-- `output/path_preview.svg` — visual preview of those stroke paths.
+- `output/path_preview.svg` — static visual preview of those stroke paths.
+- `output/path_animation.svg` — animated preview: strokes draw themselves
+  in command order, travel moves appear as dashed lines, and a marker
+  follows the tool. Open it in a web browser; reload to replay.
 
 ### Usage
 
@@ -274,6 +278,8 @@ that config) to already exist — run `mondrian_generator.py` with the
 ```
 Generated output/painting_paths.json
 Generated output/path_preview.svg
+Generated output/path_animation.svg (~44s animation — open in a web browser, reload to replay)
+Validation passed (0 warnings).
 ```
 
 ### How it works
@@ -306,10 +312,22 @@ Generated output/path_preview.svg
    visibly darker bands) and travel moves as dashed gray lines, so the
    boustrophedon order is actually visible instead of looking like one
    solid block.
-5. `main()` loads and validates the config, creates `output/` if
+5. `render_animated_svg()` renders the same commands as a
+   self-contained animated SVG (SMIL, no JavaScript):
+   `build_animation_timeline()` assigns each stroke/travel a start time
+   and duration from constant preview speeds
+   (`ANIMATION_PAINT_SPEED_MM_S`, `ANIMATION_TRAVEL_SPEED_MM_S`, plus a
+   short `ANIMATION_TOOL_PAUSE_S` for lower/lift/dip), then each stroke
+   draws itself in order over a faint underlay of the finished artwork,
+   with a round marker following the tool (solid while lowered, faded
+   while lifted). Works for any profile since it only reads the command
+   list — pen lines and colored boustrophedon fills animate the same
+   way. These speeds are visual pacing only, not robot motion
+   parameters.
+6. `main()` loads and validates the config, creates `output/` if
    needed, loads the plan, builds the command list, runs it through
    `path_validation.validate_painting_paths()` and stores the result
-   under `painting_paths["validation"]`, then writes both files.
+   under `painting_paths["validation"]`, then writes all three files.
 
 ### Validation
 
@@ -351,10 +369,10 @@ written first so a failing run can be inspected). See
 `STROKE_OVERLAP_RATIO`, `EDGE_INSET_MM` constants — see
 [Important config fields](#important-config-fields) above.
 
-`STROKE_PREVIEW_OPACITY`, `TRAVEL_LINE_COLOR`, `TRAVEL_LINE_WIDTH_MM`
-remain top-of-file constants in this script: they only affect the
-preview SVG's appearance, not the robot path data, so they aren't part
-of the config.
+`STROKE_PREVIEW_OPACITY`, `TRAVEL_LINE_COLOR`, `TRAVEL_LINE_WIDTH_MM`,
+and the `ANIMATION_*` pacing constants remain top-of-file constants in
+this script: they only affect the preview/animation SVGs' appearance,
+not the robot path data, so they aren't part of the config.
 
 ### Command primitives
 

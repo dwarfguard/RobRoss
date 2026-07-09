@@ -27,8 +27,13 @@ Before hardware testing, generate and review:
 output/mondrian_preview.svg
 output/painting_plan.json
 output/path_preview.svg
+output/path_animation.svg
 output/painting_paths.json
 ```
+
+`path_animation.svg` shows the strokes drawing in execution order (open
+in a web browser) — a good way to sanity-check stroke order and travel
+moves before moving the robot.
 
 Use the Demo v1 config:
 

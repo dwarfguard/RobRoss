@@ -36,6 +36,7 @@
     "painting_plan_file": "painting_plan.json",
     "painting_paths_file": "painting_paths.json",
     "preview_svg_file": "mondrian_preview.svg",
-    "path_preview_svg_file": "path_preview.svg"
+    "path_preview_svg_file": "path_preview.svg",
+    "path_animation_svg_file": "path_animation.svg"
   }
 }

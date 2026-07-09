@@ -1,13 +1,19 @@
 import unittest
+from pathlib import Path
 
-import context  # noqa: F401  (adds scripts/ to sys.path)
+from context import CONFIGS_DIR
 
+from config_loader import load_config
 from generate_painting_paths import (
+    build_animation_timeline,
     build_commands,
+    build_painting_paths,
     compute_stripe_row_centers,
     line_to_commands,
     rectangle_to_commands,
+    render_animated_svg,
 )
+from mondrian_generator import build_painting_plan, generate_mondrian_layout
 
 PATH_SETTINGS = {
     "tool_width_mm": 10.0,
@@ -119,6 +125,76 @@ class TestBuildCommands(unittest.TestCase):
         last_rect_index = max(i for i, label in enumerate(labels) if label.startswith("red_block_1"))
         first_line_index = labels.index("grid_line_1")
         self.assertLess(last_rect_index, first_line_index)
+
+
+class TestBuildAnimationTimeline(unittest.TestCase):
+    COMMANDS = [
+        {"command": "select_tool", "label": "l1", "color": "black"},
+        {"command": "dip_paint", "label": "l1", "color": "black"},
+        {"command": "move_to", "label": "l1", "x_mm": 10.0, "y_mm": 10.0},
+        {"command": "lower_tool", "label": "l1"},
+        {"command": "paint_stroke", "label": "l1", "color": "black", "from_mm": [10.0, 10.0], "to_mm": [110.0, 10.0]},
+        {"command": "lift_tool", "label": "l1"},
+        {"command": "move_to", "label": "l2", "x_mm": 10.0, "y_mm": 50.0},
+        {"command": "lower_tool", "label": "l2"},
+        {"command": "paint_stroke", "label": "l2", "color": "black", "from_mm": [10.0, 50.0], "to_mm": [110.0, 50.0]},
+        {"command": "lift_tool", "label": "l2"},
+    ]
+
+    def test_event_kinds_and_order(self):
+        events, total = build_animation_timeline(self.COMMANDS)
+        kinds = [ev["type"] for ev in events]
+        self.assertEqual(
+            kinds,
+            [
+                "dip_paint", "place", "lower_tool", "stroke", "lift_tool",
+                "travel", "lower_tool", "stroke", "lift_tool",
+            ],
+        )
+        self.assertGreater(total, 0.0)
+
+    def test_start_times_never_decrease(self):
+        events, total = build_animation_timeline(self.COMMANDS)
+        starts = [ev["start"] for ev in events]
+        self.assertEqual(starts, sorted(starts))
+        self.assertLessEqual(starts[-1], total)
+
+    def test_strokes_keep_command_geometry(self):
+        events, _ = build_animation_timeline(self.COMMANDS)
+        strokes = [ev for ev in events if ev["type"] == "stroke"]
+        self.assertEqual(strokes[0]["from"], (10.0, 10.0))
+        self.assertEqual(strokes[0]["to"], (110.0, 10.0))
+        self.assertEqual(strokes[1]["from"], (10.0, 50.0))
+
+    def test_travel_connects_stroke_end_to_next_start(self):
+        events, _ = build_animation_timeline(self.COMMANDS)
+        travel = next(ev for ev in events if ev["type"] == "travel")
+        self.assertEqual(travel["from"], (110.0, 10.0))
+        self.assertEqual(travel["to"], (10.0, 50.0))
+
+    def test_empty_command_list_gives_empty_timeline(self):
+        events, total = build_animation_timeline([])
+        self.assertEqual(events, [])
+        self.assertEqual(total, 0.0)
+
+
+class TestRenderAnimatedSvg(unittest.TestCase):
+    def test_animation_renders_for_both_repo_profiles(self):
+        """Full pipeline through render_animated_svg for each config profile."""
+        for name in ("demo_v1_a4_pen.json", "mondrian_12x12_paint.json"):
+            with self.subTest(config=name):
+                config_path = CONFIGS_DIR / name
+                config = load_config(config_path)
+                rectangles, lines = generate_mondrian_layout(config, seed=123)
+                plan = build_painting_plan(rectangles, lines, config, Path(config_path), seed=123)
+                commands = build_commands(plan, config["path_generation"])
+                paths = build_painting_paths(plan, commands, config, Path(config_path), Path("plan.json"))
+                svg = render_animated_svg(paths)
+                self.assertIn("<animate", svg)
+                self.assertIn("stroke-dashoffset", svg)
+                self.assertIn("<circle", svg)  # tool marker
+                num_strokes = paths["debug"]["num_paint_stroke_commands"]
+                self.assertEqual(svg.count('attributeName="stroke-dashoffset"'), num_strokes)
 
 
 if __name__ == "__main__":

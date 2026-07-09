@@ -121,8 +121,13 @@ Review the outputs:
 output/mondrian_preview.svg
 output/painting_plan.json
 output/path_preview.svg
+output/path_animation.svg
 output/painting_paths.json
 ```
+
+`path_animation.svg` is an animated version of the path preview —
+strokes draw themselves in execution order with travel moves and a tool
+marker. Open it in a web browser (reload to replay).
 
 Generate the single 50 mm first-contact test line (see the hardware
 checklist) in the same path file format:
@@ -175,6 +180,7 @@ output/
   mondrian_preview.svg         Human preview of generated artwork
   painting_plan.json           Intermediate artwork operations
   path_preview.svg             Human preview of generated stroke paths
+  path_animation.svg           Animated stroke-order preview (open in a browser)
   painting_paths.json          Intermediate robot-style path commands
   test_line_paths.json         Single 50 mm test-line path file
   test_line_preview.svg        Human preview of the test line
