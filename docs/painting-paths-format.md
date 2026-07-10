@@ -1,7 +1,7 @@
 # painting_paths.json Format
 
 Format reference for `output/painting_paths.json`, produced by
-`scripts/generate_painting_paths.py` and validated by `scripts/path_validation.py`.
+`Image_Process/mondrian/generate_painting_paths.py` and validated by `Image_Process/mondrian/path_validation.py`.
 
 ## Coordinate system
 

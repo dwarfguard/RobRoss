@@ -138,11 +138,11 @@ The current repo pipeline is:
 ```text
 Config profile
   ↓
-scripts/mondrian_generator.py
+Image_Process/mondrian/mondrian_generator.py
   ↓
 output/painting_plan.json
   ↓
-scripts/generate_painting_paths.py
+Image_Process/mondrian/generate_painting_paths.py
   ↓
 output/painting_paths.json
   ↓
@@ -183,13 +183,13 @@ Do not use the 12-inch color profile for the first Aubo i5 pen-on-paper test unl
 From the repo root, run:
 
 ```bash
-python3 scripts/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
 ```
 
 Then run:
 
 ```bash
-python3 scripts/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
 ```
 
 Expected outputs:
@@ -339,7 +339,7 @@ Length: 50 mm
 Generate this line as a real path file with:
 
 ```bash
-python3 scripts/generate_test_line.py
+python3 Image_Process/mondrian/generate_test_line.py
 ```
 
 so the first stroke uses the same `painting_paths.json` format (and
@@ -421,7 +421,7 @@ Before changing code, read:
 README.md
 docs/Rob_Ross_Prototype_v1.md
 docs/painting-paths-format.md
-scripts/README.md
+Image_Process/mondrian/README.md
 configs/demo_v1_a4_pen.json
 ```
 

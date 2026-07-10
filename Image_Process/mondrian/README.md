@@ -18,8 +18,8 @@ pen-and-paper canvas for Demo v1 without forking the scripts.
 Both scripts take the same flag:
 
 ```bash
-python3 scripts/mondrian_generator.py --config configs/<profile>.json --seed 123
-python3 scripts/generate_painting_paths.py --config configs/<profile>.json
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/<profile>.json --seed 123
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/<profile>.json
 ```
 
 `--config` defaults to `configs/demo_v1_a4_pen.json` if omitted. Always
@@ -61,8 +61,8 @@ missing required fields or has invalid values (negative canvas size,
 
 ### Recommended first hardware flow (Demo v1)
 
-1. Generate the A4 plan: `python3 scripts/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed <N>`.
-2. Generate the A4 paths: `python3 scripts/generate_painting_paths.py --config configs/demo_v1_a4_pen.json`.
+1. Generate the A4 plan: `python3 Image_Process/mondrian/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed <N>`.
+2. Generate the A4 paths: `python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json`.
 3. Review both SVG previews (`output/mondrian_preview.svg`, `output/path_preview.svg`) and check `output/painting_paths.json["validation"]["passed"]` is `true`.
 4. Only feed `painting_paths.json` to the robot **after** the Aubo i5 has been calibrated to the physical paper/canvas position. Robot calibration (arm poses, home position, tool offsets) is intentionally out of scope for these configs — it belongs in a separate future config, e.g. `configs/aubo_i5_lab_setup.json`.
 
@@ -131,13 +131,13 @@ lines, the SVG and the JSON always describe the identical artwork.
 
 ```bash
 # Demo v1 (A4, pen, monochrome) — new layout every run
-python3 scripts/mondrian_generator.py
+python3 Image_Process/mondrian/mondrian_generator.py
 
 # Reproduce a specific graphic
-python3 scripts/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
 
 # Old 12in square colored profile
-python3 scripts/mondrian_generator.py --config configs/mondrian_12x12_paint.json --seed 123
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/mondrian_12x12_paint.json --seed 123
 ```
 
 Output is written to `output/<preview_svg_file>` and
@@ -264,10 +264,10 @@ One run produces three outputs from the *same* command list:
 
 ```bash
 # Demo v1 (A4, pen) — uses tool_width_mm/overlap/inset from that config
-python3 scripts/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
 
 # Old 12in square colored profile
-python3 scripts/generate_painting_paths.py --config configs/mondrian_12x12_paint.json
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/mondrian_12x12_paint.json
 ```
 
 `--config` defaults to `configs/demo_v1_a4_pen.json`, same as
@@ -421,10 +421,10 @@ real generated artwork, instead of a hand-entered line on the robot side.
 
 ```bash
 # Default 50 mm checklist line, Demo v1 config
-python3 scripts/generate_test_line.py
+python3 Image_Process/mondrian/generate_test_line.py
 
 # Custom line
-python3 scripts/generate_test_line.py --start 80 140 --end 130 140
+python3 Image_Process/mondrian/generate_test_line.py --start 80 140 --end 130 140
 ```
 
 ### Options

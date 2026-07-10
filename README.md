@@ -71,11 +71,11 @@ The current software pipeline produces robot-style drawing instructions from a g
 ```text
 Config profile
   ↓
-scripts/mondrian_generator.py
+Image_Process/mondrian/mondrian_generator.py
   ↓
 output/painting_plan.json
   ↓
-scripts/generate_painting_paths.py
+Image_Process/mondrian/generate_painting_paths.py
   ↓
 output/painting_paths.json
   ↓
@@ -106,13 +106,13 @@ Use the A4 pen profile unless you are intentionally testing the older 12-inch co
 Generate the current Demo v1 A4 drawing plan:
 
 ```bash
-python3 scripts/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
 ```
 
 Generate path commands from that plan:
 
 ```bash
-python3 scripts/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
 ```
 
 Review the outputs:
@@ -133,20 +133,20 @@ Generate the single 50 mm first-contact test line (see the hardware
 checklist) in the same path file format:
 
 ```bash
-python3 scripts/generate_test_line.py
+python3 Image_Process/mondrian/generate_test_line.py
 ```
 
 Run the unit tests:
 
 ```bash
-python3 -m unittest discover tests
+python3 -m unittest discover Image_Process/mondrian/tests
 ```
 
 For the legacy 12-inch colored profile:
 
 ```bash
-python3 scripts/mondrian_generator.py --config configs/mondrian_12x12_paint.json --seed 123
-python3 scripts/generate_painting_paths.py --config configs/mondrian_12x12_paint.json
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/mondrian_12x12_paint.json --seed 123
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/mondrian_12x12_paint.json
 ```
 
 Always run both scripts with the same config profile. Mixing profiles can produce confusing or invalid results.
@@ -187,9 +187,9 @@ Generate the Demo v1 path files:
 
 ```bash
 cd ~/robross_aubo_ws/src/RobRoss
-python3 scripts/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
-python3 scripts/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
-python3 scripts/generate_test_line.py
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
+python3 Image_Process/mondrian/generate_test_line.py
 ```
 
 Run against fake hardware in three terminals from `~/robross_aubo_ws`.
@@ -254,20 +254,20 @@ docs/
   Rob_Ross_Discuss.md          Early discussion and product brainstorming
   painting-paths-format.md     Format reference for output/painting_paths.json
 
-scripts/
-  README.md                    Detailed script and config workflow documentation
-  config_loader.py             Shared JSON config loading and validation
-  mondrian_generator.py        Generates SVG preview and painting_plan.json
-  generate_painting_paths.py   Converts painting_plan.json into painting_paths.json
-  generate_test_line.py        Generates the single 50 mm first-contact test line
-  path_validation.py           Validates generated path command data
+Image_Process/
+  README.md                    Overview of the image-processing module folders
+  mondrian/                    Mondrian-style artwork/path generation pipeline
+    README.md                   Detailed script and config workflow documentation
+    config_loader.py            Shared JSON config loading and validation
+    mondrian_generator.py       Generates SVG preview and painting_plan.json
+    generate_painting_paths.py  Converts painting_plan.json into painting_paths.json
+    generate_test_line.py       Generates the single 50 mm first-contact test line
+    path_validation.py          Validates generated path command data
+    tests/                      Unit tests for this pipeline (run: python3 -m unittest discover Image_Process/mondrian/tests)
 
 ros2/
   robross_aubo.repos           vcstool manifest for the RobRoss Aubo driver fork
   robross_painter/             ROS 2 package that executes path files through MoveIt
-
-tests/
-  test_*.py                    Unit tests (run: python3 -m unittest discover tests)
 
 output/
   mondrian_preview.svg         Human preview of generated artwork
@@ -352,7 +352,7 @@ Before making code changes, read:
 
 ```text
 README.md
-scripts/README.md
+Image_Process/mondrian/README.md
 docs/Rob_Ross_Prototype_v1.md
 docs/painting-paths-format.md
 ```

@@ -7,8 +7,8 @@ robot adapter path as the real generated artwork — instead of a
 hand-entered line on the robot side.
 
 Usage:
-    python3 scripts/generate_test_line.py --config configs/demo_v1_a4_pen.json
-    python3 scripts/generate_test_line.py --start 80 140 --end 130 140
+    python3 Image_Process/mondrian/generate_test_line.py --config configs/demo_v1_a4_pen.json
+    python3 Image_Process/mondrian/generate_test_line.py --start 80 140 --end 130 140
 """
 
 import argparse

@@ -42,7 +42,7 @@ def load_painting_plan(path: Path) -> dict:
     """Load the painting plan JSON produced by mondrian_generator.py."""
     if not path.exists():
         raise FileNotFoundError(
-            f"Could not find {path}. Run scripts/mondrian_generator.py first (with the same --config)."
+            f"Could not find {path}. Run Image_Process/mondrian/mondrian_generator.py first (with the same --config)."
         )
     with open(path, "r", encoding="utf-8") as file:
         return json.load(file)

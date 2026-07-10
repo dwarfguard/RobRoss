@@ -44,8 +44,8 @@ configs/demo_v1_a4_pen.json
 Recommended generation commands:
 
 ```bash
-python3 scripts/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
-python3 scripts/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
 ```
 
 ---
@@ -206,7 +206,7 @@ Generate this line as a real path file (same format as the full artwork,
 so the robot adapter is exercised the same way):
 
 ```bash
-python3 scripts/generate_test_line.py
+python3 Image_Process/mondrian/generate_test_line.py
 ```
 
 This writes `output/test_line_paths.json` and
