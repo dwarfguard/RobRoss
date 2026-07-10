@@ -127,7 +127,7 @@ including the border, stays at least that far inside the paper edge, so
 the pen never draws right at the physical edge. For Demo v1 all strokes
 therefore fall within `10 <= x <= 200` and `10 <= y <= 287`.
 
-This coordinate system describes the paper/canvas, not the robot base coordinate system. A future robot adapter must transform paper coordinates into Aubo i5 robot poses.
+This coordinate system describes the paper/canvas, not the robot base coordinate system. The ROS 2 adapter in `ros2/robross_painter` transforms paper coordinates into Aubo i5 robot poses.
 
 ---
 
@@ -146,7 +146,7 @@ scripts/generate_painting_paths.py
   ↓
 output/painting_paths.json
   ↓
-Future Aubo i5 adapter
+ros2/robross_painter
   ↓
 Robot motion
 ```

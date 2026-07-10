@@ -4,3 +4,8 @@ __pycache__/
 
 # output/ stays committed on purpose: seed-123 reference samples.
 #output/
+
+# ROS 2 workspace outputs
+build/
+install/
+log/

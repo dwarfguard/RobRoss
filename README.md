@@ -22,7 +22,7 @@ Demo v1 is the active development target.
 | Artwork | Preset Mondrian-inspired geometric line drawing |
 | Pathing | Preprocessed movement instructions, not real-time AI |
 | Robot | Aubo i5 hardware testing target |
-| Robot code | Not implemented yet; current outputs are intermediate path files |
+| Robot code | ROS 2 adapter in `ros2/robross_painter` executes path files through MoveIt on Aubo i5 |
 
 Demo v1 is meant to answer one practical question:
 
@@ -79,12 +79,12 @@ scripts/generate_painting_paths.py
   ↓
 output/painting_paths.json
   ↓
-Future Aubo i5 adapter
+ros2/robross_painter
   ↓
 Robot motion
 ```
 
-Important: `painting_paths.json` is **not** direct robot motor code. It is an intermediate representation using millimeter coordinates and abstract commands such as `move_to`, `lower_tool`, `paint_stroke`, and `lift_tool`.
+Important: `painting_paths.json` is **not** direct robot motor code. It is an intermediate representation using millimeter coordinates and abstract commands such as `move_to`, `lower_tool`, `paint_stroke`, and `lift_tool`. The ROS 2 adapter translates those commands into MoveIt motion.
 
 ---
 
@@ -153,6 +153,95 @@ Always run both scripts with the same config profile. Mixing profiles can produc
 
 ---
 
+## ROS 2 Aubo Setup / ROS 2 遨博运行环境
+
+The robot execution path uses this repo plus the RobRoss-maintained Aubo driver fork:
+
+```text
+RobRoss/ros2/robross_painter
+github.com/dwarfguard/aubo_ros2_driver branch robross-fixes
+github.com/dwarfguard/aubo_description branch robross-fixes (submodule)
+```
+
+Prerequisites on the target machine:
+
+- ROS 2 Humble installed and sourced from `/opt/ros/humble/setup.bash`.
+- MoveIt 2 and standard ROS build tools available.
+- `python3-vcstool` available for `vcs import`.
+- Network access for the Aubo driver CMake dependency download on first build.
+
+Create a fresh workspace:
+
+```bash
+mkdir -p ~/robross_aubo_ws/src
+git clone https://github.com/dwarfguard/RobRoss.git ~/robross_aubo_ws/src/RobRoss
+vcs import ~/robross_aubo_ws/src < ~/robross_aubo_ws/src/RobRoss/ros2/robross_aubo.repos
+git -C ~/robross_aubo_ws/src/aubo_ros2_driver submodule update --init --recursive
+source /opt/ros/humble/setup.bash
+cd ~/robross_aubo_ws
+colcon build
+source install/setup.bash
+```
+
+Generate the Demo v1 path files:
+
+```bash
+cd ~/robross_aubo_ws/src/RobRoss
+python3 scripts/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
+python3 scripts/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
+python3 scripts/generate_test_line.py
+```
+
+Run against fake hardware in three terminals from `~/robross_aubo_ws`.
+
+Terminal 1, controllers:
+
+```bash
+source install/setup.bash
+ros2 launch aubo_ros2_driver aubo_control.launch.py \
+  aubo_type:=aubo_i5 \
+  use_fake_hardware:=true
+```
+
+Terminal 2, MoveIt and RViz:
+
+```bash
+source install/setup.bash
+ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=aubo_i5
+```
+
+Terminal 3, execute the generated path:
+
+```bash
+source install/setup.bash
+export ROBROSS_REPO=$PWD/src/RobRoss
+ros2 launch robross_painter paint.launch.py \
+  aubo_type:=aubo_i5 \
+  paths_file:=$ROBROSS_REPO/output/painting_paths.json
+```
+
+For the first contact test, use the single 50 mm line path instead:
+
+```bash
+ros2 launch robross_painter paint.launch.py \
+  aubo_type:=aubo_i5 \
+  paths_file:=$ROBROSS_REPO/output/test_line_paths.json
+```
+
+For real hardware, replace fake hardware with the robot IP and update the
+calibration YAML before allowing paper contact:
+
+```bash
+ros2 launch aubo_ros2_driver aubo_control.launch.py \
+  aubo_type:=aubo_i5 \
+  robot_ip:=<robot-ip> \
+  use_fake_hardware:=false
+```
+
+Read `docs/hardware-test-checklist.md` before real robot testing.
+
+---
+
 ## Repository Map / 文件结构
 
 ```text
@@ -172,6 +261,10 @@ scripts/
   generate_painting_paths.py   Converts painting_plan.json into painting_paths.json
   generate_test_line.py        Generates the single 50 mm first-contact test line
   path_validation.py           Validates generated path command data
+
+ros2/
+  robross_aubo.repos           vcstool manifest for the RobRoss Aubo driver fork
+  robross_painter/             ROS 2 package that executes path files through MoveIt
 
 tests/
   test_*.py                    Unit tests (run: python3 -m unittest discover tests)
@@ -223,9 +316,9 @@ this means all strokes actually fall within `10 <= x <= 200` and
 
 ### Robot adapter
 
-The future Aubo i5 adapter should convert canvas coordinates into robot poses. That adapter is not part of the current generator/path scripts yet.
+`ros2/robross_painter` converts canvas coordinates into robot poses and sends them through MoveIt using the Aubo i5 planning group. It is intentionally separate from the generator scripts: artwork files stay in canvas millimeters, while robot calibration and execution parameters live in the ROS 2 package config.
 
-Robot calibration data, such as taught paper corners, safe Z height, contact Z height, tool center point, and home pose, should live in a separate future hardware config, not inside the artwork config.
+Robot calibration data, such as taught paper corners, safe Z height, contact Z height, tool center point, and home pose, should live in ROS/hardware config, not inside the artwork config.
 
 ---
 
@@ -236,7 +329,7 @@ The project currently involves three core areas:
 | Role | Focus |
 | --- | --- |
 | Project coordination + software contribution | Prototype scope, documentation, requirements, testing flow, path-generation support. |
-| Software development | Script architecture, config workflow, path generation, validation, future robot-control integration. |
+| Software development | Script architecture, config workflow, path generation, validation, ROS 2 robot execution. |
 | Hardware engineering | Aubo i5 setup, pen/tool mounting, paper/canvas stand, physical calibration, safety, and test reliability. |
 
 The team should avoid building product ideas, software, and hardware separately. Every near-term decision should connect back to the first working prototype: a robot that can reliably draw a simple preprocessed artwork on A4 paper.
@@ -250,9 +343,8 @@ When working in this repo:
 - Treat Demo v1 A4 pen drawing as the active requirement.
 - Do not treat early 12-inch color painting notes as current requirements unless explicitly asked.
 - Use `configs/demo_v1_a4_pen.json` by default.
-- Do not add Aubo SDK integration unless explicitly requested.
-- Do not place robot calibration poses inside artwork/path config files.
-- Preserve the separation between artwork generation, path generation, validation, and future robot execution.
+- Keep direct robot execution in `ros2/robross_painter`; do not put robot calibration poses inside artwork/path config files.
+- Preserve the separation between artwork generation, path generation, validation, and robot execution.
 - Prefer simple, readable Python using the standard library unless a dependency is clearly justified.
 - Update Markdown when behavior or project decisions change.
 
@@ -269,14 +361,6 @@ docs/painting-paths-format.md
 
 ## Current Next Steps / 当前下一步
 
-Recommended documentation cleanup:
-
-1. Keep this root README focused on the current prototype and repo navigation.
-2. Expand `docs/Rob_Ross_Prototype_v1.md` into a complete active prototype spec.
-3. Add an `AGENTS.md` file for LLM/coding-agent instructions.
-4. Add a hardware test checklist for the first Aubo i5 pen-on-paper session.
-5. Archive or clearly label older brainstorming so it is not confused with active requirements.
-
 Recommended technical next step:
 
-> Generate a small A4 line-only path, review the SVG previews, then test only after the Aubo i5 is physically calibrated to the paper.
+> Build the ROS 2 workspace with the RobRoss Aubo fork, run the fake-hardware RViz flow, then test only after the Aubo i5 is physically calibrated to the paper.

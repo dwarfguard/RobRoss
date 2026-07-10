@@ -1,0 +1,36 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(robross_painter)
+set(CMAKE_CXX_STANDARD 17)
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(moveit_ros_planning_interface REQUIRED)
+find_package(moveit_core REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(jsoncpp REQUIRED)
+
+add_compile_options(-Wall -Wextra)
+
+add_executable(painting_executor src/painting_executor.cpp)
+ament_target_dependencies(painting_executor
+  rclcpp
+  moveit_ros_planning_interface
+  moveit_core
+  geometry_msgs
+  visualization_msgs
+  tf2
+  tf2_geometry_msgs
+)
+target_link_libraries(painting_executor jsoncpp_lib)
+
+install(TARGETS painting_executor
+  DESTINATION lib/${PROJECT_NAME}
+)
+install(DIRECTORY launch config
+  DESTINATION share/${PROJECT_NAME}
+)
+
+ament_package()
