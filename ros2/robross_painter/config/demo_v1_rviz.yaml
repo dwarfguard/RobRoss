@@ -1,0 +1,29 @@
+# RobRoss Demo v1 hardware/calibration profile for RViz (fake hardware) testing.
+#
+# This is deliberately separate from the artwork configs in the RobRoss repo:
+# artwork/path files stay in canvas millimeters; everything robot-specific
+# (paper pose, heights, speeds) lives here. For a real paper setup, replace
+# canvas_origin_xyz / canvas_x_yaw_deg with values measured from taught
+# paper corners.
+painting_executor:
+  ros__parameters:
+    # Pose of the paper's top-left corner in base_link (meters).
+    # z is the pen contact height. Default: A4 portrait lying flat,
+    # centered 0.45 m in front of the robot, top edge away from the base.
+    canvas_origin_xyz: [0.5985, 0.105, 0.15]
+    # Direction of the canvas x axis (page "right") in the base XY plane,
+    # degrees. -90 means canvas x runs along base -y; combined with the
+    # origin above, the drawing appears unmirrored when viewed from above
+    # in RViz with base +x pointing up.
+    canvas_x_yaw_deg: -90.0
+    # Pen hover height above the paper for travel moves (meters).
+    safe_clearance_m: 0.02
+    # Tool orientation (roll, pitch, yaw): ee_link z axis pointing straight
+    # down at the paper.
+    tool_rpy: [3.14159265, 0.0, 0.0]
+    velocity_scaling: 0.3
+    acceleration_scaling: 0.3
+    # Cartesian interpolation resolution (meters).
+    eef_step_m: 0.005
+    # true = plan everything but do not execute.
+    dry_run: false

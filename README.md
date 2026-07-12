@@ -1,110 +1,366 @@
-# RobRoss
-R.O.B Ross
+# RobRoss / R.O.B Ross
 
-Abstract / 项目概述
+**Status:** Active prototype development  
+**Current focus:** Demo v1 — A4 pen-on-paper Mondrian line drawing for Aubo i5 hardware testing  
+**Audience:** Human collaborators, software contributors, hardware contributors, and LLM coding agents
 
-Robot arm that paints in color on a 12-inch canvas, with the intent of attracting audience attention and serving as an interactive art installation. Users may choose from preselected art pieces for the robot to paint, then bring the finished canvas home as a souvenir.
+RobRoss is a robot-arm art project. The long-term product vision is an interactive installation where a robot paints simple artwork for an audience and creates a finished souvenir canvas. The current prototype is intentionally much smaller: prove that the robot can reliably draw a simple preprocessed artwork on A4 paper before adding paint, color changes, user interaction, or real-time AI.
 
-一个机器人绘画装置。机械臂在 12 英寸画布上作画，吸引观众停留；用户可以选择预设作品，并把完成的画布作为纪念品带走。
+RobRoss 是一个机器人绘画项目。长期目标是做成可供观众观看和互动的绘画装置；当前第一版原型则故意保持简单：先验证机器人能否在 A4 纸上稳定完成一幅预处理好的简单图案，再考虑颜料、换色、用户交互或实时 AI。
 
-Target Audience / Environment / 目标受众与使用场景
+---
 
-Commercial malls, cafés, and similar public consumer spaces. The installation can boost customer engagement and venue attractiveness by creating sentimental value, a memorable experience, and potential social media attention.
+## Current Prototype: Demo v1 / 当前原型
 
-适用于商场、咖啡店等公共商业空间。核心价值是提升顾客参与感和场地吸引力，同时制造有纪念意义、适合社交媒体传播的话题体验。
+Demo v1 is the active development target.
 
-Potential Components / 潜在组件
+| Area | Current decision |
+| --- | --- |
+| Canvas / Paper | A4 portrait paper, 210 mm x 297 mm |
+| Tool | Pen on paper |
+| Color | Monochrome, black lines only |
+| Artwork | Preset Mondrian-inspired geometric line drawing |
+| Pathing | Preprocessed movement instructions, not real-time AI |
+| Robot | Aubo i5 hardware testing target |
+| Robot code | ROS 2 adapter in `ros2/robross_painter` executes path files through MoveIt on Aubo i5 |
 
-Robot Claw / 机械爪
+Demo v1 is meant to answer one practical question:
 
-    Secures, picks up, puts down, and navigates the brush.
-    固定、拿起、放下并移动画笔。
+> Can the robot reliably follow preprocessed drawing paths on a real physical surface?
 
-Stand for the Canvas / 画布支架
+第一版原型的核心目标不是完整艺术效果，而是验证机械臂能否在真实纸面上稳定执行预处理路径。
 
-    Provides a stable platform for the canvas while the robot arm paints.
-    保持画布稳定，方便机械臂在画布上作画。
+### Demo v1 non-goals / 第一版暂不做
 
-Brush / 画笔
+- No live color mixing.
+- No acrylic or oil paint for the first hardware test.
+- No user-uploaded custom images.
+- No real-time computer vision correction.
+- No AI-generated robot motion during execution.
+- No direct Aubo i5 motor-control output from the current path files.
 
-    Transfers paint onto the canvas through motion from the robot claw.
-    通过机械爪的运动，把颜料转移到画布上。
+这些功能未来可能有价值，但不属于当前第一版硬件测试范围。
 
-Paint / 颜料
+---
 
-    The material used by the robot claw to paint.
-    机器人作画所使用的颜料材料。
+## Long-Term Product Vision / 长期产品方向
 
-Paint Bucket / 颜料桶
+The broader product idea is a public-facing robot painting installation for commercial spaces such as malls, cafés, events, and experience-based retail environments. A user may eventually choose from prepared artwork options, watch the robot paint, and take the finished work home as a souvenir.
 
-    Container for different types or colors of paint; can also secure brushes when not in use.
-    存放不同颜色或种类的颜料，也可在画笔不用时进行固定或收纳。
+长期愿景是让机械臂在商场、咖啡店、活动现场等公共消费空间中作画，吸引观众停留，并让用户带走一幅具有纪念意义的作品。
 
-Robot Control System
+Possible future features include:
 
-    Computes pathing, movement, color selection, and brush selection to direct the robot claw in completing the selected painting.
-    Continuously checks the canvas for mistakes, paint saturation, and adjusts accordingly.
-    负责计算绘画路径、机械臂动作、颜色选择和画笔选择；同时检测画面错误和颜料饱和度，并进行调整。
-    Artwork Preparation System
-    Robot Execution System
-    User Interface
-    Maintenance Interface
+- 12-inch canvas painting.
+- Acrylic paint or other paint media.
+- Multiple colors and tool changes.
+- Dedicated brushes or sponge tools.
+- More personalized styles, such as simplified portrait or “blob” artwork.
+- User-facing artwork selection.
+- Maintenance and operator interface.
+- Robot calibration and execution software.
 
-Color Mixer / 调色器
+These are future directions, not active Demo v1 requirements.
 
-    Optional component for mixing paint colors instead of preparing every color in advance.
-    可选组件，用于现场调色，替代提前准备所有颜色的方案。
-    
-## Team Roles and Collaboration / 团队分工与协作
+---
 
-This project currently involves three core technical roles: project coordination, software development, and hardware engineering. Because the product combines robotics, software, physical materials, and public user experience, clear communication between these areas is essential.
+## Software Pipeline / 软件流程
 
-本项目目前包含三个核心技术角色：项目协调、软件开发和硬件工程。由于产品同时涉及机器人、软件、实体材料和公共用户体验，各方向之间的清晰沟通非常重要。
+The current software pipeline produces robot-style drawing instructions from a generated Mondrian-style layout.
 
-### Project Coordinator and Software Contributor / 项目协调与软件参与
+```text
+Config profile
+  ↓
+Image_Process/mondrian/mondrian_generator.py
+  ↓
+output/painting_plan.json
+  ↓
+Image_Process/mondrian/generate_painting_paths.py
+  ↓
+output/painting_paths.json
+  ↓
+ros2/robross_painter
+  ↓
+Robot motion
+```
 
-Bryan
+Important: `painting_paths.json` is **not** direct robot motor code. It is an intermediate representation using millimeter coordinates and abstract commands such as `move_to`, `lower_tool`, `paint_stroke`, and `lift_tool`. The ROS 2 adapter translates those commands into MoveIt motion.
 
-The project coordinator is responsible for keeping the product direction, prototype scope, documentation, team communication, and development milestones aligned. This role also contributes to software development, especially in areas related to artwork preparation, path generation, prototype testing, and documentation.
+---
 
-项目协调者负责统一产品方向、原型范围、文档、团队沟通和开发节点。同时，该角色也会参与软件开发，尤其是作品预处理、路径生成、原型测试和文档整理等部分。
+## Config Profiles / 配置文件
 
-Key responsibilities:
+The pipeline is config-driven. Each config profile defines the canvas, artwork mode, path/tool settings, and output filenames.
 
-* Maintain the project overview and decision log.
-* Track open questions, risks, and next steps.
-* Translate product goals into clear software and hardware requirements.
-* Help define the first prototype scope.
-* Support software development for artwork processing and robot path preparation.
-* Participate in hardware testing and learn enough hardware context to understand practical constraints.
+| Config | Purpose |
+| --- | --- |
+| `configs/demo_v1_a4_pen.json` | Active Demo v1 profile: A4 paper, monochrome line drawing, 1 mm pen settings. |
+| `configs/mondrian_12x12_paint.json` | Legacy/future profile: 12-inch square canvas, colored Mondrian blocks, paint/brush-like settings. |
 
-主要职责：
+Use the A4 pen profile unless you are intentionally testing the older 12-inch color behavior.
 
-* 维护项目概览和决策记录。
-* 跟踪未解决问题、风险和下一步任务。
-* 将产品目标转化为明确的软件和硬件需求。
-* 协助确定第一版原型范围。
-* 支持作品处理和机器人路径准备相关的软件开发。
-* 参与硬件测试，并学习必要的硬件知识以理解现实限制。
+---
 
-### Dedicated Software Developer / 专职软件开发
+## Quick Start / 快速运行
 
-Raymond
+Generate the current Demo v1 A4 drawing plan:
 
-The dedicated software developer is responsible for the main software architecture, robot control integration, code quality, and implementation of the software systems required for the prototype.
+```bash
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
+```
 
-专职软件开发者负责主要软件架构、机器人控制集成、代码质量，以及原型所需软件系统的实现。
+Generate path commands from that plan:
 
-### Dedicated Hardware Engineer / 专职硬件工程师
+```bash
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
+```
 
-Francois
+Review the outputs:
 
-The dedicated hardware engineer is responsible for the robot arm setup, end effector design, brush or tool mounting, canvas stand, paint station, safety considerations, and physical reliability of the prototype.
+```text
+output/mondrian_preview.svg
+output/painting_plan.json
+output/path_preview.svg
+output/path_animation.svg
+output/painting_paths.json
+```
 
-专职硬件工程师负责机械臂设置、末端执行器设计、画笔或工具固定、画布支架、颜料区域、安全问题以及原型的实体可靠性。
+`path_animation.svg` is an animated version of the path preview —
+strokes draw themselves in execution order with travel moves and a tool
+marker. Open it in a web browser (reload to replay).
 
-### Collaboration Principle / 协作原则
+Generate the single 50 mm first-contact test line (see the hardware
+checklist) in the same path file format:
 
-The team should avoid building software, hardware, and product ideas separately. Every major decision should connect back to the first working prototype: a robot that can reliably complete a simple painting on a 12-inch canvas with minimal human intervention.
+```bash
+python3 Image_Process/mondrian/generate_test_line.py
+```
 
-团队应避免软件、硬件和产品想法各自独立发展。每个重要决策都应回到第一版可运行原型：让机器人能够在 12 英寸画布上稳定完成一幅简单作品，并尽量减少人工干预。
+Run the unit tests:
+
+```bash
+python3 -m unittest discover Image_Process/mondrian/tests
+```
+
+For the legacy 12-inch colored profile:
+
+```bash
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/mondrian_12x12_paint.json --seed 123
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/mondrian_12x12_paint.json
+```
+
+Always run both scripts with the same config profile. Mixing profiles can produce confusing or invalid results.
+
+---
+
+## ROS 2 Aubo Setup / ROS 2 遨博运行环境
+
+The robot execution path uses this repo plus the RobRoss-maintained Aubo driver fork:
+
+```text
+RobRoss/ros2/robross_painter
+github.com/dwarfguard/aubo_ros2_driver branch robross-fixes
+github.com/dwarfguard/aubo_description branch robross-fixes (submodule)
+```
+
+Prerequisites on the target machine:
+
+- ROS 2 Humble installed and sourced from `/opt/ros/humble/setup.bash`.
+- MoveIt 2 and standard ROS build tools available.
+- `python3-vcstool` available for `vcs import`.
+- Network access for the Aubo driver CMake dependency download on first build.
+
+Create a fresh workspace:
+
+```bash
+mkdir -p ~/robross_aubo_ws/src
+git clone https://github.com/dwarfguard/RobRoss.git ~/robross_aubo_ws/src/RobRoss
+vcs import ~/robross_aubo_ws/src < ~/robross_aubo_ws/src/RobRoss/ros2/robross_aubo.repos
+git -C ~/robross_aubo_ws/src/aubo_ros2_driver submodule update --init --recursive
+source /opt/ros/humble/setup.bash
+cd ~/robross_aubo_ws
+colcon build
+source install/setup.bash
+```
+
+Generate the Demo v1 path files:
+
+```bash
+cd ~/robross_aubo_ws/src/RobRoss
+python3 Image_Process/mondrian/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
+python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
+python3 Image_Process/mondrian/generate_test_line.py
+```
+
+Run against fake hardware in three terminals from `~/robross_aubo_ws`.
+
+Terminal 1, controllers:
+
+```bash
+source install/setup.bash
+ros2 launch aubo_ros2_driver aubo_control.launch.py \
+  aubo_type:=aubo_i5 \
+  use_fake_hardware:=true
+```
+
+Terminal 2, MoveIt and RViz:
+
+```bash
+source install/setup.bash
+ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=aubo_i5
+```
+
+Terminal 3, execute the generated path:
+
+```bash
+source install/setup.bash
+export ROBROSS_REPO=$PWD/src/RobRoss
+ros2 launch robross_painter paint.launch.py \
+  aubo_type:=aubo_i5 \
+  paths_file:=$ROBROSS_REPO/output/painting_paths.json
+```
+
+For the first contact test, use the single 50 mm line path instead:
+
+```bash
+ros2 launch robross_painter paint.launch.py \
+  aubo_type:=aubo_i5 \
+  paths_file:=$ROBROSS_REPO/output/test_line_paths.json
+```
+
+For real hardware, replace fake hardware with the robot IP and update the
+calibration YAML before allowing paper contact:
+
+```bash
+ros2 launch aubo_ros2_driver aubo_control.launch.py \
+  aubo_type:=aubo_i5 \
+  robot_ip:=<robot-ip> \
+  use_fake_hardware:=false
+```
+
+Read `docs/hardware-test-checklist.md` before real robot testing.
+
+---
+
+## Repository Map / 文件结构
+
+```text
+configs/
+  demo_v1_a4_pen.json          Active A4 pen Demo v1 profile
+  mondrian_12x12_paint.json    Legacy/future 12-inch color profile
+
+docs/
+  Rob_Ross_Prototype_v1.md     Current first prototype direction
+  Rob_Ross_Discuss.md          Early discussion and product brainstorming
+  painting-paths-format.md     Format reference for output/painting_paths.json
+
+Image_Process/
+  README.md                    Overview of the image-processing module folders
+  mondrian/                    Mondrian-style artwork/path generation pipeline
+    README.md                   Detailed script and config workflow documentation
+    config_loader.py            Shared JSON config loading and validation
+    mondrian_generator.py       Generates SVG preview and painting_plan.json
+    generate_painting_paths.py  Converts painting_plan.json into painting_paths.json
+    generate_test_line.py       Generates the single 50 mm first-contact test line
+    path_validation.py          Validates generated path command data
+    tests/                      Unit tests for this pipeline (run: python3 -m unittest discover Image_Process/mondrian/tests)
+
+ros2/
+  robross_aubo.repos           vcstool manifest for the RobRoss Aubo driver fork
+  robross_painter/             ROS 2 package that executes path files through MoveIt
+
+output/
+  mondrian_preview.svg         Human preview of generated artwork
+  painting_plan.json           Intermediate artwork operations
+  path_preview.svg             Human preview of generated stroke paths
+  path_animation.svg           Animated stroke-order preview (open in a browser)
+  painting_paths.json          Intermediate robot-style path commands
+  test_line_paths.json         Single 50 mm test-line path file
+  test_line_preview.svg        Human preview of the test line
+```
+
+---
+
+## Key Concepts / 关键概念
+
+### Painting plan
+
+`painting_plan.json` describes the artwork at a higher level: rectangles, lines, canvas metadata, coordinate system, and operation order.
+
+### Painting paths
+
+`painting_paths.json` describes lower-level drawing commands that a future robot adapter can translate into physical robot motion.
+
+### Coordinate system
+
+All generated coordinates use millimeters.
+
+```text
+Origin: top-left of the paper/canvas
+x direction: right
+y direction: down
+```
+
+For Demo v1, valid A4 coordinates should stay within:
+
+```text
+0 <= x <= 210
+0 <= y <= 297
+```
+
+In addition, the entire artwork (border included) is generated at least
+`canvas.margin_mm` inside the paper edge (10 mm in the Demo v1 config),
+so the pen never draws right at the physical paper edge. For Demo v1
+this means all strokes actually fall within `10 <= x <= 200` and
+`10 <= y <= 287`.
+
+### Robot adapter
+
+`ros2/robross_painter` converts canvas coordinates into robot poses and sends them through MoveIt using the Aubo i5 planning group. It is intentionally separate from the generator scripts: artwork files stay in canvas millimeters, while robot calibration and execution parameters live in the ROS 2 package config.
+
+Robot calibration data, such as taught paper corners, safe Z height, contact Z height, tool center point, and home pose, should live in ROS/hardware config, not inside the artwork config.
+
+---
+
+## Team Roles / 团队分工
+
+The project currently involves three core areas:
+
+| Role | Focus |
+| --- | --- |
+| Project coordination + software contribution | Prototype scope, documentation, requirements, testing flow, path-generation support. |
+| Software development | Script architecture, config workflow, path generation, validation, ROS 2 robot execution. |
+| Hardware engineering | Aubo i5 setup, pen/tool mounting, paper/canvas stand, physical calibration, safety, and test reliability. |
+
+The team should avoid building product ideas, software, and hardware separately. Every near-term decision should connect back to the first working prototype: a robot that can reliably draw a simple preprocessed artwork on A4 paper.
+
+---
+
+## Guidance for LLM Coding Agents / 给 LLM 代码助手的说明
+
+When working in this repo:
+
+- Treat Demo v1 A4 pen drawing as the active requirement.
+- Do not treat early 12-inch color painting notes as current requirements unless explicitly asked.
+- Use `configs/demo_v1_a4_pen.json` by default.
+- Keep direct robot execution in `ros2/robross_painter`; do not put robot calibration poses inside artwork/path config files.
+- Preserve the separation between artwork generation, path generation, validation, and robot execution.
+- Prefer simple, readable Python using the standard library unless a dependency is clearly justified.
+- Update Markdown when behavior or project decisions change.
+
+Before making code changes, read:
+
+```text
+README.md
+Image_Process/mondrian/README.md
+docs/Rob_Ross_Prototype_v1.md
+docs/painting-paths-format.md
+```
+
+---
+
+## Current Next Steps / 当前下一步
+
+Recommended technical next step:
+
+> Build the ROS 2 workspace with the RobRoss Aubo fork, run the fake-hardware RViz flow, then test only after the Aubo i5 is physically calibrated to the paper.

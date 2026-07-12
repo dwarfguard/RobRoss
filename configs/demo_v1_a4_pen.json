@@ -1,0 +1,42 @@
+{
+  "profile_name": "demo_v1_a4_pen",
+  "project": "R.O.B Ross",
+  "style": "mondrian",
+
+  "canvas": {
+    "name": "A4 portrait",
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "margin_mm": 10.0,
+    "origin": "top-left",
+    "x_direction": "right",
+    "y_direction": "down"
+  },
+
+  "artwork": {
+    "background_color": "white",
+    "palette_mode": "monochrome",
+    "line_color": "black",
+    "accent_colors": [],
+    "min_cell_fraction": 0.14,
+    "min_split_depth": 2,
+    "max_split_depth": 5,
+    "stroke_width_min_mm": 1.0,
+    "stroke_width_max_mm": 1.0
+  },
+
+  "path_generation": {
+    "tool_width_mm": 1.0,
+    "stroke_overlap_ratio": 0.0,
+    "edge_inset_mm": 5.0
+  },
+
+  "output": {
+    "directory": "output",
+    "painting_plan_file": "painting_plan.json",
+    "painting_paths_file": "painting_paths.json",
+    "preview_svg_file": "mondrian_preview.svg",
+    "path_preview_svg_file": "path_preview.svg",
+    "path_animation_svg_file": "path_animation.svg"
+  }
+}

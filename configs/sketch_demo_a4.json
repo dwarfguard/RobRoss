@@ -1,0 +1,31 @@
+{
+  "profile_name": "sketch_demo_a4",
+  "project": "R.O.B Ross",
+  "style": "sketch",
+
+  "canvas": {
+    "name": "A4 portrait",
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "margin_mm": 20.0,
+    "origin": "top-left"
+  },
+
+  "source_image": {
+    "path": "Image_Process/sketch/assets/apple.png",
+    "canny_threshold1": 100,
+    "canny_threshold2": 200,
+    "simplify_epsilon_ratio": 0.002
+  },
+
+  "path_generation": {
+    "tool_width_mm": 1.0,
+    "home_position_mm": [20.0, 20.0]
+  },
+
+  "output": {
+    "directory": "output",
+    "painting_paths_file": "sketch_painting_paths.json",
+    "preview_svg_file": "sketch_path_preview.svg"
+  }
+}
