@@ -1,0 +1,16 @@
+# Simulated A4 portrait taped to a virtual wall for RViz fake-hardware tests.
+# Wall plane at x = 0.55 in base_link, paper facing the robot:
+# canvas x (page right) = -y, y (page down) = -z, z (into wall) = +x.
+# Layer on top of demo_v1_rviz.yaml:  canvas_file:=<this file>
+painting_executor:
+  ros__parameters:
+    canvas_origin_xyz: [0.55, 0.105, 0.55]   # top-left corner
+    canvas_quat_xyzw: [0.5, -0.5, 0.5, -0.5]
+    tool_offset_xyz: [0.0, 0.0, 0.12]        # simulated 120 mm pen-in-claw
+    tool_offset_rpy: [0.0, 0.0, 0.0]
+    tool_spin_deg: -90.0
+    canvas_backing_enabled: true             # the wall itself
+    canvas_backing_clearance_m: 0.005
+    claw_collision_size_xyz: [0.06, 0.06, 0.08]
+    claw_collision_offset_xyz: [0.0, 0.0, 0.04]
+    dry_run: false

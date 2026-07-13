@@ -29,6 +29,9 @@ target_link_libraries(painting_executor jsoncpp_lib)
 install(TARGETS painting_executor
   DESTINATION lib/${PROJECT_NAME}
 )
+install(PROGRAMS scripts/teach_canvas.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )

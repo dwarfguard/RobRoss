@@ -18,9 +18,29 @@ painting_executor:
     canvas_x_yaw_deg: -90.0
     # Pen hover height above the paper for travel moves (meters).
     safe_clearance_m: 0.02
-    # Tool orientation (roll, pitch, yaw): ee_link z axis pointing straight
-    # down at the paper.
-    tool_rpy: [3.14159265, 0.0, 0.0]
+    # Top of the ground collision plane in base_link z (meters). Planning
+    # rejects any motion where an arm link would pass below this. Slightly
+    # negative so the robot's own base, resting at z=0, is not flagged as
+    # permanently in collision. Match this to the real mounting surface.
+    ground_z_m: -0.005
+    # Collision plane just behind the paper (wall / board / table top).
+    # Disabled for this fake-hardware profile: with a zero tool offset,
+    # ee_link itself is the pen tip, so the wrist sits right at the paper
+    # plane and a backing plane would always be in collision. Enable it on
+    # real hardware where the claw provides standoff.
+    canvas_backing_enabled: false
+    canvas_backing_clearance_m: 0.005
+    # Pen tip pose in ee_link (custom claw). Zero for the RViz demo:
+    # ee_link is treated as the pen tip.
+    tool_offset_xyz: [0.0, 0.0, 0.0]
+    tool_offset_rpy: [0.0, 0.0, 0.0]
+    # Rotation of the claw about the pen axis, degrees. -90 reproduces the
+    # wrist orientation of the earlier tool_rpy: [pi, 0, 0] setting.
+    tool_spin_deg: -90.0
+    # Stand-in collision box for the claw, attached to ee_link
+    # (size [0,0,0] disables it; not needed without a claw model).
+    claw_collision_size_xyz: [0.0, 0.0, 0.0]
+    claw_collision_offset_xyz: [0.0, 0.0, 0.0]
     velocity_scaling: 0.3
     acceleration_scaling: 0.3
     # Cartesian interpolation resolution (meters).

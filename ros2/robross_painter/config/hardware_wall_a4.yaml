@@ -1,0 +1,53 @@
+# RobRoss hardware profile: A4 paper taped to a wall, pen held by the
+# custom claw. Template for the first real-arm tests - measure and edit
+# every value marked TODO before running with dry_run: false.
+#
+# The canvas pose itself does NOT live here. Teach it on the real setup:
+#   1. Put the arm in freedrive, run teach_canvas.py with the same
+#      tool_offset_xyz as below, touch the pen tip to the paper's top-left,
+#      top-right and bottom-left corners, call the record services, then
+#      ~/save (see the package README).
+#   2. Launch with both files:
+#        ros2 launch robross_painter paint.launch.py \
+#          calibration_file:=<this file> \
+#          canvas_file:=<teach_canvas output yaml> \
+#          paths_file:=...
+painting_executor:
+  ros__parameters:
+    # Fallback flat-canvas pose, overridden by the taught canvas_file.
+    canvas_origin_xyz: [0.5985, 0.105, 0.15]
+    canvas_x_yaw_deg: -90.0
+
+    # Pen hover distance off the paper for travel moves (meters).
+    safe_clearance_m: 0.02
+
+    # Ground/table the robot is mounted on (base_link z, meters).
+    ground_z_m: -0.005
+    # Wall behind the paper: reject any plan where an arm/claw link pushes
+    # past the drawing plane. Clearance = paper-to-wall gap the pen tip is
+    # allowed to occupy (paper thickness + margin).
+    canvas_backing_enabled: true
+    canvas_backing_clearance_m: 0.005
+
+    # TODO: pen tip position (and axis, if angled) in ee_link, from the
+    # claw CAD or measured on the flange. Example: pen sticking 120 mm
+    # straight out along ee_link z.
+    tool_offset_xyz: [0.0, 0.0, 0.12]
+    tool_offset_rpy: [0.0, 0.0, 0.0]
+    # Spin of the claw about the pen axis, degrees. Pick the value that
+    # keeps the claw and cable clear of the wrist and wall.
+    tool_spin_deg: -90.0
+
+    # TODO: box that fully encloses the claw, attached to ee_link so
+    # MoveIt collision-checks it against the wall (the claw is not in the
+    # URDF). Size in meters, offset = box center in ee_link.
+    claw_collision_size_xyz: [0.08, 0.08, 0.10]
+    claw_collision_offset_xyz: [0.0, 0.0, 0.05]
+
+    # Slow for first contact tests; raise once trusted.
+    velocity_scaling: 0.1
+    acceleration_scaling: 0.1
+    # Cartesian interpolation resolution (meters).
+    eef_step_m: 0.005
+    # Keep true for the first run: plans everything, executes nothing.
+    dry_run: true

@@ -3,1272 +3,27 @@
   "style": "mondrian",
   "version": "0.1",
   "config": {
-    "profile_name": "mondrian_12x12_paint",
-    "source_file": "configs/mondrian_12x12_paint.json"
+    "profile_name": "demo_v1_a4_pen",
+    "source_file": "configs/demo_v1_a4_pen.json"
   },
   "source_file": "output/painting_plan.json",
   "units": "mm",
   "canvas": {
-    "width_mm": 304.8,
-    "height_mm": 304.8,
-    "width_in": 12.0,
-    "height_in": 12.0,
-    "margin_mm": 0.0,
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "width_in": 8.2677,
+    "height_in": 11.6929,
+    "margin_mm": 10.0,
     "origin": "top-left"
   },
   "path_settings": {
-    "tool_width_mm": 10.0,
-    "stroke_overlap_ratio": 0.25,
-    "edge_inset_mm": 3.0
+    "tool_width_mm": 1.0,
+    "stroke_overlap_ratio": 0.0,
+    "edge_inset_mm": 5.0
   },
   "commands": [
     {
       "command": "select_tool",
-      "label": "yellow_block_1",
-      "color": "#f7c600"
-    },
-    {
-      "command": "dip_paint",
-      "label": "yellow_block_1",
-      "color": "#f7c600"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row1",
-      "x_mm": 124.24,
-      "y_mm": 137.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row1"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row1",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        137.75
-      ],
-      "to_mm": [
-        301.8,
-        137.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row1"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row2",
-      "x_mm": 301.8,
-      "y_mm": 145.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row2"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row2",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        145.25
-      ],
-      "to_mm": [
-        124.24,
-        145.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row2"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row3",
-      "x_mm": 124.24,
-      "y_mm": 152.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row3"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row3",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        152.75
-      ],
-      "to_mm": [
-        301.8,
-        152.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row3"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row4",
-      "x_mm": 301.8,
-      "y_mm": 160.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row4"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row4",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        160.25
-      ],
-      "to_mm": [
-        124.24,
-        160.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row4"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row5",
-      "x_mm": 124.24,
-      "y_mm": 167.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row5"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row5",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        167.75
-      ],
-      "to_mm": [
-        301.8,
-        167.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row5"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row6",
-      "x_mm": 301.8,
-      "y_mm": 175.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row6"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row6",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        175.25
-      ],
-      "to_mm": [
-        124.24,
-        175.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row6"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row7",
-      "x_mm": 124.24,
-      "y_mm": 182.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row7"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row7",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        182.75
-      ],
-      "to_mm": [
-        301.8,
-        182.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row7"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row8",
-      "x_mm": 301.8,
-      "y_mm": 190.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row8"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row8",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        190.25
-      ],
-      "to_mm": [
-        124.24,
-        190.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row8"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row9",
-      "x_mm": 124.24,
-      "y_mm": 197.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row9"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row9",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        197.75
-      ],
-      "to_mm": [
-        301.8,
-        197.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row9"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row10",
-      "x_mm": 301.8,
-      "y_mm": 205.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row10"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row10",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        205.25
-      ],
-      "to_mm": [
-        124.24,
-        205.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row10"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row11",
-      "x_mm": 124.24,
-      "y_mm": 212.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row11"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row11",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        212.75
-      ],
-      "to_mm": [
-        301.8,
-        212.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row11"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row12",
-      "x_mm": 301.8,
-      "y_mm": 220.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row12"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row12",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        220.25
-      ],
-      "to_mm": [
-        124.24,
-        220.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row12"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row13",
-      "x_mm": 124.24,
-      "y_mm": 227.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row13"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row13",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        227.75
-      ],
-      "to_mm": [
-        301.8,
-        227.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row13"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row14",
-      "x_mm": 301.8,
-      "y_mm": 235.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row14"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row14",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        235.25
-      ],
-      "to_mm": [
-        124.24,
-        235.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row14"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row15",
-      "x_mm": 124.24,
-      "y_mm": 242.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row15"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row15",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        242.75
-      ],
-      "to_mm": [
-        301.8,
-        242.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row15"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row16",
-      "x_mm": 301.8,
-      "y_mm": 250.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row16"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row16",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        250.25
-      ],
-      "to_mm": [
-        124.24,
-        250.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row16"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row17",
-      "x_mm": 124.24,
-      "y_mm": 257.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row17"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row17",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        257.75
-      ],
-      "to_mm": [
-        301.8,
-        257.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row17"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row18",
-      "x_mm": 301.8,
-      "y_mm": 265.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row18"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row18",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        265.25
-      ],
-      "to_mm": [
-        124.24,
-        265.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row18"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row19",
-      "x_mm": 124.24,
-      "y_mm": 272.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row19"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row19",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        272.75
-      ],
-      "to_mm": [
-        301.8,
-        272.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row19"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row20",
-      "x_mm": 301.8,
-      "y_mm": 280.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row20"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row20",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        280.25
-      ],
-      "to_mm": [
-        124.24,
-        280.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row20"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row21",
-      "x_mm": 124.24,
-      "y_mm": 287.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row21"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row21",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        287.75
-      ],
-      "to_mm": [
-        301.8,
-        287.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row21"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row22",
-      "x_mm": 301.8,
-      "y_mm": 295.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row22"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row22",
-      "color": "#f7c600",
-      "from_mm": [
-        301.8,
-        295.25
-      ],
-      "to_mm": [
-        124.24,
-        295.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row22"
-    },
-    {
-      "command": "move_to",
-      "label": "yellow_block_1_row23",
-      "x_mm": 124.24,
-      "y_mm": 296.8
-    },
-    {
-      "command": "lower_tool",
-      "label": "yellow_block_1_row23"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "yellow_block_1_row23",
-      "color": "#f7c600",
-      "from_mm": [
-        124.24,
-        296.8
-      ],
-      "to_mm": [
-        301.8,
-        296.8
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "yellow_block_1_row23"
-    },
-    {
-      "command": "select_tool",
-      "label": "red_block_1",
-      "color": "#d62828"
-    },
-    {
-      "command": "dip_paint",
-      "label": "red_block_1",
-      "color": "#d62828"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row1",
-      "x_mm": 3.0,
-      "y_mm": 137.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row1"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row1",
-      "color": "#d62828",
-      "from_mm": [
-        3.0,
-        137.75
-      ],
-      "to_mm": [
-        118.24,
-        137.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row1"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row2",
-      "x_mm": 118.24,
-      "y_mm": 145.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row2"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row2",
-      "color": "#d62828",
-      "from_mm": [
-        118.24,
-        145.25
-      ],
-      "to_mm": [
-        3.0,
-        145.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row2"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row3",
-      "x_mm": 3.0,
-      "y_mm": 152.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row3"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row3",
-      "color": "#d62828",
-      "from_mm": [
-        3.0,
-        152.75
-      ],
-      "to_mm": [
-        118.24,
-        152.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row3"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row4",
-      "x_mm": 118.24,
-      "y_mm": 160.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row4"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row4",
-      "color": "#d62828",
-      "from_mm": [
-        118.24,
-        160.25
-      ],
-      "to_mm": [
-        3.0,
-        160.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row4"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row5",
-      "x_mm": 3.0,
-      "y_mm": 167.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row5"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row5",
-      "color": "#d62828",
-      "from_mm": [
-        3.0,
-        167.75
-      ],
-      "to_mm": [
-        118.24,
-        167.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row5"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row6",
-      "x_mm": 118.24,
-      "y_mm": 175.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row6"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row6",
-      "color": "#d62828",
-      "from_mm": [
-        118.24,
-        175.25
-      ],
-      "to_mm": [
-        3.0,
-        175.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row6"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row7",
-      "x_mm": 3.0,
-      "y_mm": 182.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row7"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row7",
-      "color": "#d62828",
-      "from_mm": [
-        3.0,
-        182.75
-      ],
-      "to_mm": [
-        118.24,
-        182.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row7"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row8",
-      "x_mm": 118.24,
-      "y_mm": 190.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row8"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row8",
-      "color": "#d62828",
-      "from_mm": [
-        118.24,
-        190.25
-      ],
-      "to_mm": [
-        3.0,
-        190.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row8"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row9",
-      "x_mm": 3.0,
-      "y_mm": 197.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row9"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row9",
-      "color": "#d62828",
-      "from_mm": [
-        3.0,
-        197.75
-      ],
-      "to_mm": [
-        118.24,
-        197.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row9"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row10",
-      "x_mm": 118.24,
-      "y_mm": 205.25
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row10"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row10",
-      "color": "#d62828",
-      "from_mm": [
-        118.24,
-        205.25
-      ],
-      "to_mm": [
-        3.0,
-        205.25
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row10"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row11",
-      "x_mm": 3.0,
-      "y_mm": 212.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row11"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row11",
-      "color": "#d62828",
-      "from_mm": [
-        3.0,
-        212.75
-      ],
-      "to_mm": [
-        118.24,
-        212.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row11"
-    },
-    {
-      "command": "move_to",
-      "label": "red_block_1_row12",
-      "x_mm": 118.24,
-      "y_mm": 219.08
-    },
-    {
-      "command": "lower_tool",
-      "label": "red_block_1_row12"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "red_block_1_row12",
-      "color": "#d62828",
-      "from_mm": [
-        118.24,
-        219.08
-      ],
-      "to_mm": [
-        3.0,
-        219.08
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "red_block_1_row12"
-    },
-    {
-      "command": "select_tool",
-      "label": "blue_block_1",
-      "color": "#1d4ed8"
-    },
-    {
-      "command": "dip_paint",
-      "label": "blue_block_1",
-      "color": "#1d4ed8"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row1",
-      "x_mm": 51.97,
-      "y_mm": 235.08
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row1"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row1",
-      "color": "#1d4ed8",
-      "from_mm": [
-        51.97,
-        235.08
-      ],
-      "to_mm": [
-        118.25,
-        235.08
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row1"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row2",
-      "x_mm": 118.25,
-      "y_mm": 242.58
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row2"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row2",
-      "color": "#1d4ed8",
-      "from_mm": [
-        118.25,
-        242.58
-      ],
-      "to_mm": [
-        51.97,
-        242.58
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row2"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row3",
-      "x_mm": 51.97,
-      "y_mm": 250.08
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row3"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row3",
-      "color": "#1d4ed8",
-      "from_mm": [
-        51.97,
-        250.08
-      ],
-      "to_mm": [
-        118.25,
-        250.08
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row3"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row4",
-      "x_mm": 118.25,
-      "y_mm": 257.58
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row4"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row4",
-      "color": "#1d4ed8",
-      "from_mm": [
-        118.25,
-        257.58
-      ],
-      "to_mm": [
-        51.97,
-        257.58
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row4"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row5",
-      "x_mm": 51.97,
-      "y_mm": 265.08
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row5"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row5",
-      "color": "#1d4ed8",
-      "from_mm": [
-        51.97,
-        265.08
-      ],
-      "to_mm": [
-        118.25,
-        265.08
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row5"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row6",
-      "x_mm": 118.25,
-      "y_mm": 272.58
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row6"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row6",
-      "color": "#1d4ed8",
-      "from_mm": [
-        118.25,
-        272.58
-      ],
-      "to_mm": [
-        51.97,
-        272.58
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row6"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row7",
-      "x_mm": 51.97,
-      "y_mm": 280.08
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row7"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row7",
-      "color": "#1d4ed8",
-      "from_mm": [
-        51.97,
-        280.08
-      ],
-      "to_mm": [
-        118.25,
-        280.08
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row7"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row8",
-      "x_mm": 118.25,
-      "y_mm": 287.58
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row8"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row8",
-      "color": "#1d4ed8",
-      "from_mm": [
-        118.25,
-        287.58
-      ],
-      "to_mm": [
-        51.97,
-        287.58
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row8"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row9",
-      "x_mm": 51.97,
-      "y_mm": 295.08
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row9"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row9",
-      "color": "#1d4ed8",
-      "from_mm": [
-        51.97,
-        295.08
-      ],
-      "to_mm": [
-        118.25,
-        295.08
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row9"
-    },
-    {
-      "command": "move_to",
-      "label": "blue_block_1_row10",
-      "x_mm": 118.25,
-      "y_mm": 296.8
-    },
-    {
-      "command": "lower_tool",
-      "label": "blue_block_1_row10"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "blue_block_1_row10",
-      "color": "#1d4ed8",
-      "from_mm": [
-        118.25,
-        296.8
-      ],
-      "to_mm": [
-        51.97,
-        296.8
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "blue_block_1_row10"
-    },
-    {
-      "command": "select_tool",
       "label": "grid_line_1",
       "color": "black"
     },
@@ -1280,8 +35,8 @@
     {
       "command": "move_to",
       "label": "grid_line_1",
-      "x_mm": 94.1,
-      "y_mm": 0.0
+      "x_mm": 10.0,
+      "y_mm": 171.81
     },
     {
       "command": "lower_tool",
@@ -1292,12 +47,12 @@
       "label": "grid_line_1",
       "color": "black",
       "from_mm": [
-        94.1,
-        0.0
+        10.0,
+        171.81
       ],
       "to_mm": [
-        94.1,
-        129.75
+        48.53,
+        171.81
       ]
     },
     {
@@ -1317,8 +72,8 @@
     {
       "command": "move_to",
       "label": "grid_line_2",
-      "x_mm": 48.97,
-      "y_mm": 227.08
+      "x_mm": 10.0,
+      "y_mm": 130.0
     },
     {
       "command": "lower_tool",
@@ -1329,12 +84,12 @@
       "label": "grid_line_2",
       "color": "black",
       "from_mm": [
-        48.97,
-        227.08
+        10.0,
+        130.0
       ],
       "to_mm": [
-        48.97,
-        304.8
+        48.53,
+        130.0
       ]
     },
     {
@@ -1354,8 +109,8 @@
     {
       "command": "move_to",
       "label": "grid_line_3",
-      "x_mm": 0.0,
-      "y_mm": 227.08
+      "x_mm": 158.86,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -1366,12 +121,12 @@
       "label": "grid_line_3",
       "color": "black",
       "from_mm": [
-        0.0,
-        227.08
+        158.86,
+        10.0
       ],
       "to_mm": [
-        121.24,
-        227.08
+        158.86,
+        287.0
       ]
     },
     {
@@ -1391,8 +146,8 @@
     {
       "command": "move_to",
       "label": "grid_line_4",
-      "x_mm": 121.24,
-      "y_mm": 129.75
+      "x_mm": 48.53,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -1403,12 +158,12 @@
       "label": "grid_line_4",
       "color": "black",
       "from_mm": [
-        121.24,
-        129.75
+        48.53,
+        10.0
       ],
       "to_mm": [
-        121.24,
-        304.8
+        48.53,
+        287.0
       ]
     },
     {
@@ -1417,43 +172,6 @@
     },
     {
       "command": "select_tool",
-      "label": "grid_line_5",
-      "color": "black"
-    },
-    {
-      "command": "dip_paint",
-      "label": "grid_line_5",
-      "color": "black"
-    },
-    {
-      "command": "move_to",
-      "label": "grid_line_5",
-      "x_mm": 0.0,
-      "y_mm": 129.75
-    },
-    {
-      "command": "lower_tool",
-      "label": "grid_line_5"
-    },
-    {
-      "command": "paint_stroke",
-      "label": "grid_line_5",
-      "color": "black",
-      "from_mm": [
-        0.0,
-        129.75
-      ],
-      "to_mm": [
-        304.8,
-        129.75
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "grid_line_5"
-    },
-    {
-      "command": "select_tool",
       "label": "border_top",
       "color": "black"
     },
@@ -1465,8 +183,8 @@
     {
       "command": "move_to",
       "label": "border_top",
-      "x_mm": 0.0,
-      "y_mm": 0.0
+      "x_mm": 10.0,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -1477,12 +195,12 @@
       "label": "border_top",
       "color": "black",
       "from_mm": [
-        0.0,
-        0.0
+        10.0,
+        10.0
       ],
       "to_mm": [
-        304.8,
-        0.0
+        200.0,
+        10.0
       ]
     },
     {
@@ -1502,8 +220,8 @@
     {
       "command": "move_to",
       "label": "border_bottom",
-      "x_mm": 0.0,
-      "y_mm": 304.8
+      "x_mm": 10.0,
+      "y_mm": 287.0
     },
     {
       "command": "lower_tool",
@@ -1514,12 +232,12 @@
       "label": "border_bottom",
       "color": "black",
       "from_mm": [
-        0.0,
-        304.8
+        10.0,
+        287.0
       ],
       "to_mm": [
-        304.8,
-        304.8
+        200.0,
+        287.0
       ]
     },
     {
@@ -1539,8 +257,8 @@
     {
       "command": "move_to",
       "label": "border_left",
-      "x_mm": 0.0,
-      "y_mm": 0.0
+      "x_mm": 10.0,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -1551,12 +269,12 @@
       "label": "border_left",
       "color": "black",
       "from_mm": [
-        0.0,
-        0.0
+        10.0,
+        10.0
       ],
       "to_mm": [
-        0.0,
-        304.8
+        10.0,
+        287.0
       ]
     },
     {
@@ -1576,8 +294,8 @@
     {
       "command": "move_to",
       "label": "border_right",
-      "x_mm": 304.8,
-      "y_mm": 0.0
+      "x_mm": 200.0,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -1588,12 +306,12 @@
       "label": "border_right",
       "color": "black",
       "from_mm": [
-        304.8,
-        0.0
+        200.0,
+        10.0
       ],
       "to_mm": [
-        304.8,
-        304.8
+        200.0,
+        287.0
       ]
     },
     {
@@ -1602,15 +320,15 @@
     }
   ],
   "debug": {
-    "num_commands": 240,
-    "num_paint_stroke_commands": 54,
-    "estimated_total_paint_distance_mm": 8157.32,
-    "num_fill_regions": 3,
-    "num_grid_lines": 9,
-    "num_select_tool_commands": 12,
-    "num_lift_tool_commands": 54,
-    "num_lower_tool_commands": 54,
-    "num_dip_paint_commands": 12,
+    "num_commands": 48,
+    "num_paint_stroke_commands": 8,
+    "estimated_total_paint_distance_mm": 1565.06,
+    "num_fill_regions": 0,
+    "num_grid_lines": 8,
+    "num_select_tool_commands": 8,
+    "num_lift_tool_commands": 8,
+    "num_lower_tool_commands": 8,
+    "num_dip_paint_commands": 8,
     "num_move_to_commands": 0
   },
   "validation": {
