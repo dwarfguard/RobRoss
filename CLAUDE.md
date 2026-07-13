@@ -42,6 +42,15 @@ edge detection + skeletonization) and goes straight to `painting_paths.json` —
 command vocabulary as the mondrian route, so it's consumable by the same
 `ros2/robross_painter` executor. See `Image_Process/sketch/README.md`.
 
+There is a third route in `Image_Process/image_to_mondrian/`: also takes an arbitrary source
+photo, but quantizes it to a fixed 5-color palette (the robot's actual pens — red/blue/yellow/
+black/white by default), segments same-color pixels into connected regions, and **fully fills**
+each region (not just outlines) plus classic Mondrian black grid lines between color blocks — a
+non-ML color-quantization + connected-component pipeline, chosen specifically because it can
+guarantee gap-free fill without the risk of vectorizing an ML model's raster output. Same
+`painting_paths.json` command vocabulary, same executor. See
+`Image_Process/image_to_mondrian/README.md`.
+
 ## Commands
 
 Run everything from the repo root (scripts use CWD-relative `configs/`/`output/` paths).
@@ -77,6 +86,10 @@ For the legacy 12-inch colored profile, substitute `configs/mondrian_12x12_paint
 # Sketch route: trace configs/sketch_demo_a4.json's source image straight to painting_paths.json
 # Needs opencv-python + numpy + scikit-image — see Image_Process/sketch/README.md for the apt install
 python3 Image_Process/sketch/generate_sketch_paths.py --config configs/sketch_demo_a4.json
+
+# image_to_mondrian route: quantize + fill configs/image_to_mondrian_demo_a4.json's source photo
+# Needs the same three packages as sketch — see Image_Process/image_to_mondrian/README.md
+python3 Image_Process/image_to_mondrian/generate_painting_paths.py --config configs/image_to_mondrian_demo_a4.json
 ```
 
 ### ROS 2 side (`ros2/robross_painter`)
@@ -153,20 +166,48 @@ the canvas (aspect-ratio-preserving, centered within `margin_mm`), orders them, 
 becomes multiple straight `paint_stroke` segments, one per consecutive point pair. Full detail:
 `Image_Process/sketch/README.md`.
 
+## Architecture within `Image_Process/image_to_mondrian/`
+
+Self-contained, own `config_loader.py` and a byte-for-byte copy of `path_validation.py` and
+`sketch/path_ordering.py`. `color_quantize.py` loads + blurs/downscales the photo, then
+`quantize_to_palette()` does fully-vectorized nearest-palette-color matching (Lab space by
+default) — no per-pixel Python loop. `segmentation.py::segment_image()` runs a per-color
+morphological open (`clean_label_image()`, strips single-pixel speckle) then
+`cv2.connectedComponentsWithStats()` per color, then drops regions under `min_region_area_mm2`;
+it returns the *cleaned* (opened but not area-filtered) label image alongside the kept regions —
+that cleaned image, not the raw per-pixel quantization, is the correct input for border tracing.
+`region_fill.py` is the new polygon-fill algorithm (mondrian's rectangle boustrophedon only
+handles rectangles): `erode_mask()` shrinks a region inward by `mask_erosion_mm` so strokes don't
+bleed across color boundaries, `find_row_intervals()` is a vectorized run-length detector handling
+concave shapes (more than one paintable interval per row), `compute_stripe_rows()` mirrors
+mondrian's row-spacing formula in pixel space. No manual boustrophedon alternation here — travel
+optimization is deferred entirely to `path_ordering.order_strokes()`, since a concave shape's
+per-row interval count isn't fixed. `border_tracing.py` traces the classic Mondrian black grid
+lines: `compute_boundary_mask()` finds every pixel that differs from its up/left neighbor in one
+pass (so a shared edge between two regions is only drawn once), then reuses `sketch/canny_edges.py`'s
+skeleton pixel-graph-walk core (copied, generalized to accept any boolean mask instead of always
+running Canny). `generate_painting_paths.py::order_and_build_commands()` groups fill strokes by
+color first (physical pen changes cost more than travel distance), greedy-orders each group, then
+draws the black grid lines **last** — same convention mondrian uses, with the side effect that the
+border line (traced along the true, un-eroded boundary) paints over the thin gap `mask_erosion_mm`
+leaves between adjacent fills. Full detail: `Image_Process/image_to_mondrian/README.md`.
+
 ## Config profiles
 
-Three profiles exist in `configs/`; use `demo_v1_a4_pen.json` unless intentionally exercising the
-legacy behavior or the sketch route:
+Four profiles exist in `configs/`; use `demo_v1_a4_pen.json` unless intentionally exercising the
+legacy behavior or one of the photo-input routes:
 
 | Config | Canvas | Route | Notes |
 | --- | --- | --- | --- |
 | `demo_v1_a4_pen.json` | A4 210x297mm, 10mm margin | mondrian | monochrome (lines only), 1mm pen, 0% overlap |
 | `mondrian_12x12_paint.json` | 12in square, no margin | mondrian | red/yellow/blue accents, 10mm brush, 25% overlap |
 | `sketch_demo_a4.json` | A4 210x297mm, 20mm margin | sketch | traces `Image_Process/sketch/assets/apple.png`, 1mm pen |
+| `image_to_mondrian_demo_a4.json` | A4 210x297mm, 10mm margin | image_to_mondrian | quantizes+fills `Image_Process/image_to_mondrian/assets/sample.jpg` to 5 colors, 3mm pen |
 
-See `Image_Process/mondrian/README.md` / `Image_Process/sketch/README.md` ("Important config
-fields" / "Config fields") for the full field reference and `docs/painting-paths-format.md` for
-the `painting_paths.json` command/validation schema (shared by both routes).
+See `Image_Process/mondrian/README.md` / `Image_Process/sketch/README.md` /
+`Image_Process/image_to_mondrian/README.md` ("Important config fields" / "Config fields") for the
+full field reference and `docs/painting-paths-format.md` for the `painting_paths.json`
+command/validation schema (shared by all three routes).
 
 ## Repo layout
 
@@ -175,8 +216,10 @@ the `painting_paths.json` command/validation schema (shared by both routes).
   `painting-paths-format.md` (path JSON schema), `hardware-test-checklist.md`,
   `Rob_Ross_Discuss.md` (early brainstorming, not current requirements).
 - `Image_Process/` — one subfolder per artwork-generation algorithm: `mondrian/` (procedural
-  vector design) and `sketch/` (Canny-edge tracing of a source image). New generation approaches
-  get their own sibling subfolder rather than growing inside an existing one.
+  vector design), `sketch/` (Canny-edge tracing of a source image, lines only), and
+  `image_to_mondrian/` (photo quantized to a 5-color palette, fully filled, plus black grid
+  lines). New generation approaches get their own sibling subfolder rather than growing inside an
+  existing one.
 - `output/` — generated artifacts (plans, paths, SVG previews). Intentionally committed
   (seed-123 reference samples), not gitignored.
 - `ros2/` — `robross_painter` ROS 2 package (MoveIt executor) and the vcstool manifest for the
@@ -186,10 +229,11 @@ the `painting_paths.json` command/validation schema (shared by both routes).
 ## Conventions
 
 - Prefer simple, readable Python using the standard library unless a dependency is clearly
-  justified — `mondrian/` has zero third-party dependencies. `Image_Process/sketch/` is a
-  deliberate, folder-scoped exception (`opencv-python`, `numpy`, `scikit-image`, needed for Canny
-  edge detection/skeletonization) — don't let that spread to other folders without similarly clear
-  justification.
+  justified — `mondrian/` has zero third-party dependencies. `Image_Process/sketch/` and
+  `Image_Process/image_to_mondrian/` are deliberate, folder-scoped exceptions (`opencv-python`,
+  `numpy`, `scikit-image`, needed for image loading/quantization/skeletonization) — don't let that
+  spread to other folders without similarly clear justification.
 - Update the relevant Markdown (`README.md`, `Image_Process/mondrian/README.md`,
-  `Image_Process/sketch/README.md`, `docs/painting-paths-format.md`) whenever behavior or project
-  decisions change; these docs are treated as living references, not one-off notes.
+  `Image_Process/sketch/README.md`, `Image_Process/image_to_mondrian/README.md`,
+  `docs/painting-paths-format.md`) whenever behavior or project decisions change; these docs are
+  treated as living references, not one-off notes.
