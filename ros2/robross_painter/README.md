@@ -32,6 +32,7 @@ and maps each command to robot motion:
 | `move_to` | Travel at safe height; first one joint-space, rest straight Cartesian. |
 | `lower_tool` | Straight descent to pen-contact height. |
 | `paint_stroke` | Straight Cartesian line at contact height. |
+| `paint_path` | Continuous polyline at contact height: all points become waypoints of one Cartesian trajectory, retimed as a whole, so the pen draws through corners without stopping. Densely sampled curves execute the same way. |
 | `lift_tool` | Straight ascent to safe height. |
 
 Safety checks refuse out-of-canvas coordinates, `move_to` with the pen down,
@@ -86,6 +87,7 @@ artwork configs:
 | `tool_spin_deg` | Rotation of the claw about the pen axis; choose one that keeps the claw clear of the wrist and wall. |
 | `claw_collision_size_xyz`, `claw_collision_offset_xyz` | Stand-in collision box for the claw, attached to `ee_link`. Size `[0,0,0]` disables it. |
 | `velocity_scaling`, `acceleration_scaling`, `eef_step_m`, `dry_run` | Motion execution settings. |
+| `cartesian_jump_threshold` | Rejects Cartesian segments whose IK flips arm configuration between samples (the flip would execute as an unchecked sweep through the robot/ground/wall). Never 0 — that disables the check. Travel moves that fail it are replanned in joint space; pen-down moves abort. |
 
 With `dry_run: true`, the executor sends no trajectory goals. It still plans
 the complete command sequence by carrying each successful trajectory's final

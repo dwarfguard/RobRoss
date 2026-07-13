@@ -32,12 +32,12 @@
       "label": "grid_line_1",
       "color": "black",
       "from_mm": [
-        10.0,
-        171.81
+        170.76,
+        49.26
       ],
       "to_mm": [
-        48.53,
-        171.81
+        200.0,
+        49.26
       ],
       "stroke_width_mm": 1.0
     },
@@ -46,12 +46,12 @@
       "label": "grid_line_2",
       "color": "black",
       "from_mm": [
-        10.0,
-        130.0
+        170.76,
+        10.0
       ],
       "to_mm": [
-        48.53,
-        130.0
+        170.76,
+        91.77
       ],
       "stroke_width_mm": 1.0
     },
@@ -60,12 +60,12 @@
       "label": "grid_line_3",
       "color": "black",
       "from_mm": [
-        158.86,
-        10.0
+        10.0,
+        229.92
       ],
       "to_mm": [
-        158.86,
-        287.0
+        39.13,
+        229.92
       ],
       "stroke_width_mm": 1.0
     },
@@ -74,12 +74,68 @@
       "label": "grid_line_4",
       "color": "black",
       "from_mm": [
-        48.53,
-        10.0
+        10.0,
+        140.99
       ],
       "to_mm": [
-        48.53,
+        39.13,
+        140.99
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_5",
+      "color": "black",
+      "from_mm": [
+        95.47,
+        171.55
+      ],
+      "to_mm": [
+        95.47,
         287.0
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_6",
+      "color": "black",
+      "from_mm": [
+        39.13,
+        171.55
+      ],
+      "to_mm": [
+        200.0,
+        171.55
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_7",
+      "color": "black",
+      "from_mm": [
+        39.13,
+        91.77
+      ],
+      "to_mm": [
+        39.13,
+        287.0
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_8",
+      "color": "black",
+      "from_mm": [
+        10.0,
+        91.77
+      ],
+      "to_mm": [
+        200.0,
+        91.77
       ],
       "stroke_width_mm": 1.0
     },
@@ -141,10 +197,10 @@
     }
   ],
   "debug": {
-    "seed": 123,
+    "seed": 3298248419,
     "num_rectangles": 0,
-    "num_lines": 8,
-    "num_operations": 8,
+    "num_lines": 12,
+    "num_operations": 12,
     "colors_used": []
   }
 }

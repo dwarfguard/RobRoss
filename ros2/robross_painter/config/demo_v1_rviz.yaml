@@ -45,5 +45,10 @@ painting_executor:
     acceleration_scaling: 0.3
     # Cartesian interpolation resolution (meters).
     eef_step_m: 0.005
+    # Reject Cartesian paths whose consecutive IK solutions jump more than
+    # this factor times the average joint step (an arm configuration flip).
+    # Never set to 0: that disables the check and a flip executes as the
+    # arm sweeping through unchecked space (self/ground collision).
+    cartesian_jump_threshold: 2.0
     # true = plan everything but do not execute.
     dry_run: false

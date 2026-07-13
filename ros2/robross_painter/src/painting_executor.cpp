@@ -165,6 +165,8 @@ public:
         node_->get_parameter_or("acceleration_scaling", acc_scale_,
                                 acc_scale_);
         node_->get_parameter_or("eef_step_m", eef_step_, eef_step_);
+        node_->get_parameter_or("cartesian_jump_threshold", jump_threshold_,
+                                jump_threshold_);
         node_->get_parameter_or("dry_run", dry_run_, dry_run_);
 
         group_.setMaxVelocityScalingFactor(vel_scale_);
@@ -214,6 +216,8 @@ public:
                 ok = doVertical(safe_clearance_);
             } else if (type == "paint_stroke") {
                 ok = doStroke(cmd);
+            } else if (type == "paint_path") {
+                ok = doPath(cmd);
             } else {
                 RCLCPP_WARN(node_->get_logger(),
                             "Unknown command '%s', skipping", type.c_str());
@@ -454,6 +458,15 @@ private:
             first_motion_ = false;
         } else {
             ok = moveCartesian({ target });
+            if (!ok) {
+                // The pen is up, so a collision-checked joint-space path
+                // is a safe alternative when the straight line needs an
+                // IK configuration change (or is blocked).
+                RCLCPP_WARN(node_->get_logger(),
+                            "Straight travel infeasible; replanning this "
+                            "travel move in joint space");
+                ok = moveJointSpace(target);
+            }
         }
         if (ok) {
             cur_x_mm_ = x_mm;
@@ -510,6 +523,61 @@ private:
         return true;
     }
 
+    // Continuous pen-down polyline: all segments are waypoints of ONE
+    // Cartesian trajectory, retimed as a whole, so the pen draws through
+    // the corners without stopping between segments. This is also how
+    // curved lines will execute: a curve densely sampled into points_mm.
+    bool doPath(const Json::Value &cmd)
+    {
+        const auto &pts = cmd["points_mm"];
+        if (!pts.isArray() || pts.size() < 2) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "paint_path needs a points_mm array of >= 2 points");
+            return false;
+        }
+        std::vector<std::pair<double, double>> points;
+        points.reserve(pts.size());
+        for (const auto &p : pts) {
+            const double x = p[0].asDouble(), y = p[1].asDouble();
+            if (!checkBounds(x, y)) {
+                return false;
+            }
+            points.emplace_back(x, y);
+        }
+        if (!pen_down_) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "paint_path while the pen is up, refusing");
+            return false;
+        }
+
+        std::vector<geometry_msgs::msg::Pose> waypoints;
+        waypoints.reserve(points.size());
+        if (std::hypot(points[0].first - cur_x_mm_,
+                       points[0].second - cur_y_mm_) > 0.5) {
+            RCLCPP_WARN(node_->get_logger(),
+                        "Path starts at (%.2f, %.2f) but pen is at "
+                        "(%.2f, %.2f); dragging pen to the start point",
+                        points[0].first, points[0].second, cur_x_mm_,
+                        cur_y_mm_);
+            waypoints.push_back(
+                makePose(points[0].first, points[0].second, 0.0));
+        }
+        for (std::size_t i = 1; i < points.size(); ++i) {
+            waypoints.push_back(
+                makePose(points[i].first, points[i].second, 0.0));
+        }
+        if (!moveCartesian(waypoints)) {
+            return false;
+        }
+        for (std::size_t i = 1; i < points.size(); ++i) {
+            publishStroke(points[i - 1].first, points[i - 1].second,
+                          points[i].first, points[i].second);
+        }
+        cur_x_mm_ = points.back().first;
+        cur_y_mm_ = points.back().second;
+        return true;
+    }
+
     bool moveJointSpace(const geometry_msgs::msg::Pose &target)
     {
         setDryRunStartState();
@@ -531,11 +599,18 @@ private:
     {
         setDryRunStartState();
         moveit_msgs::msg::RobotTrajectory traj;
-        const double fraction =
-            group_.computeCartesianPath(waypoints, eef_step_, 0.0, traj);
+        // The jump threshold is essential: the Cartesian interpolator only
+        // collision-checks the sampled waypoint states. If IK flips arm
+        // configuration between two samples, executing the trajectory
+        // sweeps the arm through unchecked space (through itself, the
+        // ground, or the wall). A nonzero threshold rejects such flips so
+        // they surface as a planning failure instead of a dangerous motion.
+        const double fraction = group_.computeCartesianPath(
+            waypoints, eef_step_, jump_threshold_, traj);
         if (fraction < 0.999) {
             RCLCPP_ERROR(node_->get_logger(),
-                         "Cartesian path only %.1f%% feasible",
+                         "Cartesian path only %.1f%% feasible (obstacle or "
+                         "IK configuration flip)",
                          fraction * 100.0);
             return false;
         }
@@ -650,6 +725,7 @@ private:
     double vel_scale_{ 0.3 };
     double acc_scale_{ 0.3 };
     double eef_step_{ 0.005 };
+    double jump_threshold_{ 2.0 };
     bool dry_run_{ false };
     std::unique_ptr<moveit::core::RobotState> dry_run_state_;
 

@@ -244,12 +244,21 @@ paint mixing.
 ## generate_painting_paths.py
 
 Converts the abstract paint operations in `painting_plan.json` into
-concrete robot-style stroke path commands (horizontal stripe fills for
-rectangles, single strokes for lines), using tool settings from the
+concrete robot-style stroke path commands, using tool settings from the
 same config passed to `mondrian_generator.py`. This script is read-only
 with respect to the Mondrian layout: it never generates a new random
 layout, it only reads the plan that `mondrian_generator.py` already
 produced.
+
+Command emission goes through `path_optimizer.py` for continuous
+drawing: a rectangle fill becomes one serpentine `paint_path` polyline
+(the whole region paints without lifting), lines that share an endpoint
+chain into one polyline (the four border lines become a single closed
+loop), and polylines are reordered greedy nearest-neighbor — so the
+command order comes from travel optimization, not the subdivide
+creation order. Only fills-before-lines is preserved (grid paints over
+fills). Curved lines will use the same `paint_path` representation,
+sampled densely into points.
 
 One run produces three outputs from the *same* command list:
 
@@ -287,20 +296,24 @@ Validation passed (0 warnings).
 1. `load_painting_plan()` reads the plan at `output/<painting_plan_file>`
    (from the config), raising a clear error pointing at
    `mondrian_generator.py` if it's missing.
-2. `build_commands()` walks the plan's `operations` list in the order
-   it's already in (so grid lines that are already last stay last), and
-   converts each one using `path_generation` settings from the config:
-   - `rectangle_to_commands()` insets the rectangle by `edge_inset_mm`,
+2. `build_commands()` splits the plan's `operations` into two phases
+   (rectangle fills, then lines) and converts each into continuous
+   polylines using `path_generation` settings from the config:
+   - `rectangle_to_polyline()` insets the rectangle by `edge_inset_mm`,
      computes horizontal stripe row centers via
      `compute_stripe_row_centers()` (spaced using `tool_width_mm` and
-     `stroke_overlap_ratio`), and emits alternating left-to-right /
-     right-to-left (boustrophedon) `paint_stroke` commands per row.
-     Rectangles too small to paint after the inset are skipped. (In
-     monochrome mode there are no `paint_rectangle` operations to begin
-     with, so this path is unused.)
-   - `line_to_commands()` emits one `select_tool -> dip_paint ->
-     move_to -> lower_tool -> paint_stroke -> lift_tool` sequence per
-     line.
+     `stroke_overlap_ratio`), and connects the alternating boustrophedon
+     rows into ONE serpentine polyline. Rectangles too small to paint
+     after the inset are skipped. (In monochrome mode there are no
+     `paint_rectangle` operations to begin with, so this path is unused.)
+   - `line_to_polyline()` turns each line into a two-point polyline.
+   - Per color group, `path_optimizer.optimize_polylines()` chains
+     endpoint-touching polylines and orders them nearest-neighbor
+     (drawing from either end), then each polyline is emitted as
+     `move_to -> lower_tool -> paint_path -> lift_tool`, with one
+     `select_tool`/`dip_paint` per color group.
+   (`rectangle_to_commands()`/`line_to_commands()` remain as legacy
+   single-operation converters emitting `paint_stroke` sequences.)
 3. `build_painting_paths()` assembles the JSON: project/style/version,
    a `config` block (profile name + config path), `source_file` (the
    plan path read), canvas metadata (copied from the plan), the
@@ -479,7 +492,7 @@ result = validate_painting_paths(painting_paths)
 | --- | --- |
 | `validate_painting_paths(painting_paths)` | Main entry point: validates canvas + every command, returns the result dict. |
 | `validate_canvas(canvas)` | Checks canvas exists, `width_mm`/`height_mm` are present and positive (error), `origin` is `"top-left"` (warning otherwise). Returns `(errors, warnings)`. |
-| `validate_command(command, index, canvas)` | Checks one command's structure against its type's rules (see `docs/painting-paths-format.md`), including that `move_to` and `paint_stroke` coordinates stay inside canvas bounds — the robot physically travels to `move_to` targets, so those are bounds-checked too. Unknown command types warn, not error. Returns `(errors, warnings)`. |
+| `validate_command(command, index, canvas)` | Checks one command's structure against its type's rules (see `docs/painting-paths-format.md`), including that `move_to`, `paint_stroke`, and every `paint_path` point stay inside canvas bounds — the robot physically travels to `move_to` targets, so those are bounds-checked too. Unknown command types warn, not error. Returns `(errors, warnings)`. |
 | `point_inside_canvas(point, canvas)` | `True` if `0 <= x <= width_mm` and `0 <= y <= height_mm`. |
 | `is_number(value)` | `True` for `int`/`float`, explicitly `False` for `bool`. |
 | `stroke_distance(from_point, to_point)` | Euclidean distance between two `[x, y]` points. |
