@@ -72,9 +72,26 @@ class TestEndToEnd(unittest.TestCase):
         self.assertEqual(set(strokes_by_color.keys()), {"red", "blue"})
 
         border_strokes = build_border_strokes(
-            label_image, config["border_generation"], scale_mm_per_px, offset_mm
+            regions, config["border_generation"], scale_mm_per_px, offset_mm
         )
-        self.assertGreater(len(border_strokes), 0)
+        # red and blue are simple hole-free rectangles: 1 contour each.
+        # white is the whole background with the red and blue rectangles
+        # cut out of it, so its own mask has 2 holes - findContours
+        # (RETR_LIST) returns the outer edge plus one contour per hole, so
+        # white alone contributes 3. Total 5 - a small, exact number, not
+        # thousands of fragments (see border_tracing.py for why the old
+        # global-boundary-walk approach could fragment a busy image into far
+        # more strokes than there are regions).
+        self.assertEqual(len(border_strokes), 5)
+        # White has no fill strokes (skip_white_regions=True) but must still
+        # get an outline, or the white shape disappears entirely - here
+        # that's 3 contours (its own outer edge + a hole around each of the
+        # red/blue rectangles cut out of it), same reasoning as above.
+        white_border_count = len(build_border_strokes(
+            [r for r in regions if r["color_name"] == "white"],
+            config["border_generation"], scale_mm_per_px, offset_mm,
+        ))
+        self.assertEqual(white_border_count, 3)
 
         commands = order_and_build_commands(
             strokes_by_color, border_strokes, PALETTE, tuple(config["path_generation"]["home_position_mm"])

@@ -7,7 +7,7 @@ sketch route).
       -> color_quantize.quantize_to_palette()   (photo -> 5-color label image)
       -> segmentation.segment_image()           (per-color connected regions, noise filtered)
       -> region_fill.region_to_pixel_strokes()  (erode + scanline fill, per region)
-      -> border_tracing.trace_boundary_strokes() (black grid lines between color blocks)
+      -> border_tracing.trace_region_contours() (black grid lines between color blocks)
       -> path_ordering.order_strokes()          (greedy nearest-neighbor travel order, per color group)
       -> generate_painting_paths.py             -> output/<painting_paths_file> (+ preview SVG + quantized preview PNG)
 
@@ -167,23 +167,31 @@ def build_region_strokes(regions: list, path_settings: dict, scale_mm_per_px: fl
     return strokes_by_color
 
 
-def build_border_strokes(label_image: np.ndarray, border_cfg: dict, scale_mm_per_px: float, offset_mm: tuple) -> list:
-    """Trace the black grid lines between color blocks. Returns a list of
-    (points_mm, closed) - same shape path_ordering.order_strokes() expects."""
+def build_border_strokes(regions: list, border_cfg: dict, scale_mm_per_px: float, offset_mm: tuple) -> list:
+    """Trace the black grid lines between color blocks: one (or a few)
+    closed contour(s) per kept region - see border_tracing.py for why this
+    is per-region rather than a single global boundary walk. Returns a list
+    of (points_mm, closed) - same shape path_ordering.order_strokes()
+    expects. Traces every kept region including ones skip_white excludes
+    from fill, so a skipped white shape still gets an outline instead of
+    disappearing entirely."""
     if not border_cfg.get("draw_borders", True):
         return []
 
-    boundary_mask = border_tracing.compute_boundary_mask(label_image)
-    raw_strokes, _ = border_tracing.trace_boundary_strokes(boundary_mask)
-
     epsilon_ratio = border_cfg["simplify_epsilon_ratio"]
     border_strokes = []
-    for points_xy, closed in raw_strokes:
-        simplified = border_tracing.simplify(points_xy, closed, epsilon_ratio)
-        if len(simplified) < 2:
-            continue
-        points_mm = [px_to_mm(p, scale_mm_per_px, offset_mm) for p in simplified]
-        border_strokes.append((points_mm, closed))
+    for region in regions:
+        for points_xy, closed in border_tracing.trace_region_contours(region["mask"]):
+            simplified = border_tracing.simplify(points_xy, closed, epsilon_ratio)
+            if len(simplified) < 3:
+                continue
+            # order_strokes()/the polyline command builder don't carry the
+            # closed flag through to drawing, so bake the closing edge into
+            # the point list itself here.
+            if closed and simplified[0] != simplified[-1]:
+                simplified = simplified + [simplified[0]]
+            points_mm = [px_to_mm(p, scale_mm_per_px, offset_mm) for p in simplified]
+            border_strokes.append((points_mm, closed))
 
     return border_strokes
 
@@ -409,7 +417,7 @@ def main() -> None:
     skip_white = config["segmentation"].get("skip_white_regions", True)
 
     strokes_by_color = build_region_strokes(regions, path_generation, scale_mm_per_px, offset_mm, skip_white)
-    border_strokes = build_border_strokes(label_image, config["border_generation"], scale_mm_per_px, offset_mm)
+    border_strokes = build_border_strokes(regions, config["border_generation"], scale_mm_per_px, offset_mm)
 
     palette_colors = config["palette"]["colors"]
     commands = order_and_build_commands(strokes_by_color, border_strokes, palette_colors, home_position)

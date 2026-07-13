@@ -1,75 +1,39 @@
-"""Classic Mondrian black grid lines: trace the boundary between
-differently-labeled adjacent pixels in the quantized label image, once
-globally, so a shared edge between two color blocks is only drawn once
-(not once per side).
+"""Classic Mondrian black grid lines: trace each kept region's own outline
+via cv2.findContours, one closed loop per outer boundary and per hole.
 
-The skeleton graph-walk core is copied from Image_Process/sketch/canny_edges.py
-(extract_strokes()), generalized to accept any boolean boundary mask instead
-of always computing one via cv2.Canny - per this repo's copy-for-self-
-containment convention (see path_validation.py).
+Tracing per-region (rather than walking a global boundary-pixel network
+across the whole image) sidesteps a fragmentation problem: a busy real
+photo's color-boundary network has huge numbers of junctions (T-junctions
+where 3+ quantized colors meet), and any graph walk has to break a new
+stroke at every junction - producing thousands of tiny disconnected
+fragments for textured photos. A single region's own boundary is always
+just one or a few closed loops regardless of how jagged the pixel boundary
+is, so cv2.findContours' pixel-level Moore boundary tracing never hits that
+"which branch do I take" ambiguity in the first place.
+
+Trade-off: a shared edge between two adjacent kept regions gets traced (and
+painted) once from each side - not deduplicated. That's a deliberate choice,
+not an oversight: de-duplicating would need geometric edge-matching with
+tolerance, and the win from fixing the fragmentation problem is already
+large enough (see Image_Process/image_to_mondrian/README.md) that doubling
+a thin pen line on shared edges isn't worth the added complexity.
 """
 
 import cv2
 import numpy as np
-from skimage.morphology import skeletonize
-
-NEIGHBORS_8 = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
 
-def compute_boundary_mask(label_image: np.ndarray) -> np.ndarray:
-    """Mark every pixel that differs from its up or left neighbor - a
-    single-shot detector of every color-block boundary in the image,
-    including boundaries with skipped/dropped (background) regions."""
-    boundary = np.zeros(label_image.shape, dtype=bool)
-    boundary[1:, :] |= label_image[1:, :] != label_image[:-1, :]
-    boundary[:, 1:] |= label_image[:, 1:] != label_image[:, :-1]
-    return boundary
-
-
-def trace_boundary_strokes(boundary_mask: np.ndarray):
-    """Skeletonize the boundary mask and walk its pixel graph to trace each
-    independent line once. Returns (strokes_xy, (width, height)) - same
-    shape as canny_edges.extract_strokes()'s return value."""
-    skeleton = skeletonize(boundary_mask)
-
-    all_pixels = set(map(tuple, np.argwhere(skeleton)))
-
-    def neighbors(pixel):
-        y, x = pixel
-        return [(y + dy, x + dx) for dy, dx in NEIGHBORS_8 if (y + dy, x + dx) in all_pixels]
-
-    degree = {p: len(neighbors(p)) for p in all_pixels}
-    nodes = {p for p, d in degree.items() if d != 2}  # endpoints (deg 1) and junctions (deg >= 3)
-
-    visited_edges = set()
-    strokes_yx = []  # list of (points_yx, is_closed)
-
-    def walk(start, first_step):
-        path = [start, first_step]
-        visited_edges.add(frozenset((start, first_step)))
-        prev, current = start, first_step
-        while degree.get(current) == 2 and current not in nodes:
-            nxt = next((p for p in neighbors(current) if p != prev), None)
-            if nxt is None or frozenset((current, nxt)) in visited_edges:
-                break
-            visited_edges.add(frozenset((current, nxt)))
-            path.append(nxt)
-            prev, current = current, nxt
-        return path
-
-    for node in nodes:
-        for nbr in neighbors(node):
-            if frozenset((node, nbr)) not in visited_edges:
-                strokes_yx.append((walk(node, nbr), False))
-
-    for pixel in all_pixels - nodes:
-        unvisited = [p for p in neighbors(pixel) if frozenset((pixel, p)) not in visited_edges]
-        if unvisited:
-            strokes_yx.append((walk(pixel, unvisited[0]), True))
-
-    strokes_xy = [([(x, y) for y, x in points_yx], closed) for points_yx, closed in strokes_yx]
-    height, width = skeleton.shape
-    return strokes_xy, (width, height)
+def trace_region_contours(mask: np.ndarray) -> list:
+    """One closed loop per outer boundary and per hole in this region's own
+    mask. Returns (points_xy, closed=True) tuples - points are already
+    (x, y) pixel order (cv2.findContours' native order)."""
+    mask_u8 = mask.astype(np.uint8)
+    contours, _hierarchy = cv2.findContours(mask_u8, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    return [
+        ([tuple(int(v) for v in p) for p in contour.reshape(-1, 2)], True)
+        for contour in contours
+        if len(contour) >= 3
+    ]
 
 
 def simplify(points_xy, closed: bool, epsilon_ratio: float):

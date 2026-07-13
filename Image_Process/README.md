@@ -19,10 +19,12 @@ More algorithms are welcome as additional sibling folders here — each new
 approach gets its own subfolder rather than growing inside an existing one.
 
 `sketch/` and `image_to_mondrian/` are the subfolders with third-party
-dependencies (`opencv-python`, `numpy`, `scikit-image`, for image
-loading/quantization/edge-detection/skeletonization) — `mondrian/` stays
-pure standard library. See `sketch/README.md` / `image_to_mondrian/README.md`
-for the install command.
+dependencies for image loading/quantization/edge-detection — `opencv-python`
++ `numpy` for both, plus `scikit-image` for `sketch/` only (its
+skeletonization-based line tracer; `image_to_mondrian/` traces outlines via
+`cv2.findContours` instead, so it doesn't need it). `mondrian/` stays pure
+standard library. See `sketch/README.md` / `image_to_mondrian/README.md` for
+the install command.
 
 `mondrian/`, `sketch/`, and `image_to_mondrian/` all read their config
 profiles from the repo-root `configs/` directory and write to the repo-root

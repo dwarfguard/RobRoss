@@ -15,7 +15,7 @@ Config profile (configs/*.json)
   -> color_quantize.quantize_to_palette()    photo -> 5-color label image
   -> segmentation.segment_image()            per-color connected regions, noise-filtered
   -> region_fill.region_to_pixel_strokes()   erode + scanline fill, per region
-  -> border_tracing.trace_boundary_strokes() black grid lines between color blocks
+  -> border_tracing.trace_region_contours()  black grid lines between color blocks
   -> path_ordering.order_strokes()           greedy nearest-neighbor travel order, per color group
   -> generate_painting_paths.py              -> output/<painting_paths_file> (+ preview SVG + quantized preview PNG)
 ```
@@ -41,7 +41,7 @@ for some inputs.
 ## Usage
 
 ```bash
-# Needs opencv-python + numpy + scikit-image - see "Dependencies" below
+# Needs opencv-python + numpy - see "Dependencies" below
 python3 Image_Process/image_to_mondrian/generate_painting_paths.py --config configs/image_to_mondrian_demo_a4.json
 ```
 
@@ -60,14 +60,16 @@ Outputs (all under `output/` per the config):
 
 ## Dependencies
 
-Same three third-party packages as `Image_Process/sketch/` (this repo's
-other photo-input route) — `opencv-python`, `numpy`, `scikit-image` (the
-last one for `skimage.morphology.skeletonize`, used by the black-grid-line
-tracer). `Image_Process/mondrian/` stays pure standard library; this is a
-second, deliberate folder-scoped dependency exception per root `CLAUDE.md`.
+`opencv-python` + `numpy` — used for image loading/quantization, connected-
+component segmentation, scanline fill, and (`cv2.findContours`) the
+black-grid-line tracer. Unlike `Image_Process/sketch/` (this repo's other
+photo-input route), no `scikit-image` is needed here — border tracing is
+per-region contour extraction, not skeleton/graph-walk based.
+`Image_Process/mondrian/` stays pure standard library; this is a second,
+deliberate folder-scoped dependency exception per root `CLAUDE.md`.
 
 ```bash
-sudo apt-get install -y python3-opencv python3-numpy python3-skimage
+sudo apt-get install -y python3-opencv python3-numpy
 ```
 
 ## Config fields (`configs/image_to_mondrian_demo_a4.json`)
@@ -99,10 +101,9 @@ sudo apt-get install -y python3-opencv python3-numpy python3-skimage
   open, strips speckle — pixels no color claims after opening are `-1`,
   distinct from any real palette index), `label_connected_regions()`
   (`cv2.connectedComponentsWithStats` per color), `filter_small_regions()`,
-  `segment_image()` composes all three. Returns the *cleaned* (speckle-
-  opened but not small-region-filtered) label image alongside the kept
-  regions — that cleaned image is also the correct input for border tracing
-  (see below), not the raw per-pixel quantization.
+  `segment_image()` composes all three. Each kept region dict carries its
+  own boolean `mask` — that per-region mask is what both `region_fill.py`
+  (fill) and `border_tracing.py` (outline) consume directly.
 - **`region_fill.py`** — the new polygon-fill algorithm: `erode_mask()`
   shrinks a region inward by `mask_erosion_mm` so strokes don't bleed
   across color boundaries; `find_row_intervals()` is a vectorized run-length
@@ -114,13 +115,20 @@ sudo apt-get install -y python3-opencv python3-numpy python3-skimage
   alternation here (unlike `mondrian`'s rectangle boustrophedon) — a
   concave shape's per-row interval count varies, so travel-order
   optimization is deferred entirely to `path_ordering.order_strokes()`.
-- **`border_tracing.py`** — `compute_boundary_mask()` finds every pixel that
-  differs from its up/left neighbor in the *cleaned* label image, in one
-  pass — this naturally avoids drawing a shared edge between two regions
-  twice (once per side). `trace_boundary_strokes()` is copied from
-  `sketch/canny_edges.py`'s skeleton pixel-graph walk, generalized to accept
-  any boolean boundary mask instead of always running `cv2.Canny()`
-  internally. `simplify()` is the same Douglas-Peucker copy `sketch/` uses.
+- **`border_tracing.py`** — `trace_region_contours()` runs `cv2.findContours()`
+  on one region's own mask at a time (one closed loop per outer boundary,
+  one per hole), instead of walking a single boundary-pixel network across
+  the whole image. This matters for busy real photos: a global boundary
+  network has huge numbers of junctions (every point where 3+ quantized
+  colors meet), and any graph walk has to break a new stroke at every one —
+  for a textured photo that fragments into thousands of tiny disconnected
+  pieces (each one costs the robot a full lift/travel/lower cycle). A single
+  region's own boundary is always just one or a few closed loops no matter
+  how jagged the pixel boundary is, so per-region contour tracing sidesteps
+  the fragmentation entirely. Trade-off: a shared edge between two adjacent
+  regions gets traced (and painted) once from each side, not deduplicated —
+  see "Known v1 limitations". `simplify()` is the same Douglas-Peucker
+  (`cv2.approxPolyDP`) helper `sketch/` uses.
 - **`generate_painting_paths.py`** — orchestrates the whole pipeline;
   `image_to_canvas_transform()`/`px_to_mm()` is the same aspect-fit-and-
   center mapping `sketch/generate_sketch_paths.py::map_points_to_canvas()`
@@ -138,8 +146,10 @@ sudo apt-get install -y python3-opencv python3-numpy python3-skimage
 - Small regions dropped by `min_region_area_mm2` are left unpainted rather
   than merged into a neighboring region — a documented simplification, not
   a bug.
-- Border tracing runs on the *cleaned* (speckle-opened) label image, not the
-  *filtered* one — so a region that survives opening but still gets dropped
-  by the small-region-area filter will still get a black outline drawn
-  around its (unpainted) footprint. Rare in practice since both filters use
-  similar-scale thresholds, but possible.
+- A shared edge between two adjacent kept regions gets traced (and painted)
+  once from each region's own contour — not deduplicated. Visually this
+  just makes that shared line marginally bolder; it doesn't affect fill
+  quality. De-duplicating would need geometric edge-matching with a
+  tolerance, and the win from switching to per-region contour tracing
+  (thousands of fragments down to roughly one-to-a-few strokes per region)
+  is large enough that this wasn't worth the added complexity.
