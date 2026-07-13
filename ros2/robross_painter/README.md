@@ -95,6 +95,10 @@ joint state forward as the start state of the next plan. This validates the
 actual approach, descent, stroke, lift, and travel transitions rather than
 planning every target independently from the robot's unchanged current pose.
 
+Before any real-arm session, work through [PREFLIGHT.md](PREFLIGHT.md) —
+config/scene sanity, canvas teaching with the spring-loaded pen, the
+full-artwork dry-run rule, and first-contact procedure.
+
 ## Teaching the Canvas Pose (Real Hardware)
 
 `teach_canvas.py` measures the paper pose directly with the arm instead of

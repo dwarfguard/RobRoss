@@ -17,8 +17,10 @@
 // them to ee_link poses before planning. The pen axis (tip frame z) is
 // kept normal to the canvas; tool_spin_deg rotates the claw about it.
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <string>
 #include <thread>
@@ -226,6 +228,7 @@ public:
                 RCLCPP_ERROR(node_->get_logger(),
                              "Command %d ('%s', label '%s') failed, aborting",
                              index, type.c_str(), label.c_str());
+                attemptRetreat();
                 return false;
             }
         }
@@ -342,6 +345,44 @@ private:
                         "No claw collision box configured; the claw is "
                         "invisible to collision checking");
             return true;
+        }
+
+        // Contact-geometry sanity check: at pen contact the paper plane is
+        // at z=0 in the pen-tip frame (tip z into the paper) and the
+        // backing front face at +canvas_backing_clearance_m. If any box
+        // corner reaches the backing at contact, every pen-down plan is
+        // doomed to fail; refuse early with a clear message instead.
+        double max_depth = -std::numeric_limits<double>::infinity();
+        for (int corner = 0; corner < 8; ++corner) {
+            const tf2::Vector3 p_ee(
+                claw_offset_[0] + ((corner & 1) ? 0.5 : -0.5) * claw_size_[0],
+                claw_offset_[1] + ((corner & 2) ? 0.5 : -0.5) * claw_size_[1],
+                claw_offset_[2] + ((corner & 4) ? 0.5 : -0.5) * claw_size_[2]);
+            max_depth = std::max(max_depth, (tool_offset_inv_ * p_ee).z());
+        }
+        if (backing_enabled_ && max_depth >= backing_clearance_) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Claw collision box reaches %.1f mm past the paper "
+                         "plane at pen contact, but the canvas backing sits "
+                         "at %.1f mm: every pen-down plan would fail. Fix "
+                         "claw_collision_size/offset, tool_offset_xyz, or "
+                         "canvas_backing_clearance_m",
+                         max_depth * 1000.0, backing_clearance_ * 1000.0);
+            return false;
+        }
+        if (!backing_enabled_ && max_depth > 0.0) {
+            RCLCPP_WARN(node_->get_logger(),
+                        "Claw collision box models the claw %.1f mm past the "
+                        "paper plane at pen contact; with the backing "
+                        "disabled planning will NOT catch the real claw "
+                        "hitting the wall",
+                        max_depth * 1000.0);
+        } else if (backing_enabled_ && backing_clearance_ - max_depth < 0.005) {
+            RCLCPP_WARN(node_->get_logger(),
+                        "Only %.1f mm between the claw collision box and the "
+                        "canvas backing at pen contact; expect marginal "
+                        "planning failures",
+                        (backing_clearance_ - max_depth) * 1000.0);
         }
 
         moveit_msgs::msg::AttachedCollisionObject aco;
@@ -515,7 +556,22 @@ private:
             }
         }
         if (!moveCartesian({ makePose(tx, ty, 0.0) })) {
-            return false;
+            constexpr int kStrokeRetries = 2;
+            bool recovered = false;
+            for (int retry = 1; retry <= kStrokeRetries && !recovered;
+                 ++retry) {
+                RCLCPP_WARN(node_->get_logger(),
+                            "Stroke infeasible in this arm configuration; "
+                            "re-approaching with a fresh one (%d/%d)",
+                            retry, kStrokeRetries);
+                if (!reapproach(fx, fy)) {
+                    return false;
+                }
+                recovered = moveCartesian({ makePose(tx, ty, 0.0) });
+            }
+            if (!recovered) {
+                return false;
+            }
         }
         cur_x_mm_ = tx;
         cur_y_mm_ = ty;
@@ -567,7 +623,28 @@ private:
                 makePose(points[i].first, points[i].second, 0.0));
         }
         if (!moveCartesian(waypoints)) {
-            return false;
+            // Whether the straight pen-down path is drawable depends on
+            // which IK configuration family the arm entered with — chosen
+            // by the sampling-based approach plan, and unchanged by
+            // Cartesian moves since. Re-roll it: lift, go through the
+            // home posture (guarantees leaving the current family),
+            // re-approach the stroke start, lower, and try again.
+            constexpr int kStrokeRetries = 2;
+            bool recovered = false;
+            for (int retry = 1; retry <= kStrokeRetries && !recovered;
+                 ++retry) {
+                RCLCPP_WARN(node_->get_logger(),
+                            "Stroke infeasible in this arm configuration; "
+                            "re-approaching with a fresh one (%d/%d)",
+                            retry, kStrokeRetries);
+                if (!reapproach(points[0].first, points[0].second)) {
+                    return false;
+                }
+                recovered = moveCartesian(waypoints);
+            }
+            if (!recovered) {
+                return false;
+            }
         }
         for (std::size_t i = 1; i < points.size(); ++i) {
             publishStroke(points[i - 1].first, points[i - 1].second,
@@ -578,21 +655,117 @@ private:
         return true;
     }
 
+    // Lift off the paper, pass through the all-zero home posture (to
+    // leave the current IK configuration family), re-approach the given
+    // canvas point at hover height (the sampling-based plan picks a
+    // fresh configuration), and lower back to contact.
+    bool reapproach(double x_mm, double y_mm)
+    {
+        const auto hover = makePose(x_mm, y_mm, safe_clearance_);
+        if (!moveCartesian({ hover })) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Cannot lift off the paper for re-approach");
+            return false;
+        }
+        pen_down_ = false;
+
+        setDryRunStartState();
+        group_.setJointValueTarget(
+            std::vector<double>(group_.getVariableCount(), 0.0));
+        moveit::planning_interface::MoveGroupInterface::Plan plan;
+        bool went_home =
+            group_.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS;
+        if (went_home && !dry_run_) {
+            went_home = group_.execute(plan) ==
+                        moveit::core::MoveItErrorCode::SUCCESS;
+        } else if (went_home) {
+            advanceDryRunState(plan.trajectory_);
+        }
+        if (!went_home) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Cannot return to home posture for re-approach");
+            return false;
+        }
+
+        if (!moveJointSpace(hover)) {
+            return false;
+        }
+        if (!moveCartesian({ makePose(x_mm, y_mm, 0.0) })) {
+            return false;
+        }
+        pen_down_ = true;
+        cur_x_mm_ = x_mm;
+        cur_y_mm_ = y_mm;
+        return true;
+    }
+
+    // Best-effort recovery after an abort with the pen on the paper:
+    // without it the node would exit with the pen pressed against the
+    // canvas, and the next run's first joint-space motion would drag it
+    // across the artwork. Straight lift along the canvas normal first;
+    // if even that cannot be planned, a joint-space plan to the hover
+    // pose (which may wander slightly while leaving, but ends off the
+    // paper). Failures here are logged, not fatal - we are already
+    // aborting.
+    void attemptRetreat()
+    {
+        if (dry_run_ || !pen_down_ || !have_position_) {
+            return;
+        }
+        RCLCPP_WARN(node_->get_logger(),
+                    "Aborting with the pen down; retreating off the paper");
+        const auto hover = makePose(cur_x_mm_, cur_y_mm_, safe_clearance_);
+        if (moveCartesian({ hover })) {
+            pen_down_ = false;
+            RCLCPP_INFO(node_->get_logger(), "Pen retreated to hover height");
+            return;
+        }
+        RCLCPP_WARN(node_->get_logger(),
+                    "Straight retreat failed; trying a joint-space retreat "
+                    "(may wander slightly while leaving the paper)");
+        if (moveJointSpace(hover)) {
+            pen_down_ = false;
+            RCLCPP_INFO(node_->get_logger(), "Pen retreated to hover height");
+            return;
+        }
+        RCLCPP_ERROR(node_->get_logger(),
+                     "Retreat failed: the pen is still on the paper. Jog it "
+                     "clear manually before the next run");
+    }
+
     bool moveJointSpace(const geometry_msgs::msg::Pose &target)
     {
         setDryRunStartState();
         group_.setPoseTarget(target);
-        moveit::planning_interface::MoveGroupInterface::Plan plan;
-        if (group_.plan(plan) != moveit::core::MoveItErrorCode::SUCCESS) {
-            RCLCPP_ERROR(node_->get_logger(),
-                         "Joint-space planning to approach pose failed");
-            return false;
+        // Sampling-based planning is nondeterministic, and move_group
+        // sometimes rejects an otherwise fine plan in its final dense
+        // validation (invalid interpolated states after smoothing). Both
+        // are transient, so retry with fresh samples before giving up.
+        constexpr int kAttempts = 3;
+        for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+            moveit::planning_interface::MoveGroupInterface::Plan plan;
+            if (group_.plan(plan) != moveit::core::MoveItErrorCode::SUCCESS) {
+                RCLCPP_WARN(node_->get_logger(),
+                            "Joint-space planning attempt %d/%d failed",
+                            attempt, kAttempts);
+                continue;
+            }
+            if (dry_run_) {
+                advanceDryRunState(plan.trajectory_);
+                return true;
+            }
+            if (group_.execute(plan) ==
+                moveit::core::MoveItErrorCode::SUCCESS) {
+                return true;
+            }
+            RCLCPP_WARN(node_->get_logger(),
+                        "Joint-space execution attempt %d/%d failed",
+                        attempt, kAttempts);
         }
-        if (dry_run_) {
-            advanceDryRunState(plan.trajectory_);
-            return true;
-        }
-        return group_.execute(plan) == moveit::core::MoveItErrorCode::SUCCESS;
+        RCLCPP_ERROR(node_->get_logger(),
+                     "Joint-space planning failed after %d attempts",
+                     kAttempts);
+        return false;
     }
 
     bool moveCartesian(const std::vector<geometry_msgs::msg::Pose> &waypoints)
