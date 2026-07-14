@@ -90,6 +90,15 @@ def _validate_source_image(source_image: dict) -> list:
                 f"source_image.downscale_max_dimension_px must be a positive integer, got {downscale!r}."
             )
 
+    bilateral_d = source_image.get("bilateral_d", 0)
+    if not isinstance(bilateral_d, int) or isinstance(bilateral_d, bool) or bilateral_d < 0:
+        errors.append(f"source_image.bilateral_d must be an integer >= 0, got {bilateral_d!r}.")
+
+    for field in ("bilateral_sigma_color", "bilateral_sigma_space"):
+        value = source_image.get(field)
+        if value is not None and (not _is_number(value) or value <= 0):
+            errors.append(f"source_image.{field} must be a number > 0, got {value!r}.")
+
     return errors
 
 
@@ -125,6 +134,20 @@ def _validate_palette(palette: dict) -> list:
     if color_space not in ("rgb", "lab"):
         errors.append(f"palette.color_space must be 'rgb' or 'lab', got {color_space!r}.")
 
+    neutral_chroma_threshold = palette.get("neutral_chroma_threshold", 0.0)
+    if not _is_number(neutral_chroma_threshold) or neutral_chroma_threshold < 0:
+        errors.append(
+            f"palette.neutral_chroma_threshold must be a number >= 0, got {neutral_chroma_threshold!r}."
+        )
+
+    neutral_chroma_percentile = palette.get("neutral_chroma_percentile")
+    if neutral_chroma_percentile is not None:
+        if not _is_number(neutral_chroma_percentile) or not (0 <= neutral_chroma_percentile <= 100):
+            errors.append(
+                f"palette.neutral_chroma_percentile must be a number between 0 and 100, "
+                f"got {neutral_chroma_percentile!r}."
+            )
+
     return errors
 
 
@@ -143,10 +166,28 @@ def _validate_segmentation(segmentation: dict) -> list:
             f"segmentation.morph_open_kernel_px must be an integer >= 0, got {morph_kernel!r}."
         )
 
+    morph_close_kernel = segmentation.get("morph_close_kernel_px", 0)
+    if not isinstance(morph_close_kernel, int) or isinstance(morph_close_kernel, bool) or morph_close_kernel < 0:
+        errors.append(
+            f"segmentation.morph_close_kernel_px must be an integer >= 0, got {morph_close_kernel!r}."
+        )
+
     skip_white = segmentation.get("skip_white_regions")
     if skip_white is not None and not isinstance(skip_white, bool):
         errors.append(
             f"segmentation.skip_white_regions must be a bool, got {skip_white!r}."
+        )
+
+    protect_face_features = segmentation.get("protect_face_features")
+    if protect_face_features is not None and not isinstance(protect_face_features, bool):
+        errors.append(
+            f"segmentation.protect_face_features must be a bool, got {protect_face_features!r}."
+        )
+
+    face_margin = segmentation.get("face_protection_margin_px", 0)
+    if not isinstance(face_margin, int) or isinstance(face_margin, bool) or face_margin < 0:
+        errors.append(
+            f"segmentation.face_protection_margin_px must be an integer >= 0, got {face_margin!r}."
         )
 
     return errors

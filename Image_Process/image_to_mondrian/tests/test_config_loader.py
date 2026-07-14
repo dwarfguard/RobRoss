@@ -97,11 +97,73 @@ class TestValidateConfig(unittest.TestCase):
         errors = validate_config(config)
         self.assertTrue(any("color_space" in error for error in errors))
 
+    def test_negative_bilateral_d_is_an_error(self):
+        config = make_valid_config()
+        config["source_image"]["bilateral_d"] = -1
+        errors = validate_config(config)
+        self.assertTrue(any("bilateral_d" in error for error in errors))
+
+    def test_bilateral_d_is_optional(self):
+        config = make_valid_config()
+        self.assertNotIn("bilateral_d", config["source_image"])
+        self.assertEqual(validate_config(config), [])
+
+    def test_zero_bilateral_sigma_color_is_an_error(self):
+        config = make_valid_config()
+        config["source_image"]["bilateral_sigma_color"] = 0
+        errors = validate_config(config)
+        self.assertTrue(any("bilateral_sigma_color" in error for error in errors))
+
+    def test_neutral_chroma_percentile_out_of_range_is_an_error(self):
+        config = make_valid_config()
+        config["palette"]["neutral_chroma_percentile"] = 150
+        errors = validate_config(config)
+        self.assertTrue(any("neutral_chroma_percentile" in error for error in errors))
+
+    def test_neutral_chroma_percentile_is_optional(self):
+        config = make_valid_config()
+        self.assertNotIn("neutral_chroma_percentile", config["palette"])
+        self.assertEqual(validate_config(config), [])
+
+    def test_non_bool_protect_face_features_is_an_error(self):
+        config = make_valid_config()
+        config["segmentation"]["protect_face_features"] = "yes"
+        errors = validate_config(config)
+        self.assertTrue(any("protect_face_features" in error for error in errors))
+
+    def test_negative_face_protection_margin_is_an_error(self):
+        config = make_valid_config()
+        config["segmentation"]["face_protection_margin_px"] = -1
+        errors = validate_config(config)
+        self.assertTrue(any("face_protection_margin_px" in error for error in errors))
+
+    def test_negative_neutral_chroma_threshold_is_an_error(self):
+        config = make_valid_config()
+        config["palette"]["neutral_chroma_threshold"] = -5
+        errors = validate_config(config)
+        self.assertTrue(any("neutral_chroma_threshold" in error for error in errors))
+
+    def test_neutral_chroma_threshold_is_optional(self):
+        config = make_valid_config()
+        self.assertNotIn("neutral_chroma_threshold", config["palette"])
+        self.assertEqual(validate_config(config), [])
+
     def test_min_region_area_must_be_positive(self):
         config = make_valid_config()
         config["segmentation"]["min_region_area_mm2"] = 0
         errors = validate_config(config)
         self.assertTrue(any("min_region_area_mm2" in error for error in errors))
+
+    def test_negative_morph_close_kernel_is_an_error(self):
+        config = make_valid_config()
+        config["segmentation"]["morph_close_kernel_px"] = -1
+        errors = validate_config(config)
+        self.assertTrue(any("morph_close_kernel_px" in error for error in errors))
+
+    def test_morph_close_kernel_is_optional(self):
+        config = make_valid_config()
+        self.assertNotIn("morph_close_kernel_px", config["segmentation"])
+        self.assertEqual(validate_config(config), [])
 
     def test_overlap_ratio_of_one_is_an_error(self):
         config = make_valid_config()

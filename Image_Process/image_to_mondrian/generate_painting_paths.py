@@ -30,6 +30,7 @@ import numpy as np
 
 import border_tracing
 import color_quantize
+import face_protection
 import region_fill
 import segmentation
 from config_loader import load_config
@@ -123,11 +124,28 @@ def build_regions(config: dict) -> tuple:
         blur_kernel_size=source_image.get("blur_kernel_size", 5),
         blur_sigma=source_image.get("blur_sigma", 0),
         downscale_max_dimension_px=source_image.get("downscale_max_dimension_px"),
+        bilateral_d=source_image.get("bilateral_d", 0),
+        bilateral_sigma_color=source_image.get("bilateral_sigma_color", 75),
+        bilateral_sigma_space=source_image.get("bilateral_sigma_space", 75),
     )
-    label_image = color_quantize.quantize_to_palette(image, palette_colors, color_space)
+
+    neutral_chroma_threshold = config["palette"].get("neutral_chroma_threshold", 0.0)
+    if not neutral_chroma_threshold and config["palette"].get("neutral_chroma_percentile") is not None:
+        neutral_chroma_threshold = color_quantize.compute_adaptive_chroma_threshold(
+            image, config["palette"]["neutral_chroma_percentile"]
+        )
+    label_image = color_quantize.quantize_to_palette(
+        image, palette_colors, color_space, neutral_chroma_threshold
+    )
 
     height, width = label_image.shape
     scale_mm_per_px, offset_mm = image_to_canvas_transform((width, height), canvas)
+
+    protected_mask = None
+    if segmentation_cfg.get("protect_face_features"):
+        protected_mask = face_protection.detect_protected_face_mask(
+            image, margin_px=segmentation_cfg.get("face_protection_margin_px", 3)
+        )
 
     min_area_px = segmentation_cfg["min_region_area_mm2"] / (scale_mm_per_px ** 2)
     kept_regions, dropped_count, cleaned_label_image = segmentation.segment_image(
@@ -135,6 +153,8 @@ def build_regions(config: dict) -> tuple:
         palette_colors,
         segmentation_cfg.get("morph_open_kernel_px", 0),
         min_area_px,
+        segmentation_cfg.get("morph_close_kernel_px", 0),
+        protected_mask,
     )
 
     return kept_regions, dropped_count, cleaned_label_image, (width, height), scale_mm_per_px, offset_mm

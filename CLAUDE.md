@@ -169,13 +169,39 @@ becomes multiple straight `paint_stroke` segments, one per consecutive point pai
 ## Architecture within `Image_Process/image_to_mondrian/`
 
 Self-contained, own `config_loader.py` and a byte-for-byte copy of `path_validation.py` and
-`sketch/path_ordering.py`. `color_quantize.py` loads + blurs/downscales the photo, then
+`sketch/path_ordering.py`. `color_quantize.py::preprocess()` resizes then smooths the photo —
+either Gaussian blur (`blur_kernel_size`) or, preferably for real photos, edge-preserving
+`cv2.bilateralFilter` (`bilateral_d`, takes priority when set) which smooths flat/gradient areas
+but keeps real high-contrast edges (e.g. an eye against skin) sharp, unlike Gaussian blur.
 `quantize_to_palette()` does fully-vectorized nearest-palette-color matching (Lab space by
-default) — no per-pixel Python loop. `segmentation.py::segment_image()` runs a per-color
-morphological open (`clean_label_image()`, strips single-pixel speckle) then
-`cv2.connectedComponentsWithStats()` per color, then drops regions under `min_region_area_mm2`;
-each kept region dict carries its own boolean `mask`, consumed directly by both `region_fill.py`
-(fill) and `border_tracing.py` (outline). `region_fill.py` is the new polygon-fill algorithm
+default) — no per-pixel Python loop. Optional `palette.neutral_chroma_threshold` (Lab only,
+default 0/disabled) gates this: pixels below the threshold only match the palette's own neutral
+colors (white/black), pixels at or above only match its chromatic ones (red/blue/yellow) — keeps
+desaturated mid-tones (skin, hair, shadow) from being forced into a bold color just because
+they're marginally closer, so photos land closer to real Mondrian's mostly-white-canvas look
+instead of every pixel getting colored in. Prefer `palette.neutral_chroma_percentile` over a
+hand-picked `neutral_chroma_threshold` number — `color_quantize.compute_adaptive_chroma_threshold()`
+computes the threshold from *that photo's own* Lab chroma distribution, so the same percentile
+value generalizes across differently-colored photos instead of being one magic number tuned to a
+single image (verified against three visually different photos in
+`configs/image_to_mondrian_lenna_a4.json`'s development). `segmentation.py::segment_image()` runs
+a per-color morphological close (`morph_close_kernel_px`, optional) *then* open
+(`clean_label_image()`, strips single-pixel speckle — close runs first so open doesn't erase a
+gap's ragged edges before close can bridge them) then `cv2.connectedComponentsWithStats()` per
+color, then drops regions under `min_region_area_mm2`; each kept region dict carries its own
+boolean `mask`, consumed directly by both `region_fill.py` (fill) and `border_tracing.py`
+(outline). A closing kernel large enough to bridge a real gap in one object (e.g. a hat split by
+shadow) is also large enough to merge small nearby semantic features (e.g. an eye) into an
+adjacent region, since closing only sees pixel geometry — confirmed this isn't a tuning problem:
+an eye's pixel blob is often already connected to nearby hair through eyebrow/eyelash strands
+*before* any morphology runs, so no kernel size threads that needle. `face_protection.py`
+(optional, needs `mediapipe` — the one narrowly-scoped ML dependency in this otherwise-classical
+module) runs a pretrained MediaPipe Face Mesh model and returns a `protected_mask` that
+`clean_label_image()` uses to force-restore protected pixels to their pre-morphology
+classification after close/open run, regardless of what either decided — lets `morph_close_kernel_px`
+be large enough to fix a real object's shape without erasing nearby facial detail. Returns `None`
+(not an error) when `mediapipe` isn't installed or no face is detected. `region_fill.py` is the
+new polygon-fill algorithm
 (mondrian's rectangle boustrophedon only handles rectangles): `erode_mask()` shrinks a region
 inward by `mask_erosion_mm` so strokes don't bleed across color boundaries, `find_row_intervals()`
 is a vectorized run-length detector handling concave shapes (more than one paintable interval per
@@ -238,6 +264,13 @@ command/validation schema (shared by all three routes).
   `numpy`, `scikit-image`) and `Image_Process/image_to_mondrian/` (`opencv-python`, `numpy` only)
   are deliberate, folder-scoped exceptions for image loading/quantization/edge-detection — don't
   let that spread to other folders without similarly clear justification.
+- `Image_Process/image_to_mondrian/face_protection.py`'s `mediapipe` dependency is this repo's
+  first ML model dependency, kept intentionally narrow: optional (`segmentation.protect_face_features`,
+  default off), pretrained/no-training/CPU-only, and imported lazily inside the one function that
+  needs it so the rest of the module has no hard dependency on it. It exists because a purely
+  classical fix was verified not to exist for its specific problem (see the module's README "Why
+  (mostly) non-ML") — don't reach for an ML dependency elsewhere in this repo without similarly
+  confirming the classical approach has a real ceiling, not just "would be easier."
 - Update the relevant Markdown (`README.md`, `Image_Process/mondrian/README.md`,
   `Image_Process/sketch/README.md`, `Image_Process/image_to_mondrian/README.md`,
   `docs/painting-paths-format.md`) whenever behavior or project decisions change; these docs are

@@ -1,5 +1,5 @@
 {
-  "profile_name": "image_to_mondrian_lenna_a4",
+  "profile_name": "image_to_mondrian_minions_a4",
   "project": "R.O.B Ross",
   "style": "image_to_mondrian",
 
@@ -12,7 +12,7 @@
   },
 
   "source_image": {
-    "path": "Image_Process/sketch/assets/lenna.png",
+    "path": "Image_Process/image_to_mondrian/assets/minions.jpg",
     "downscale_max_dimension_px": 400,
     "bilateral_d": 15,
     "bilateral_sigma_color": 80,
@@ -32,9 +32,9 @@
   },
 
   "segmentation": {
-    "min_region_area_mm2": 100.0,
+    "min_region_area_mm2": 60.0,
     "morph_open_kernel_px": 5,
-    "morph_close_kernel_px": 45,
+    "morph_close_kernel_px": 15,
     "skip_white_regions": true,
     "protect_face_features": true,
     "face_protection_margin_px": 3
@@ -54,8 +54,8 @@
 
   "output": {
     "directory": "output",
-    "painting_paths_file": "image_to_mondrian_lenna_painting_paths.json",
-    "preview_svg_file": "image_to_mondrian_lenna_path_preview.svg",
-    "quantized_preview_png_file": "image_to_mondrian_lenna_quantized_preview.png"
+    "painting_paths_file": "image_to_mondrian_minions_painting_paths.json",
+    "preview_svg_file": "image_to_mondrian_minions_path_preview.svg",
+    "quantized_preview_png_file": "image_to_mondrian_minions_quantized_preview.png"
   }
 }
