@@ -18,10 +18,15 @@
 // kept normal to the canvas; tool_spin_deg rotates the claw about it.
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
+#include <cstdint>
 #include <fstream>
+#include <future>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -34,9 +39,13 @@
 #include <moveit/robot_trajectory/robot_trajectory.h>
 #include <moveit_msgs/msg/attached_collision_object.hpp>
 #include <moveit_msgs/msg/collision_object.hpp>
+#include <moveit_msgs/msg/constraints.hpp>
+#include <moveit_msgs/msg/joint_constraint.hpp>
+#include <moveit_msgs/srv/get_state_validity.hpp>
 #include <shape_msgs/msg/solid_primitive.hpp>
 #include <moveit/trajectory_processing/time_optimal_trajectory_generation.h>
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Transform.h>
@@ -149,10 +158,9 @@ public:
         node_->get_parameter_or("tool_offset_rpy", torpy, torpy);
         tf2::Quaternion q_off;
         q_off.setRPY(torpy.at(0), torpy.at(1), torpy.at(2));
-        tool_offset_inv_ =
-            tf2::Transform(q_off,
-                           tf2::Vector3(toff.at(0), toff.at(1), toff.at(2)))
-                .inverse();
+        tool_offset_ = tf2::Transform(
+            q_off, tf2::Vector3(toff.at(0), toff.at(1), toff.at(2)));
+        tool_offset_inv_ = tool_offset_.inverse();
 
         node_->get_parameter_or("ground_z_m", ground_z_, ground_z_);
         node_->get_parameter_or("canvas_backing_enabled", backing_enabled_,
@@ -169,14 +177,109 @@ public:
         node_->get_parameter_or("eef_step_m", eef_step_, eef_step_);
         node_->get_parameter_or("cartesian_jump_threshold", jump_threshold_,
                                 jump_threshold_);
+        node_->get_parameter_or("elbow_up_enabled", elbow_up_enabled_,
+                                elbow_up_enabled_);
+        node_->get_parameter_or("elbow_joint", elbow_joint_, elbow_joint_);
+        node_->get_parameter_or("elbow_up_min_deg", elbow_up_min_deg_,
+                                elbow_up_min_deg_);
+        node_->get_parameter_or("elbow_up_max_deg", elbow_up_max_deg_,
+                                elbow_up_max_deg_);
+        node_->get_parameter_or("guarded_joints", guarded_joints_,
+                                guarded_joints_);
+        node_->get_parameter_or("max_guarded_joint_goal_delta_deg",
+                                max_guarded_joint_goal_delta_deg_,
+                                max_guarded_joint_goal_delta_deg_);
+        node_->get_parameter_or("max_guarded_joint_travel_deg",
+                                max_guarded_joint_travel_deg_,
+                                max_guarded_joint_travel_deg_);
+        node_->get_parameter_or("max_guarded_joint_paint_travel_deg",
+                                max_guarded_joint_paint_travel_deg_,
+                                max_guarded_joint_paint_travel_deg_);
+        node_->get_parameter_or("max_guarded_joint_step_deg",
+                                max_guarded_joint_step_deg_,
+                                max_guarded_joint_step_deg_);
+        node_->get_parameter_or("max_cartesian_deviation_mm",
+                                max_cartesian_deviation_mm_,
+                                max_cartesian_deviation_mm_);
+        node_->get_parameter_or("max_cartesian_orientation_deviation_deg",
+                                max_cartesian_orientation_deviation_deg_,
+                                max_cartesian_orientation_deviation_deg_);
+        node_->get_parameter_or("max_execution_tip_error_mm",
+                                max_execution_tip_error_mm_,
+                                max_execution_tip_error_mm_);
+        node_->get_parameter_or("max_execution_tip_orientation_error_deg",
+                                max_execution_tip_orientation_error_deg_,
+                                max_execution_tip_orientation_error_deg_);
+        node_->get_parameter_or("totg_path_tolerance", totg_path_tolerance_,
+                                totg_path_tolerance_);
+        node_->get_parameter_or("totg_resample_dt", totg_resample_dt_,
+                                totg_resample_dt_);
+        node_->get_parameter_or("joint_states_topic", joint_states_topic_,
+                                joint_states_topic_);
+        node_->get_parameter_or("state_validity_service",
+                                state_validity_service_,
+                                state_validity_service_);
         node_->get_parameter_or("dry_run", dry_run_, dry_run_);
 
         group_.setMaxVelocityScalingFactor(vel_scale_);
         group_.setMaxAccelerationScalingFactor(acc_scale_);
+
+        // MoveGroupInterface owns an executor for node_. Use a separate node
+        // for joint feedback so no callback competes for action responses.
+        state_node_ = std::make_shared<rclcpp::Node>(
+            "painting_joint_state_monitor",
+            rclcpp::NodeOptions().use_global_arguments(false));
+        joint_state_sub_ =
+            state_node_->create_subscription<sensor_msgs::msg::JointState>(
+                joint_states_topic_, rclcpp::QoS(10),
+                [this](const sensor_msgs::msg::JointState::SharedPtr msg) {
+                    if (msg->name.size() != msg->position.size() ||
+                        !std::all_of(msg->position.begin(),
+                                     msg->position.end(),
+                                     [](double value) {
+                                         return std::isfinite(value);
+                                     })) {
+                        RCLCPP_ERROR(node_->get_logger(),
+                                     "Ignoring malformed/non-finite joint "
+                                     "state feedback");
+                        return;
+                    }
+                    {
+                        std::lock_guard<std::mutex> lock(joint_state_mutex_);
+                        joint_state_names_ = msg->name;
+                        joint_state_positions_ = msg->position;
+                        joint_state_received_at_ =
+                            std::chrono::steady_clock::now();
+                        ++joint_state_sequence_;
+                        have_joint_state_ = true;
+                    }
+                    joint_state_cv_.notify_all();
+                });
+        state_validity_client_ =
+            state_node_->create_client<moveit_msgs::srv::GetStateValidity>(
+                state_validity_service_);
+        state_executor_ =
+            std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+        state_executor_->add_node(state_node_);
+        state_thread_ = std::thread([this]() { state_executor_->spin(); });
+    }
+
+    ~PaintingExecutor()
+    {
+        if (state_executor_) {
+            state_executor_->cancel();
+        }
+        if (state_thread_.joinable()) {
+            state_thread_.join();
+        }
     }
 
     bool run()
     {
+        if (!initializeMotionPolicy()) {
+            return false;
+        }
+
         Json::Value root;
         if (!loadJson(root)) {
             return false;
@@ -231,6 +334,14 @@ public:
                 attemptRetreat();
                 return false;
             }
+        }
+
+        if (pen_down_) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Path ended with the pen down; retreating and "
+                         "reporting failure");
+            attemptRetreat();
+            return false;
         }
 
         RCLCPP_INFO(node_->get_logger(), "Painting finished (%d commands)",
@@ -338,13 +449,32 @@ private:
     // claw_collision_offset_xyz in ee_link). Size [0,0,0] disables it.
     bool attachClawBox()
     {
-        if (claw_size_.size() != 3 ||
-            (claw_size_[0] <= 0.0 && claw_size_[1] <= 0.0 &&
-             claw_size_[2] <= 0.0)) {
+        if (claw_size_.size() != 3 || claw_offset_.size() != 3) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "claw_collision_size_xyz and offset_xyz must each "
+                         "contain exactly three values");
+            return false;
+        }
+        const bool disabled = claw_size_[0] == 0.0 && claw_size_[1] == 0.0 &&
+                              claw_size_[2] == 0.0;
+        if (disabled) {
             RCLCPP_WARN(node_->get_logger(),
-                        "No claw collision box configured; the claw is "
-                        "invisible to collision checking");
+                         "No claw collision box configured; the claw is "
+                         "invisible to collision checking");
             return true;
+        }
+        if (!std::all_of(claw_size_.begin(), claw_size_.end(),
+                         [](double value) {
+                             return std::isfinite(value) && value > 0.0;
+                         }) ||
+            !std::all_of(claw_offset_.begin(), claw_offset_.end(),
+                         [](double value) {
+                             return std::isfinite(value);
+                         })) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Enabled claw collision dimensions must be finite "
+                         "and positive, with a finite offset");
+            return false;
         }
 
         // Contact-geometry sanity check: at pen contact the paper plane is
@@ -401,11 +531,9 @@ private:
 
         geometry_msgs::msg::Pose pose;
         pose.orientation.w = 1.0;
-        if (claw_offset_.size() == 3) {
-            pose.position.x = claw_offset_[0];
-            pose.position.y = claw_offset_[1];
-            pose.position.z = claw_offset_[2];
-        }
+        pose.position.x = claw_offset_[0];
+        pose.position.y = claw_offset_[1];
+        pose.position.z = claw_offset_[2];
 
         aco.object.primitives.push_back(box);
         aco.object.primitive_poses.push_back(pose);
@@ -443,6 +571,61 @@ private:
             RCLCPP_ERROR(node_->get_logger(),
                          "paths_file has no 'commands' array");
             return false;
+        }
+        const auto finite_number = [](const Json::Value &value) {
+            return value.isNumeric() && std::isfinite(value.asDouble());
+        };
+        const auto point = [&finite_number](const Json::Value &value) {
+            return value.isArray() && value.size() == 2 &&
+                   finite_number(value[0]) && finite_number(value[1]);
+        };
+        if (!root["canvas"].isObject() ||
+            !finite_number(root["canvas"]["width_mm"]) ||
+            !finite_number(root["canvas"]["height_mm"]) ||
+            root["canvas"]["width_mm"].asDouble() <= 0.0 ||
+            root["canvas"]["height_mm"].asDouble() <= 0.0) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "paths_file has invalid canvas dimensions");
+            return false;
+        }
+        std::size_t index = 0;
+        for (const auto &command : root["commands"]) {
+            ++index;
+            if (!command.isObject() || !command["command"].isString()) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Command %zu has no string command type", index);
+                return false;
+            }
+            const std::string type = command["command"].asString();
+            bool valid = false;
+            if (type == "select_tool" || type == "dip_paint" ||
+                type == "lower_tool" || type == "lift_tool") {
+                valid = true;
+            } else if (type == "move_to") {
+                valid = finite_number(command["x_mm"]) &&
+                        finite_number(command["y_mm"]);
+            } else if (type == "paint_stroke") {
+                valid = point(command["from_mm"]) &&
+                        point(command["to_mm"]);
+            } else if (type == "paint_path") {
+                const auto &points = command["points_mm"];
+                valid = points.isArray() && points.size() >= 2;
+                if (valid) {
+                    for (const auto &path_point : points) {
+                        if (!point(path_point)) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!valid) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Command %zu ('%s') has invalid or unsupported "
+                             "fields",
+                             index, type.c_str());
+                return false;
+            }
         }
         return true;
     }
@@ -525,7 +708,8 @@ private:
                          "lower/lift before any move_to, refusing");
             return false;
         }
-        if (!moveCartesian({ makePose(cur_x_mm_, cur_y_mm_, z_off) })) {
+        if (!moveCartesian({ makePose(cur_x_mm_, cur_y_mm_, z_off) },
+                           pen_down_ || z_off == 0.0)) {
             return false;
         }
         pen_down_ = (z_off == 0.0);
@@ -554,24 +738,14 @@ private:
             if (!moveCartesian({ makePose(fx, fy, 0.0) })) {
                 return false;
             }
+            cur_x_mm_ = fx;
+            cur_y_mm_ = fy;
         }
         if (!moveCartesian({ makePose(tx, ty, 0.0) })) {
-            constexpr int kStrokeRetries = 2;
-            bool recovered = false;
-            for (int retry = 1; retry <= kStrokeRetries && !recovered;
-                 ++retry) {
-                RCLCPP_WARN(node_->get_logger(),
-                            "Stroke infeasible in this arm configuration; "
-                            "re-approaching with a fresh one (%d/%d)",
-                            retry, kStrokeRetries);
-                if (!reapproach(fx, fy)) {
-                    return false;
-                }
-                recovered = moveCartesian({ makePose(tx, ty, 0.0) });
-            }
-            if (!recovered) {
-                return false;
-            }
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Stroke rejected; refusing an automatic posture "
+                         "change while painting");
+            return false;
         }
         cur_x_mm_ = tx;
         cur_y_mm_ = ty;
@@ -623,28 +797,10 @@ private:
                 makePose(points[i].first, points[i].second, 0.0));
         }
         if (!moveCartesian(waypoints)) {
-            // Whether the straight pen-down path is drawable depends on
-            // which IK configuration family the arm entered with — chosen
-            // by the sampling-based approach plan, and unchanged by
-            // Cartesian moves since. Re-roll it: lift, go through the
-            // home posture (guarantees leaving the current family),
-            // re-approach the stroke start, lower, and try again.
-            constexpr int kStrokeRetries = 2;
-            bool recovered = false;
-            for (int retry = 1; retry <= kStrokeRetries && !recovered;
-                 ++retry) {
-                RCLCPP_WARN(node_->get_logger(),
-                            "Stroke infeasible in this arm configuration; "
-                            "re-approaching with a fresh one (%d/%d)",
-                            retry, kStrokeRetries);
-                if (!reapproach(points[0].first, points[0].second)) {
-                    return false;
-                }
-                recovered = moveCartesian(waypoints);
-            }
-            if (!recovered) {
-                return false;
-            }
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Paint path rejected; refusing an automatic posture "
+                         "change while painting");
+            return false;
         }
         for (std::size_t i = 1; i < points.size(); ++i) {
             publishStroke(points[i - 1].first, points[i - 1].second,
@@ -655,58 +811,8 @@ private:
         return true;
     }
 
-    // Lift off the paper, pass through the all-zero home posture (to
-    // leave the current IK configuration family), re-approach the given
-    // canvas point at hover height (the sampling-based plan picks a
-    // fresh configuration), and lower back to contact.
-    bool reapproach(double x_mm, double y_mm)
-    {
-        const auto hover = makePose(x_mm, y_mm, safe_clearance_);
-        if (!moveCartesian({ hover })) {
-            RCLCPP_ERROR(node_->get_logger(),
-                         "Cannot lift off the paper for re-approach");
-            return false;
-        }
-        pen_down_ = false;
-
-        setDryRunStartState();
-        group_.setJointValueTarget(
-            std::vector<double>(group_.getVariableCount(), 0.0));
-        moveit::planning_interface::MoveGroupInterface::Plan plan;
-        bool went_home =
-            group_.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS;
-        if (went_home && !dry_run_) {
-            went_home = group_.execute(plan) ==
-                        moveit::core::MoveItErrorCode::SUCCESS;
-        } else if (went_home) {
-            advanceDryRunState(plan.trajectory_);
-        }
-        if (!went_home) {
-            RCLCPP_ERROR(node_->get_logger(),
-                         "Cannot return to home posture for re-approach");
-            return false;
-        }
-
-        if (!moveJointSpace(hover)) {
-            return false;
-        }
-        if (!moveCartesian({ makePose(x_mm, y_mm, 0.0) })) {
-            return false;
-        }
-        pen_down_ = true;
-        cur_x_mm_ = x_mm;
-        cur_y_mm_ = y_mm;
-        return true;
-    }
-
-    // Best-effort recovery after an abort with the pen on the paper:
-    // without it the node would exit with the pen pressed against the
-    // canvas, and the next run's first joint-space motion would drag it
-    // across the artwork. Straight lift along the canvas normal first;
-    // if even that cannot be planned, a joint-space plan to the hover
-    // pose (which may wander slightly while leaving, but ends off the
-    // paper). Failures here are logged, not fatal - we are already
-    // aborting.
+    // Best-effort straight retreat after an abort with the pen on the paper.
+    // A joint-space fallback is deliberately forbidden while in contact.
     void attemptRetreat()
     {
         if (dry_run_ || !pen_down_ || !have_position_) {
@@ -714,63 +820,829 @@ private:
         }
         RCLCPP_WARN(node_->get_logger(),
                     "Aborting with the pen down; retreating off the paper");
-        const auto hover = makePose(cur_x_mm_, cur_y_mm_, safe_clearance_);
+        if (!refreshTrackedState()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Cannot read the current pose for straight retreat");
+            return;
+        }
+        const auto &current = tracked_state_->getGlobalLinkTransform(
+            group_.getEndEffectorLink());
+        geometry_msgs::msg::Pose hover;
+        const Eigen::Vector3d retreat =
+            current.translation() -
+            safe_clearance_ * Eigen::Vector3d(canvas_.axis(2).x(),
+                                               canvas_.axis(2).y(),
+                                               canvas_.axis(2).z());
+        hover.position.x = retreat.x();
+        hover.position.y = retreat.y();
+        hover.position.z = retreat.z();
+        const Eigen::Quaterniond orientation(current.rotation());
+        hover.orientation.x = orientation.x();
+        hover.orientation.y = orientation.y();
+        hover.orientation.z = orientation.z();
+        hover.orientation.w = orientation.w();
         if (moveCartesian({ hover })) {
             pen_down_ = false;
             RCLCPP_INFO(node_->get_logger(), "Pen retreated to hover height");
             return;
         }
-        RCLCPP_WARN(node_->get_logger(),
-                    "Straight retreat failed; trying a joint-space retreat "
-                    "(may wander slightly while leaving the paper)");
-        if (moveJointSpace(hover)) {
-            pen_down_ = false;
-            RCLCPP_INFO(node_->get_logger(), "Pen retreated to hover height");
+        RCLCPP_ERROR(node_->get_logger(),
+                     "Straight retreat failed: refusing a joint-space move "
+                     "with the pen down. Jog it clear manually before the "
+                     "next run");
+    }
+
+    bool initializeMotionPolicy()
+    {
+        if (!std::isfinite(safe_clearance_) || safe_clearance_ <= 0.0 ||
+            !std::isfinite(vel_scale_) || vel_scale_ <= 0.0 ||
+            vel_scale_ > 1.0 || !std::isfinite(acc_scale_) ||
+            acc_scale_ <= 0.0 || acc_scale_ > 1.0 ||
+            !std::isfinite(eef_step_) || eef_step_ <= 0.0 ||
+            !std::isfinite(jump_threshold_) || jump_threshold_ <= 0.0 ||
+            joint_states_topic_.empty() || state_validity_service_.empty()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Invalid motion settings: clearance, scaling, "
+                         "eef_step, jump threshold, and joint-state topic "
+                         "must be safe non-empty positive values");
+            return false;
+        }
+        if (!std::isfinite(elbow_up_min_deg_) ||
+            !std::isfinite(elbow_up_max_deg_) ||
+            elbow_up_min_deg_ >= elbow_up_max_deg_) {
+            RCLCPP_ERROR(node_->get_logger(), "Invalid elbow-up joint band");
+            return false;
+        }
+        if (guarded_joints_.empty()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "guarded_joints must contain at least one joint");
+            return false;
+        }
+        if (!std::isfinite(max_guarded_joint_goal_delta_deg_) ||
+            !std::isfinite(max_guarded_joint_travel_deg_) ||
+            !std::isfinite(max_guarded_joint_paint_travel_deg_) ||
+            !std::isfinite(max_guarded_joint_step_deg_) ||
+            !std::isfinite(max_cartesian_deviation_mm_) ||
+            !std::isfinite(max_cartesian_orientation_deviation_deg_) ||
+            !std::isfinite(max_execution_tip_error_mm_) ||
+            !std::isfinite(max_execution_tip_orientation_error_deg_) ||
+            !std::isfinite(totg_path_tolerance_) ||
+            !std::isfinite(totg_resample_dt_) ||
+            max_guarded_joint_goal_delta_deg_ <= 0.0 ||
+            max_guarded_joint_travel_deg_ <= 0.0 ||
+            max_guarded_joint_paint_travel_deg_ <= 0.0 ||
+            max_guarded_joint_step_deg_ <= 0.0 ||
+            max_cartesian_deviation_mm_ <= 0.0 ||
+            max_cartesian_orientation_deviation_deg_ <= 0.0 ||
+            max_execution_tip_error_mm_ <= 0.0 ||
+            max_execution_tip_orientation_error_deg_ <= 0.0 ||
+            totg_path_tolerance_ <= 0.0 || totg_resample_dt_ <= 0.0) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "All guarded-joint motion limits must be positive");
+            return false;
+        }
+
+        const auto model = group_.getRobotModel();
+        const auto *jmg = model->getJointModelGroup(group_.getName());
+        if (!jmg) {
+            RCLCPP_ERROR(node_->get_logger(), "Planning group '%s' not found",
+                         group_.getName().c_str());
+            return false;
+        }
+        const auto &group_variables = jmg->getVariableNames();
+        if (elbow_up_enabled_ &&
+            std::find(group_variables.begin(), group_variables.end(),
+                      elbow_joint_) == group_variables.end()) {
+            RCLCPP_ERROR(node_->get_logger(), "Elbow joint '%s' not found",
+                         elbow_joint_.c_str());
+            return false;
+        }
+        for (const auto &joint : guarded_joints_) {
+            if (std::find(group_variables.begin(), group_variables.end(),
+                          joint) == group_variables.end()) {
+                RCLCPP_ERROR(node_->get_logger(), "Guarded joint '%s' not found",
+                             joint.c_str());
+                return false;
+            }
+        }
+
+        if (!refreshTrackedState()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "No complete current robot state; refusing to plan");
+            return false;
+        }
+        if (elbow_up_enabled_ && !elbowInsideBand(*tracked_state_)) {
+            const double elbow_deg =
+                tracked_state_->getVariablePosition(elbow_joint_) * 180.0 / M_PI;
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Current %s is %.1f deg, outside the required "
+                         "elbow-up band [%.1f, %.1f]. Position the arm in "
+                         "the approved posture before starting",
+                         elbow_joint_.c_str(), elbow_deg, elbow_up_min_deg_,
+                         elbow_up_max_deg_);
+            return false;
+        }
+        RCLCPP_INFO(node_->get_logger(),
+                    "Motion guard active for %zu joint(s): goal %.0f deg, "
+                    "travel %.0f deg, paint travel %.0f deg, step %.0f deg",
+                    guarded_joints_.size(), max_guarded_joint_goal_delta_deg_,
+                    max_guarded_joint_travel_deg_,
+                    max_guarded_joint_paint_travel_deg_,
+                    max_guarded_joint_step_deg_);
+        return true;
+    }
+
+    bool stateIsValid(const std::vector<std::string> &names,
+                      const std::vector<double> &positions,
+                      const char *what)
+    {
+        if (!state_validity_client_->wait_for_service(
+                std::chrono::seconds(2))) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "State-validity service '%s' is unavailable",
+                         state_validity_service_.c_str());
+            return false;
+        }
+        auto request =
+            std::make_shared<moveit_msgs::srv::GetStateValidity::Request>();
+        request->group_name = group_.getName();
+        request->robot_state.is_diff = true;
+        request->robot_state.joint_state.name = names;
+        request->robot_state.joint_state.position = positions;
+        auto future = state_validity_client_->async_send_request(request);
+        if (future.wait_for(std::chrono::seconds(2)) !=
+            std::future_status::ready) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "%s state-validity check timed out", what);
+            return false;
+        }
+        if (!future.get()->valid) {
+            RCLCPP_ERROR(node_->get_logger(), "%s state is in collision",
+                         what);
+            return false;
+        }
+        return true;
+    }
+
+    bool validateCollisionFree(
+        const moveit_msgs::msg::RobotTrajectory &traj)
+    {
+        const auto &jt = traj.joint_trajectory;
+        constexpr double kMaxInterpolationStep = M_PI / 180.0;
+        for (std::size_t segment = 0; segment < jt.points.size(); ++segment) {
+            const auto &end = jt.points[segment].positions;
+            const auto &start =
+                segment == 0 ? end : jt.points[segment - 1].positions;
+            double max_delta = 0.0;
+            for (std::size_t joint = 0; joint < end.size(); ++joint) {
+                max_delta =
+                    std::max(max_delta, std::abs(end[joint] - start[joint]));
+            }
+            const int steps = std::max(
+                1, static_cast<int>(std::ceil(max_delta /
+                                               kMaxInterpolationStep)));
+            for (int step = 1; step <= steps; ++step) {
+                const double ratio = static_cast<double>(step) / steps;
+                std::vector<double> positions(end.size());
+                for (std::size_t joint = 0; joint < end.size(); ++joint) {
+                    positions[joint] =
+                        start[joint] + ratio * (end[joint] - start[joint]);
+                }
+                if (!stateIsValid(jt.joint_names, positions,
+                                  "Retimed trajectory")) {
+                    RCLCPP_ERROR(node_->get_logger(),
+                                 "Collision at segment %zu/%zu, sample %d/%d",
+                                 segment + 1, jt.points.size(), step, steps);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    bool validateCartesianPath(
+        const moveit_msgs::msg::RobotTrajectory &traj,
+        const std::vector<geometry_msgs::msg::Pose> &waypoints) const
+    {
+        const auto &jt = traj.joint_trajectory;
+        if (jt.points.empty() || waypoints.empty()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Cannot validate an empty Cartesian trajectory");
+            return false;
+        }
+
+        moveit::core::RobotState state(group_.getRobotModel());
+        state.setToDefaultValues();
+        state.setVariablePositions(jt.joint_names,
+                                   jt.points.front().positions);
+        state.update();
+        const std::string &eef = group_.getEndEffectorLink();
+        const auto eigen_to_tf = [](const Eigen::Isometry3d &transform) {
+            const Eigen::Quaterniond q(transform.rotation());
+            return tf2::Transform(
+                tf2::Quaternion(q.x(), q.y(), q.z(), q.w()),
+                tf2::Vector3(transform.translation().x(),
+                             transform.translation().y(),
+                             transform.translation().z()));
+        };
+        const auto pose_to_tf = [](const geometry_msgs::msg::Pose &pose) {
+            return tf2::Transform(
+                tf2::Quaternion(pose.orientation.x, pose.orientation.y,
+                                pose.orientation.z, pose.orientation.w),
+                tf2::Vector3(pose.position.x, pose.position.y,
+                             pose.position.z));
+        };
+        const auto tip_from_state = [&state, &eef, &eigen_to_tf, this]() {
+            return eigen_to_tf(state.getGlobalLinkTransform(eef)) *
+                   tool_offset_;
+        };
+        std::vector<Eigen::Vector3d> reference;
+        reference.reserve(waypoints.size() + 1);
+        const tf2::Transform initial_tip = tip_from_state();
+        reference.emplace_back(initial_tip.getOrigin().x(),
+                               initial_tip.getOrigin().y(),
+                               initial_tip.getOrigin().z());
+        for (const auto &waypoint : waypoints) {
+            const tf2::Transform tip = pose_to_tf(waypoint) * tool_offset_;
+            reference.emplace_back(tip.getOrigin().x(), tip.getOrigin().y(),
+                                   tip.getOrigin().z());
+        }
+
+        const auto point_segment_distance =
+            [](const Eigen::Vector3d &point, const Eigen::Vector3d &start,
+               const Eigen::Vector3d &end) {
+                const Eigen::Vector3d segment = end - start;
+                const double length_sq = segment.squaredNorm();
+                if (length_sq <= std::numeric_limits<double>::epsilon()) {
+                    return (point - start).norm();
+                }
+                const double t = std::clamp(
+                    (point - start).dot(segment) / length_sq, 0.0, 1.0);
+                return (point - (start + t * segment)).norm();
+            };
+
+        const tf2::Quaternion desired_tip_q =
+            (pose_to_tf(waypoints.front()) * tool_offset_).getRotation();
+        Eigen::Quaterniond desired_orientation(
+            desired_tip_q.w(), desired_tip_q.x(), desired_tip_q.y(),
+            desired_tip_q.z());
+        desired_orientation.normalize();
+        double max_position_error = 0.0;
+        double max_orientation_error = 0.0;
+        constexpr double kMaxInterpolationStep = M_PI / 180.0;
+        for (std::size_t segment = 0; segment < jt.points.size(); ++segment) {
+            const auto &end = jt.points[segment].positions;
+            const auto &start =
+                segment == 0 ? end : jt.points[segment - 1].positions;
+            double max_delta = 0.0;
+            for (std::size_t joint = 0; joint < end.size(); ++joint) {
+                max_delta =
+                    std::max(max_delta, std::abs(end[joint] - start[joint]));
+            }
+            const int steps = std::max(
+                1, static_cast<int>(std::ceil(max_delta /
+                                               kMaxInterpolationStep)));
+            for (int step = 1; step <= steps; ++step) {
+                const double ratio = static_cast<double>(step) / steps;
+                std::vector<double> positions(end.size());
+                for (std::size_t joint = 0; joint < end.size(); ++joint) {
+                    positions[joint] =
+                        start[joint] + ratio * (end[joint] - start[joint]);
+                }
+                state.setVariablePositions(jt.joint_names, positions);
+                state.update();
+                const tf2::Transform actual_tip = tip_from_state();
+                const Eigen::Vector3d actual(actual_tip.getOrigin().x(),
+                                             actual_tip.getOrigin().y(),
+                                             actual_tip.getOrigin().z());
+                double distance = std::numeric_limits<double>::infinity();
+                for (std::size_t i = 1; i < reference.size(); ++i) {
+                    distance = std::min(
+                        distance,
+                        point_segment_distance(actual, reference[i - 1],
+                                               reference[i]));
+                }
+                max_position_error = std::max(max_position_error, distance);
+                const tf2::Quaternion actual_q = actual_tip.getRotation();
+                const Eigen::Quaterniond actual_orientation(
+                    actual_q.w(), actual_q.x(), actual_q.y(), actual_q.z());
+                max_orientation_error = std::max(
+                    max_orientation_error,
+                    desired_orientation.angularDistance(actual_orientation));
+            }
+        }
+
+        const double position_error_mm = max_position_error * 1000.0;
+        const double orientation_error_deg =
+            max_orientation_error * 180.0 / M_PI;
+        RCLCPP_INFO(node_->get_logger(),
+                    "Cartesian FK error after retiming: %.3f mm, %.3f deg",
+                    position_error_mm, orientation_error_deg);
+        if (position_error_mm > max_cartesian_deviation_mm_ ||
+            orientation_error_deg > max_cartesian_orientation_deviation_deg_) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Retimed Cartesian path exceeds FK limits (%.3f mm, "
+                         "%.3f deg)",
+                         max_cartesian_deviation_mm_,
+                         max_cartesian_orientation_deviation_deg_);
+            return false;
+        }
+        return true;
+    }
+
+    bool refreshTrackedState(std::uint64_t newer_than = 0,
+                             bool require_newer = false)
+    {
+        if (dry_run_ && tracked_state_) {
+            return true;
+        }
+
+        std::vector<std::string> names;
+        std::vector<double> positions;
+        {
+            std::unique_lock<std::mutex> lock(joint_state_mutex_);
+            const auto fresh = [this, newer_than, require_newer]() {
+                return have_joint_state_ &&
+                       (!require_newer ||
+                        joint_state_sequence_ > newer_than) &&
+                       std::chrono::steady_clock::now() -
+                               joint_state_received_at_ <
+                           std::chrono::seconds(2);
+            };
+            if (!fresh() &&
+                !joint_state_cv_.wait_for(lock, std::chrono::seconds(5),
+                                          fresh)) {
+                return false;
+            }
+            names = joint_state_names_;
+            positions = joint_state_positions_;
+        }
+
+        const auto *jmg =
+            group_.getRobotModel()->getJointModelGroup(group_.getName());
+        for (const auto &required : jmg->getVariableNames()) {
+            if (std::find(names.begin(), names.end(), required) == names.end()) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Joint state omits required joint '%s'",
+                             required.c_str());
+                return false;
+            }
+        }
+        if (!tracked_state_) {
+            tracked_state_ =
+                std::make_unique<moveit::core::RobotState>(group_.getRobotModel());
+            tracked_state_->setToDefaultValues();
+        }
+        try {
+            tracked_state_->setVariablePositions(names, positions);
+        } catch (const std::exception &error) {
+            RCLCPP_ERROR(node_->get_logger(), "Invalid joint state: %s",
+                         error.what());
+            return false;
+        }
+        tracked_state_->update();
+        if (!tracked_state_->satisfiesBounds(jmg)) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Current joint feedback violates model bounds");
+            return false;
+        }
+        return true;
+    }
+
+    std::uint64_t jointStateSequence()
+    {
+        std::lock_guard<std::mutex> lock(joint_state_mutex_);
+        return joint_state_sequence_;
+    }
+
+    bool endpointMatches(
+        const moveit_msgs::msg::RobotTrajectory &traj)
+    {
+        const auto &jt = traj.joint_trajectory;
+        if (!tracked_state_ || jt.points.empty()) {
+            return false;
+        }
+        constexpr double kEndpointToleranceDeg = 2.0;
+        for (std::size_t i = 0; i < jt.joint_names.size(); ++i) {
+            const double error_deg =
+                std::abs(tracked_state_->getVariablePosition(jt.joint_names[i]) -
+                         jt.points.back().positions.at(i)) *
+                180.0 / M_PI;
+            if (error_deg > kEndpointToleranceDeg) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Executed endpoint for %s differs by %.2f deg "
+                             "(limit %.2f deg)",
+                             jt.joint_names[i].c_str(), error_deg,
+                             kEndpointToleranceDeg);
+                return false;
+            }
+        }
+        const auto *jmg =
+            group_.getRobotModel()->getJointModelGroup(group_.getName());
+        if (!tracked_state_->satisfiesBounds(jmg) ||
+            (elbow_up_enabled_ && !elbowInsideBand(*tracked_state_))) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Measured endpoint violates joint or elbow bounds");
+            return false;
+        }
+
+        moveit::core::RobotState expected(*tracked_state_);
+        expected.setVariablePositions(jt.joint_names,
+                                      jt.points.back().positions);
+        expected.update();
+        const auto to_tip = [this](const moveit::core::RobotState &state) {
+            const auto &transform = state.getGlobalLinkTransform(
+                group_.getEndEffectorLink());
+            const Eigen::Quaterniond q(transform.rotation());
+            return tf2::Transform(
+                       tf2::Quaternion(q.x(), q.y(), q.z(), q.w()),
+                       tf2::Vector3(transform.translation().x(),
+                                    transform.translation().y(),
+                                    transform.translation().z())) *
+                   tool_offset_;
+        };
+        const tf2::Transform actual_tip = to_tip(*tracked_state_);
+        const tf2::Transform expected_tip = to_tip(expected);
+        const double tip_error_mm =
+            (actual_tip.getOrigin() - expected_tip.getOrigin()).length() *
+            1000.0;
+        const double orientation_error_deg =
+            actual_tip.getRotation().angleShortestPath(
+                expected_tip.getRotation()) *
+            180.0 / M_PI;
+        if (tip_error_mm > max_execution_tip_error_mm_ ||
+            orientation_error_deg > max_execution_tip_orientation_error_deg_) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Measured pen-tip endpoint differs by %.3f mm and "
+                         "%.3f deg (limits %.3f mm, %.3f deg)",
+                         tip_error_mm, orientation_error_deg,
+                         max_execution_tip_error_mm_,
+                         max_execution_tip_orientation_error_deg_);
+            return false;
+        }
+        std::vector<double> measured_positions;
+        measured_positions.reserve(jt.joint_names.size());
+        for (const auto &joint : jt.joint_names) {
+            measured_positions.push_back(
+                tracked_state_->getVariablePosition(joint));
+        }
+        if (!stateIsValid(jt.joint_names, measured_positions,
+                          "Measured endpoint")) {
+            return false;
+        }
+        return true;
+    }
+
+    bool elbowInsideBand(const moveit::core::RobotState &state) const
+    {
+        const double value_deg =
+            state.getVariablePosition(elbow_joint_) * 180.0 / M_PI;
+        constexpr double kToleranceDeg = 1e-6;
+        return value_deg >= elbow_up_min_deg_ - kToleranceDeg &&
+               value_deg <= elbow_up_max_deg_ + kToleranceDeg;
+    }
+
+    moveit_msgs::msg::Constraints elbowBandConstraints() const
+    {
+        const double lo = elbow_up_min_deg_ * M_PI / 180.0;
+        const double hi = elbow_up_max_deg_ * M_PI / 180.0;
+        moveit_msgs::msg::JointConstraint jc;
+        jc.joint_name = elbow_joint_;
+        jc.position = (lo + hi) / 2.0;
+        jc.tolerance_above = hi - jc.position;
+        jc.tolerance_below = jc.position - lo;
+        jc.weight = 1.0;
+        moveit_msgs::msg::Constraints constraints;
+        constraints.name = "elbow_up";
+        constraints.joint_constraints.push_back(jc);
+        return constraints;
+    }
+
+    void setPlanStartState()
+    {
+        group_.setStartState(*tracked_state_);
+    }
+
+    bool computeIkJointGoal(const geometry_msgs::msg::Pose &target,
+                            std::vector<double> &goal)
+    {
+        if (!refreshTrackedState()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Cannot refresh current state for IK seeding");
+            return false;
+        }
+        const auto *jmg =
+            group_.getRobotModel()->getJointModelGroup(group_.getName());
+        std::vector<double> elbow_seeds{ 0.0 };
+        if (elbow_up_enabled_) {
+            const double lo = elbow_up_min_deg_ * M_PI / 180.0;
+            const double hi = elbow_up_max_deg_ * M_PI / 180.0;
+            elbow_seeds.front() =
+                tracked_state_->getVariablePosition(elbow_joint_);
+            elbow_seeds.push_back(lo + 0.25 * (hi - lo));
+            elbow_seeds.push_back(lo + 0.50 * (hi - lo));
+            elbow_seeds.push_back(lo + 0.75 * (hi - lo));
+        }
+
+        std::unique_ptr<moveit::core::RobotState> best;
+        double best_cost = std::numeric_limits<double>::infinity();
+        for (const double elbow_seed : elbow_seeds) {
+            moveit::core::RobotState candidate(*tracked_state_);
+            if (elbow_up_enabled_) {
+                candidate.setVariablePosition(elbow_joint_, elbow_seed);
+                candidate.update();
+            }
+            if (!candidate.setFromIK(jmg, target,
+                                     group_.getEndEffectorLink(), 0.2)) {
+                continue;
+            }
+
+            // Prefer the equivalent revolution nearest the measured state.
+            // The Aubo model permits +/-2pi, so an IK solution can otherwise
+            // be mathematically correct but almost a full turn away.
+            double cost = 0.0;
+            for (const auto &joint : jmg->getVariableNames()) {
+                double value = candidate.getVariablePosition(joint);
+                const double current =
+                    tracked_state_->getVariablePosition(joint);
+                const auto &bounds =
+                    group_.getRobotModel()->getVariableBounds(joint);
+                double nearest = value;
+                double nearest_delta = std::abs(value - current);
+                if (bounds.position_bounded_) {
+                    for (int turn = -2; turn <= 2; ++turn) {
+                        const double equivalent = value + turn * 2.0 * M_PI;
+                        if (equivalent < bounds.min_position_ ||
+                            equivalent > bounds.max_position_) {
+                            continue;
+                        }
+                        const double delta = std::abs(equivalent - current);
+                        if (delta < nearest_delta) {
+                            nearest = equivalent;
+                            nearest_delta = delta;
+                        }
+                    }
+                }
+                candidate.setVariablePosition(joint, nearest);
+                cost += nearest_delta * nearest_delta;
+            }
+            candidate.update();
+            if (elbow_up_enabled_ && !elbowInsideBand(candidate)) {
+                continue;
+            }
+            if (cost < best_cost) {
+                best =
+                    std::make_unique<moveit::core::RobotState>(candidate);
+                best_cost = cost;
+            }
+        }
+
+        if (!best) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "No nearby IK solution in the elbow-up band");
+            return false;
+        }
+        for (const auto &joint : guarded_joints_) {
+            const double delta_deg =
+                std::abs(best->getVariablePosition(joint) -
+                         tracked_state_->getVariablePosition(joint)) *
+                180.0 / M_PI;
+            if (delta_deg > max_guarded_joint_goal_delta_deg_) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "IK goal moves %s by %.1f deg (limit %.1f deg)",
+                             joint.c_str(), delta_deg,
+                             max_guarded_joint_goal_delta_deg_);
+                return false;
+            }
+        }
+        best->copyJointGroupPositions(jmg, goal);
+        return true;
+    }
+
+    bool validateTrajectory(const moveit_msgs::msg::RobotTrajectory &traj,
+                            bool painting_motion, const char *what) const
+    {
+        const auto &jt = traj.joint_trajectory;
+        if (jt.points.empty()) {
+            RCLCPP_ERROR(node_->get_logger(), "%s trajectory is empty", what);
+            return false;
+        }
+        for (const auto &point : jt.points) {
+            if (point.positions.size() != jt.joint_names.size() ||
+                !std::all_of(point.positions.begin(), point.positions.end(),
+                             [](double value) {
+                                 return std::isfinite(value);
+                             })) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "%s trajectory contains malformed/non-finite "
+                             "joint positions",
+                             what);
+                return false;
+            }
+        }
+
+        if (elbow_up_enabled_) {
+            const auto elbow_it =
+                std::find(jt.joint_names.begin(), jt.joint_names.end(),
+                          elbow_joint_);
+            if (elbow_it == jt.joint_names.end()) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "%s trajectory omits elbow joint '%s'", what,
+                             elbow_joint_.c_str());
+                return false;
+            }
+            const auto elbow_index =
+                static_cast<std::size_t>(elbow_it - jt.joint_names.begin());
+            for (const auto &point : jt.points) {
+                const double value_deg =
+                    point.positions.at(elbow_index) * 180.0 / M_PI;
+                if (value_deg < elbow_up_min_deg_ ||
+                    value_deg > elbow_up_max_deg_) {
+                    RCLCPP_ERROR(node_->get_logger(),
+                                 "%s trajectory leaves elbow-up band at %.1f "
+                                 "deg", what, value_deg);
+                    return false;
+                }
+            }
+        }
+
+        const double travel_limit = painting_motion
+                                        ? max_guarded_joint_paint_travel_deg_
+                                        : max_guarded_joint_travel_deg_;
+        for (const auto &joint : guarded_joints_) {
+            const auto it = std::find(jt.joint_names.begin(),
+                                      jt.joint_names.end(), joint);
+            if (it == jt.joint_names.end()) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "%s trajectory omits guarded joint '%s'", what,
+                             joint.c_str());
+                return false;
+            }
+            const auto index =
+                static_cast<std::size_t>(it - jt.joint_names.begin());
+            double total = 0.0;
+            double max_step = 0.0;
+            for (std::size_t i = 1; i < jt.points.size(); ++i) {
+                const double step =
+                    std::abs(jt.points[i].positions.at(index) -
+                             jt.points[i - 1].positions.at(index));
+                total += step;
+                max_step = std::max(max_step, step);
+            }
+            const double goal_delta =
+                std::abs(jt.points.back().positions.at(index) -
+                         jt.points.front().positions.at(index));
+            const double total_deg = total * 180.0 / M_PI;
+            const double step_deg = max_step * 180.0 / M_PI;
+            const double goal_deg = goal_delta * 180.0 / M_PI;
+            RCLCPP_INFO(node_->get_logger(),
+                        "%s %s motion: goal %.1f deg, total %.1f deg, max "
+                        "step %.1f deg", what, joint.c_str(), goal_deg,
+                        total_deg, step_deg);
+            if (goal_deg > max_guarded_joint_goal_delta_deg_ ||
+                total_deg > travel_limit ||
+                step_deg > max_guarded_joint_step_deg_) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "%s rejected for excessive %s motion (limits: "
+                             "goal %.1f, total %.1f, step %.1f deg)",
+                             what, joint.c_str(),
+                             max_guarded_joint_goal_delta_deg_, travel_limit,
+                             max_guarded_joint_step_deg_);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void trackTrajectoryEnd(const moveit_msgs::msg::RobotTrajectory &traj)
+    {
+        const auto &jt = traj.joint_trajectory;
+        if (jt.points.empty()) {
             return;
         }
-        RCLCPP_ERROR(node_->get_logger(),
-                     "Retreat failed: the pen is still on the paper. Jog it "
-                     "clear manually before the next run");
+        if (!tracked_state_) {
+            tracked_state_ =
+                std::make_unique<moveit::core::RobotState>(group_.getRobotModel());
+            tracked_state_->setToDefaultValues();
+        }
+        tracked_state_->setVariablePositions(jt.joint_names,
+                                             jt.points.back().positions);
+        tracked_state_->update();
+    }
+
+    bool executeTrajectory(const moveit_msgs::msg::RobotTrajectory &traj,
+                           bool painting_motion, const char *what)
+    {
+        if (!validateTrajectory(traj, painting_motion, what)) {
+            return false;
+        }
+        if (dry_run_) {
+            trackTrajectoryEnd(traj);
+            return true;
+        }
+        const auto execution_result = group_.execute(traj);
+        const std::uint64_t sequence_at_completion = jointStateSequence();
+        if (!refreshTrackedState(sequence_at_completion, true)) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "No fresh joint state received after execution");
+            if (painting_motion) {
+                pen_down_ = true;
+            }
+            return false;
+        }
+        if (execution_result != moveit::core::MoveItErrorCode::SUCCESS) {
+            if (painting_motion) {
+                pen_down_ = true;
+            }
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Execution failed; contact state is uncertain");
+            return false;
+        }
+        const bool endpoint_ok = endpointMatches(traj);
+        if (!endpoint_ok && painting_motion) {
+            pen_down_ = true;
+        }
+        return endpoint_ok;
+    }
+
+    double trajectoryJointTravel(
+        const moveit_msgs::msg::RobotTrajectory &traj) const
+    {
+        const auto &points = traj.joint_trajectory.points;
+        double total = 0.0;
+        for (std::size_t i = 1; i < points.size(); ++i) {
+            for (std::size_t joint = 0;
+                 joint < points[i].positions.size(); ++joint) {
+                total += std::abs(points[i].positions[joint] -
+                                  points[i - 1].positions[joint]);
+            }
+        }
+        return total;
     }
 
     bool moveJointSpace(const geometry_msgs::msg::Pose &target)
     {
-        setDryRunStartState();
-        group_.setPoseTarget(target);
-        // Sampling-based planning is nondeterministic, and move_group
-        // sometimes rejects an otherwise fine plan in its final dense
-        // validation (invalid interpolated states after smoothing). Both
-        // are transient, so retry with fresh samples before giving up.
-        constexpr int kAttempts = 3;
+        std::vector<double> goal;
+        if (!computeIkJointGoal(target, goal)) {
+            return false;
+        }
+        setPlanStartState();
+        group_.clearPoseTargets();
+        group_.setJointValueTarget(goal);
+        if (elbow_up_enabled_) {
+            group_.setPathConstraints(elbowBandConstraints());
+        }
+
+        constexpr int kAttempts = 4;
+        moveit::planning_interface::MoveGroupInterface::Plan best_plan;
+        double best_travel = std::numeric_limits<double>::infinity();
+        bool have_plan = false;
         for (int attempt = 1; attempt <= kAttempts; ++attempt) {
             moveit::planning_interface::MoveGroupInterface::Plan plan;
             if (group_.plan(plan) != moveit::core::MoveItErrorCode::SUCCESS) {
                 RCLCPP_WARN(node_->get_logger(),
-                            "Joint-space planning attempt %d/%d failed",
+                            "Bounded joint-space planning attempt %d/%d failed",
                             attempt, kAttempts);
                 continue;
             }
-            if (dry_run_) {
-                advanceDryRunState(plan.trajectory_);
-                return true;
+            if (!validateTrajectory(plan.trajectory_, false,
+                                    "Joint-space candidate")) {
+                RCLCPP_WARN(node_->get_logger(),
+                            "Joint-space candidate %d/%d exceeded motion "
+                            "limits; replanning to the same bounded goal",
+                            attempt, kAttempts);
+                continue;
             }
-            if (group_.execute(plan) ==
-                moveit::core::MoveItErrorCode::SUCCESS) {
-                return true;
+            const double travel = trajectoryJointTravel(plan.trajectory_);
+            if (travel < best_travel) {
+                best_plan = plan;
+                best_travel = travel;
+                have_plan = true;
             }
-            RCLCPP_WARN(node_->get_logger(),
-                        "Joint-space execution attempt %d/%d failed",
-                        attempt, kAttempts);
         }
-        RCLCPP_ERROR(node_->get_logger(),
-                     "Joint-space planning failed after %d attempts",
-                     kAttempts);
-        return false;
+        group_.clearPathConstraints();
+        if (!have_plan) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "No bounded elbow-up joint-space plan found");
+            return false;
+        }
+        RCLCPP_INFO(node_->get_logger(),
+                    "Selected shortest bounded joint-space candidate: %.1f "
+                    "deg total joint travel",
+                    best_travel * 180.0 / M_PI);
+        return executeTrajectory(best_plan.trajectory_, false,
+                                 "Joint-space");
     }
 
-    bool moveCartesian(const std::vector<geometry_msgs::msg::Pose> &waypoints)
+    bool moveCartesian(const std::vector<geometry_msgs::msg::Pose> &waypoints,
+                       bool contact_motion = false)
     {
-        setDryRunStartState();
+        if (!refreshTrackedState()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Cannot refresh current state for Cartesian planning");
+            return false;
+        }
+        setPlanStartState();
         moveit_msgs::msg::RobotTrajectory traj;
         // The jump threshold is essential: the Cartesian interpolator only
         // collision-checks the sampled waypoint states. If IK flips arm
@@ -787,11 +1659,11 @@ private:
                          fraction * 100.0);
             return false;
         }
+        const bool painting_motion = contact_motion || pen_down_;
+        if (!validateTrajectory(traj, painting_motion, "Cartesian IK")) {
+            return false;
+        }
         // computeCartesianPath ignores the velocity scaling, so retime.
-        // Build the start state from the trajectory itself instead of
-        // getCurrentState(): the current-state monitor would need this node
-        // spun externally, which conflicts with MoveGroupInterface's
-        // internal executor.
         moveit::core::RobotState start_state(group_.getRobotModel());
         start_state.setToDefaultValues();
         const auto &jt = traj.joint_trajectory;
@@ -802,40 +1674,20 @@ private:
         robot_trajectory::RobotTrajectory rt(group_.getRobotModel(),
                                              group_.getName());
         rt.setRobotTrajectoryMsg(start_state, traj);
-        trajectory_processing::TimeOptimalTrajectoryGeneration totg;
+        trajectory_processing::TimeOptimalTrajectoryGeneration totg(
+            totg_path_tolerance_, totg_resample_dt_);
         if (!totg.computeTimeStamps(rt, vel_scale_, acc_scale_)) {
             RCLCPP_ERROR(node_->get_logger(), "Trajectory retiming failed");
             return false;
         }
         rt.getRobotTrajectoryMsg(traj);
-        if (dry_run_) {
-            advanceDryRunState(traj);
-            return true;
+        if (!validateCartesianPath(traj, waypoints)) {
+            return false;
         }
-        return group_.execute(traj) == moveit::core::MoveItErrorCode::SUCCESS;
-    }
-
-    void setDryRunStartState()
-    {
-        if (dry_run_state_) {
-            group_.setStartState(*dry_run_state_);
+        if (!validateCollisionFree(traj)) {
+            return false;
         }
-    }
-
-    void advanceDryRunState(const moveit_msgs::msg::RobotTrajectory &traj)
-    {
-        const auto &jt = traj.joint_trajectory;
-        if (jt.points.empty()) {
-            return;
-        }
-        if (!dry_run_state_) {
-            dry_run_state_ =
-                std::make_unique<moveit::core::RobotState>(group_.getRobotModel());
-            dry_run_state_->setToDefaultValues();
-        }
-        dry_run_state_->setVariablePositions(jt.joint_names,
-                                             jt.points.back().positions);
-        dry_run_state_->update();
+        return executeTrajectory(traj, painting_motion, "Cartesian");
     }
 
     void publishCanvasOutline()
@@ -880,14 +1732,31 @@ private:
     }
 
     rclcpp::Node::SharedPtr node_;
+    rclcpp::Node::SharedPtr state_node_;
     moveit::planning_interface::MoveGroupInterface group_;
     moveit::planning_interface::PlanningSceneInterface scene_;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
+    rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr
+        joint_state_sub_;
+    rclcpp::Client<moveit_msgs::srv::GetStateValidity>::SharedPtr
+        state_validity_client_;
+    std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> state_executor_;
+    std::thread state_thread_;
     visualization_msgs::msg::Marker strokes_;
+    std::mutex joint_state_mutex_;
+    std::condition_variable joint_state_cv_;
+    std::vector<std::string> joint_state_names_;
+    std::vector<double> joint_state_positions_;
+    std::chrono::steady_clock::time_point joint_state_received_at_;
+    std::uint64_t joint_state_sequence_{ 0 };
+    bool have_joint_state_{ false };
 
     std::string paths_file_;
+    std::string joint_states_topic_{ "/joint_states" };
+    std::string state_validity_service_{ "/check_state_validity" };
     CanvasFrame canvas_;
     tf2::Quaternion tip_orientation_;
+    tf2::Transform tool_offset_{ tf2::Quaternion::getIdentity() };
     tf2::Transform tool_offset_inv_{ tf2::Quaternion::getIdentity() };
     double safe_clearance_{ 0.02 };
     double ground_z_{ -0.005 };
@@ -899,8 +1768,27 @@ private:
     double acc_scale_{ 0.3 };
     double eef_step_{ 0.005 };
     double jump_threshold_{ 2.0 };
+    // The elbow family is a hard invariant for startup, joint-space plans,
+    // and Cartesian trajectories. The executor never changes family
+    // automatically.
+    bool elbow_up_enabled_{ true };
+    std::string elbow_joint_{ "foreArm_joint" };
+    double elbow_up_min_deg_{ -5.0 };
+    double elbow_up_max_deg_{ 175.0 };
+    std::vector<std::string> guarded_joints_{ "shoulder_joint",
+                                              "wrist3_joint" };
+    double max_guarded_joint_goal_delta_deg_{ 120.0 };
+    double max_guarded_joint_travel_deg_{ 150.0 };
+    double max_guarded_joint_paint_travel_deg_{ 90.0 };
+    double max_guarded_joint_step_deg_{ 45.0 };
+    double max_cartesian_deviation_mm_{ 2.0 };
+    double max_cartesian_orientation_deviation_deg_{ 2.0 };
+    double max_execution_tip_error_mm_{ 1.0 };
+    double max_execution_tip_orientation_error_deg_{ 1.0 };
+    double totg_path_tolerance_{ 0.01 };
+    double totg_resample_dt_{ 0.02 };
     bool dry_run_{ false };
-    std::unique_ptr<moveit::core::RobotState> dry_run_state_;
+    std::unique_ptr<moveit::core::RobotState> tracked_state_;
 
     double canvas_w_mm_{ 0.0 };
     double canvas_h_mm_{ 0.0 };

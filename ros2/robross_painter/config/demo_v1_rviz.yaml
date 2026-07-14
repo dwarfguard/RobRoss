@@ -50,5 +50,26 @@ painting_executor:
     # Never set to 0: that disables the check and a flip executes as the
     # arm sweeping through unchecked space (self/ground collision).
     cartesian_jump_threshold: 2.0
+    # Hard elbow-up policy: startup and every trajectory must remain in this
+    # band. An out-of-band start aborts without moving the arm.
+    elbow_up_enabled: true
+    elbow_joint: foreArm_joint
+    elbow_up_min_deg: -5.0
+    elbow_up_max_deg: 175.0
+    # Bound base-axis movement. The lower paint limit also catches a large
+    # gradual swivel that would pass the relative Cartesian jump check.
+    guarded_joints: [shoulder_joint, wrist3_joint]
+    max_guarded_joint_goal_delta_deg: 120.0
+    max_guarded_joint_travel_deg: 150.0
+    max_guarded_joint_paint_travel_deg: 90.0
+    max_guarded_joint_step_deg: 45.0
+    max_cartesian_deviation_mm: 2.0
+    max_cartesian_orientation_deviation_deg: 2.0
+    max_execution_tip_error_mm: 1.0
+    max_execution_tip_orientation_error_deg: 1.0
+    totg_path_tolerance: 0.01
+    totg_resample_dt: 0.02
+    joint_states_topic: /joint_states
+    state_validity_service: /check_state_validity
     # true = plan everything but do not execute.
     dry_run: false

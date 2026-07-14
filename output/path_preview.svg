@@ -5,21 +5,25 @@
   viewBox="0 0 210.0 297.0"
 >
   <rect x="0" y="0" width="210.0" height="297.0" fill="white" />
-  <polyline points="10.0,91.77 200.0,91.77" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
-  <line x1="200.0" y1="91.77" x2="170.76" y2="91.77" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <polyline points="170.76,91.77 170.76,10.0" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
-  <line x1="170.76" y1="10.0" x2="170.76" y2="49.26" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <polyline points="170.76,49.26 200.0,49.26" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
-  <line x1="200.0" y1="49.26" x2="200.0" y2="171.55" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <polyline points="200.0,171.55 39.13,171.55" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
-  <line x1="39.13" y1="171.55" x2="39.13" y2="140.99" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <polyline points="39.13,140.99 10.0,140.99" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
-  <line x1="10.0" y1="140.99" x2="39.13" y2="91.77" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <polyline points="39.13,91.77 39.13,287.0" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
-  <line x1="39.13" y1="287.0" x2="95.47" y2="287.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <polyline points="95.47,287.0 95.47,171.55" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
-  <line x1="95.47" y1="171.55" x2="39.13" y2="229.92" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
-  <polyline points="39.13,229.92 10.0,229.92" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
-  <line x1="10.0" y1="229.92" x2="200.0" y2="287.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="10.0,111.82 120.78,111.82" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="120.78" y1="111.82" x2="120.78" y2="92.77" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="120.78,92.77 200.0,92.77" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="200.0" y1="92.77" x2="164.04" y2="92.77" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="164.04,92.77 164.04,10.0" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="164.04" y1="10.0" x2="120.78" y2="10.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="120.78,10.0 120.78,287.0" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="120.78" y1="287.0" x2="162.44" y2="287.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="162.44,287.0 162.44,92.77" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="162.44" y1="92.77" x2="164.04" y2="53.89" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="164.04,53.89 120.78,53.89" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="120.78" y1="53.89" x2="66.71" y2="111.82" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="66.71,111.82 66.71,179.92" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="66.71" y1="179.92" x2="37.82" y2="179.92" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="37.82,179.92 37.82,111.82" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="37.82" y1="111.82" x2="10.0" y2="179.92" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="10.0,179.92 120.78,179.92" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="120.78" y1="179.92" x2="162.44" y2="231.72" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="162.44,231.72 200.0,231.72" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="200.0" y1="231.72" x2="200.0" y2="287.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
   <polyline points="200.0,287.0 10.0,287.0 10.0,10.0 200.0,10.0 200.0,287.0" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
 </svg>

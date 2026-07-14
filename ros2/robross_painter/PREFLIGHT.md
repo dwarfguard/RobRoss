@@ -53,18 +53,18 @@ ros2 launch robross_painter paint.launch.py \
 ```
 
 - [ ] Completes all commands. The dry run carries each plan's end state
-      into the next plan, so it validates every transition the real run
-      will make — including wrist-limit hot spots (they show up as
+      into the next plan, so it validates one coherent sequence and exposes
+      wrist-limit hot spots (they show up as
       `Cartesian path only X% feasible (obstacle or IK configuration
       flip)`). Repeated failures in one canvas region: try a different
       `tool_spin_deg` or move the canvas, don't lower the jump threshold.
 
 ## 4. First contact
 
-- [ ] Clear the arm's whole reach sphere. Travel moves that fail the
-      straight-line plan are replanned in joint space, and joint-space
-      paths may swing wide arcs — they avoid *modeled* obstacles only,
-      not people, tripods, or table clutter. One hand on the e-stop.
+- [ ] Clear the arm's whole reach sphere. Pen-up travel may use bounded
+      joint-space planning when a straight path fails. It avoids modeled
+      obstacles only, not people, tripods, cables, or table clutter. One
+      hand on the e-stop.
 - [ ] Run the 50 mm test line (`test_line_paths.json`) at
       `velocity_scaling: 0.1`, `dry_run: false`.
 - [ ] Line darkness is uniform. Fading toward one side/corner means the
@@ -78,16 +78,19 @@ ros2 launch robross_painter paint.launch.py \
   claw box) live in move_group's planning scene and are applied once at
   executor startup. If move_group or the driver restarts mid-run, the
   scene is empty — never "resume" a painting, rerun it.
-- **Stroke retry:** if a stroke is infeasible in the arm's current
-  configuration (logged as `Cartesian path only X% feasible`), the
-  executor automatically lifts, passes through the home posture, and
-  re-approaches with a fresh configuration (up to 2 retries). Expect the
-  arm to swing up to home when this happens — that is recovery, not a
-  malfunction. Keep the reach sphere clear for it.
-- **Abort behavior:** if a failure is not recoverable, the executor
-  retreats the pen off the paper automatically (straight lift, then
-  joint-space fallback) before exiting. If the log says the retreat
-  itself failed, jog the pen clear manually before doing anything else.
+- **Elbow posture:** startup and every trajectory must remain in the
+  configured elbow-up band. An elbow-down start aborts before motion; use
+  freedrive or the pendant to place the arm in the approved posture.
+- **No posture retries:** a rejected stroke aborts. The executor does not
+  pass through all-zero home, switch elbow family, or retry with an
+  unconstrained IK goal.
+- **Motion guard:** every trajectory logs guarded-joint goal displacement,
+  total travel, and maximum sample step. A limit failure is a rejected plan,
+  not a parameter-tuning prompt.
+- **Abort behavior:** with the pen down, the executor attempts only a
+  straight lift before exiting. It never performs a joint-space retreat
+  while the pen is touching the paper. If the lift fails, jog the pen clear
+  manually before doing anything else.
 - **Never edit safety params mid-session** (`cartesian_jump_threshold`,
   backing/claw settings) to "get past" a failure — a failure is the
   system telling you the motion could not be verified safe.

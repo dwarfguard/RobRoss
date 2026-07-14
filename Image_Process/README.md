@@ -1,20 +1,15 @@
-# Image_Process
+# Artwork Generation
 
-Image processing / artwork-generation module. Each subfolder is one
-generation algorithm ("path"), self-contained with its own scripts, tests,
-and README:
+Each subdirectory contains one self-contained artwork-generation approach with
+its scripts, tests, and documentation.
 
-```text
-Image_Process/
-  mondrian/    Recursive-subdivision Mondrian-style line/block artwork
-               generator + path generator (see mondrian/README.md).
-```
+| Module | Purpose | Status |
+| --- | --- | --- |
+| [mondrian](mondrian/README.md) | Generate Mondrian-style artwork, robot paths, and SVG previews. | Active Demo v1 pipeline |
 
-More algorithms (e.g. converting arbitrary source images into painting
-plans) are planned as additional sibling folders here — each new approach
-gets its own subfolder rather than growing inside `mondrian/`.
+New generation approaches should be added as sibling directories instead of
+being folded into `mondrian/`.
 
-`mondrian/` still reads its config profiles from the repo-root `configs/`
-directory and writes to the repo-root `output/` directory (both are
-CWD-relative paths in the scripts, so they're run from the repo root — see
-`mondrian/README.md`).
+Scripts are run from the repository root. They read profiles from `configs/`
+and write generated files to `output/`; see the
+[Mondrian pipeline guide](mondrian/README.md) for commands.

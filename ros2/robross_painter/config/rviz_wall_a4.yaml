@@ -1,16 +1,41 @@
 # Simulated A4 portrait taped to a virtual wall for RViz fake-hardware tests.
 # Wall plane at x = 0.55 in base_link, paper facing the robot:
 # canvas x (page right) = -y, y (page down) = -z, z (into wall) = +x.
-# Layer on top of demo_v1_rviz.yaml:  canvas_file:=<this file>
+# This is the standalone default calibration used by paint.launch.py.
 painting_executor:
   ros__parameters:
     canvas_origin_xyz: [0.55, 0.105, 0.55]   # top-left corner
     canvas_quat_xyzw: [0.5, -0.5, 0.5, -0.5]
-    tool_offset_xyz: [0.0595, 0.0, 0.0514]        
+    tool_offset_xyz: [0.0595, 0.0, 0.0514]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     tool_spin_deg: -90.0
     canvas_backing_enabled: true             # the wall itself
     canvas_backing_clearance_m: 0.005
     claw_collision_size_xyz: [0.118, 0.075, 0.0490]
     claw_collision_offset_xyz: [0.0184, 0.0, 0.0245]
+    safe_clearance_m: 0.02
+    ground_z_m: -0.005
+    velocity_scaling: 0.3
+    acceleration_scaling: 0.3
+    eef_step_m: 0.005
+    cartesian_jump_threshold: 2.0
+    joint_states_topic: /joint_states
+    state_validity_service: /check_state_validity
+    elbow_up_enabled: true
+    elbow_joint: foreArm_joint
+    elbow_up_min_deg: -5.0
+    elbow_up_max_deg: 175.0
+    # Reject wide base-axis plans, including gradual rotations that the
+    # relative Cartesian jump check alone cannot detect.
+    guarded_joints: [shoulder_joint, wrist3_joint]
+    max_guarded_joint_goal_delta_deg: 120.0
+    max_guarded_joint_travel_deg: 150.0
+    max_guarded_joint_paint_travel_deg: 90.0
+    max_guarded_joint_step_deg: 45.0
+    max_cartesian_deviation_mm: 2.0
+    max_cartesian_orientation_deviation_deg: 2.0
+    max_execution_tip_error_mm: 1.0
+    max_execution_tip_orientation_error_deg: 1.0
+    totg_path_tolerance: 0.01
+    totg_resample_dt: 0.02
     dry_run: false

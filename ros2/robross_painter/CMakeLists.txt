@@ -6,7 +6,9 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_core REQUIRED)
+find_package(moveit_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -19,7 +21,9 @@ ament_target_dependencies(painting_executor
   rclcpp
   moveit_ros_planning_interface
   moveit_core
+  moveit_msgs
   geometry_msgs
+  sensor_msgs
   visualization_msgs
   tf2
   tf2_geometry_msgs
