@@ -9,8 +9,10 @@ painting_executor:
     tool_offset_xyz: [0.0595, 0.0, 0.0514]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     tool_spin_deg: -90.0
+    ground_enabled: true
     canvas_backing_enabled: true             # the wall itself
     canvas_backing_clearance_m: 0.005
+    canvas_backing_size_xy_m: [2.0, 2.0]     # protect the whole virtual wall
     claw_collision_size_xyz: [0.118, 0.075, 0.0490]
     claw_collision_offset_xyz: [0.0184, 0.0, 0.0245]
     safe_clearance_m: 0.02

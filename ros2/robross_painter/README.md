@@ -61,8 +61,9 @@ limit merely to make a rejected trajectory execute.
 | Profile | Use |
 | --- | --- |
 | `config/rviz_wall_a4.yaml` | Default fake-hardware A4 wall. Simulation only. |
+| `config/rviz_taught_a4.yaml` | Fake-hardware tests with a taught canvas on any plane (slanted, ground). No ground collision plane, auto-sized backing patch, relaxed base-axis guards. Simulation only. |
 | `config/demo_v1_rviz.yaml` | Earlier fake-hardware horizontal-paper setup. |
-| `config/hardware_wall_a4.yaml` | Real-arm template. Every `TODO` must be measured and reviewed. |
+| `config/hardware_a4.yaml` | Real-arm template for any taught surface. Every `TODO` must be measured and reviewed. |
 
 `paint.launch.py` defaults to `rviz_wall_a4.yaml`. Never use that default on a
 real arm. A real-arm launch must explicitly pass both `calibration_file` and a
@@ -117,7 +118,7 @@ Complete the [hardware preflight](PREFLIGHT.md) in order; this section only
 documents the teaching tool.
 
 1. Calibrate the robot model as described by the maintained Aubo driver.
-2. Copy `hardware_wall_a4.yaml`, measure every `TODO`, and keep `dry_run: true`.
+2. Copy `hardware_a4.yaml`, measure every `TODO`, and keep `dry_run: true`.
 3. Start the real driver, enable pendant freedrive, and run the teaching node
    with the exact measured tool offset from that hardware profile:
 
@@ -145,7 +146,7 @@ taught canvas:
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
-  calibration_file:=$HOME/robross_hardware_wall_a4.yaml \
+  calibration_file:=$HOME/robross_hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
   paths_file:=$ROBROSS_REPO/output/painting_paths.json
 ```
@@ -158,6 +159,16 @@ e-stop.
 
 - Start from a collision-free, approved elbow-up posture. The executor will not
   reposition an invalid start automatically.
+- `IK goal moves <joint> by N deg (limit M deg)`: the taught canvas sits
+  outside the guarded base-swing range of the active profile. In simulation use
+  `rviz_taught_a4.yaml`; on hardware, place the paper within the guarded range
+  instead of raising the limits.
+- `No bounded elbow-up joint-space plan found` with a ground-lying or low
+  canvas: the ground collision plane is blocking the approach. Use a profile
+  with `ground_enabled: false` so the auto-sized backing patch protects the
+  surface under the paper instead.
+- The executor logs only to its own file; after a silent exit check
+  `~/.ros/log/painting_executor_<pid>_<stamp>.log`.
 - Restart the whole simulation stack after stale DDS state or a planning-scene
   reset. Restart the painting rather than resuming midway.
 - In MoveIt Humble, do not spin the executor node in a second external executor;

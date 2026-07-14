@@ -19,9 +19,12 @@ limits.
 
 | Parameter | Meaning |
 | --- | --- |
+| `ground_enabled` | Adds a large ground collision plane at `ground_z_m`. Disable when the taught canvas lies on or near the mounting surface and the backing patch protects it instead. |
 | `ground_z_m` | Top of the ground collision plane in `base_link`. |
 | `canvas_backing_enabled` | Adds a collision plane behind the paper. Enable it for a wall or board. |
 | `canvas_backing_clearance_m` | Gap between the drawing plane and backing collision surface. |
+| `canvas_backing_size_xy_m` | Backing patch size in the canvas plane. `[0, 0]` auto-sizes to the canvas plus `canvas_backing_margin_m` per side. |
+| `canvas_backing_margin_m` | Margin added around the canvas when the backing size is auto. |
 | `claw_collision_size_xyz` | Size of the claw's attached collision box. `[0, 0, 0]` disables it. |
 | `claw_collision_offset_xyz` | Claw-box center in `ee_link`. |
 | `claw_touch_links` | Robot links allowed to touch the attached claw object. Usually left at the executor defaults. |
@@ -81,8 +84,9 @@ must also satisfy model, collision, posture, and endpoint checks.
 | File | Intended environment | Executes by default |
 | --- | --- | --- |
 | `config/rviz_wall_a4.yaml` | Fake hardware, virtual wall | Yes |
+| `config/rviz_taught_a4.yaml` | Fake hardware, taught canvas on any plane (sim-only: no ground plane, relaxed guards) | Yes |
 | `config/demo_v1_rviz.yaml` | Fake hardware, horizontal paper | Yes |
-| `config/hardware_wall_a4.yaml` | Real-arm template | No (`dry_run: true`) |
+| `config/hardware_a4.yaml` | Real-arm template, any taught surface | No (`dry_run: true`) |
 
 Treat shipped values as reviewed starting points, not proof that physical
 geometry has been measured. Follow [PREFLIGHT.md](PREFLIGHT.md) before every

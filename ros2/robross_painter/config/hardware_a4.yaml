@@ -1,6 +1,7 @@
-# RobRoss hardware profile: A4 paper taped to a wall, pen held by the
-# custom claw. Template for the first real-arm tests - measure and edit
-# every value marked TODO before running with dry_run: false.
+# RobRoss hardware profile: A4 paper on any taught surface (wall, table,
+# ground, slanted stand), pen held by the custom claw. Template for the
+# first real-arm tests - measure and edit every value marked TODO before
+# running with dry_run: false.
 #
 # The canvas pose itself does NOT live here. Teach it on the real setup:
 #   1. Put the arm in freedrive, run teach_canvas.py with the same
@@ -21,13 +22,20 @@ painting_executor:
     # Pen hover distance off the paper for travel moves (meters).
     safe_clearance_m: 0.02
 
-    # Ground/table the robot is mounted on (base_link z, meters).
+    # No global ground plane: the taught canvas may lie on or near the
+    # mounting surface, and the backing patch below protects the surface
+    # under the paper instead. ground_z_m only applies if re-enabled.
+    ground_enabled: false
     ground_z_m: -0.005
-    # Wall behind the paper: reject any plan where an arm/claw link pushes
-    # past the drawing plane. Clearance = paper-to-wall gap the pen tip is
-    # allowed to occupy (paper thickness + margin).
+    # Surface behind/under the paper: reject any plan where an arm/claw
+    # link pushes past the drawing plane. Clearance = paper-to-surface gap
+    # the pen tip is allowed to occupy (paper thickness + margin).
+    # Size [0, 0] auto-sizes the patch to the canvas plus the margin on
+    # every side.
     canvas_backing_enabled: true
     canvas_backing_clearance_m: 0.005
+    canvas_backing_size_xy_m: [0.0, 0.0]
+    canvas_backing_margin_m: 0.05
 
     # TODO: pen tip position (and axis, if angled) in ee_link, from the
     # claw CAD or measured on the flange. Example: pen sticking 120 mm

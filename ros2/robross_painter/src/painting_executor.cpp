@@ -162,11 +162,17 @@ public:
             q_off, tf2::Vector3(toff.at(0), toff.at(1), toff.at(2)));
         tool_offset_inv_ = tool_offset_.inverse();
 
+        node_->get_parameter_or("ground_enabled", ground_enabled_,
+                                ground_enabled_);
         node_->get_parameter_or("ground_z_m", ground_z_, ground_z_);
         node_->get_parameter_or("canvas_backing_enabled", backing_enabled_,
                                 backing_enabled_);
         node_->get_parameter_or("canvas_backing_clearance_m",
                                 backing_clearance_, backing_clearance_);
+        node_->get_parameter_or("canvas_backing_size_xy_m", backing_size_xy_,
+                                backing_size_xy_);
+        node_->get_parameter_or("canvas_backing_margin_m", backing_margin_,
+                                backing_margin_);
         node_->get_parameter_or("claw_collision_size_xyz", claw_size_,
                                 claw_size_);
         node_->get_parameter_or("claw_collision_offset_xyz", claw_offset_,
@@ -357,6 +363,13 @@ private:
     // default so the robot base itself is not flagged as colliding).
     bool addGroundPlane()
     {
+        if (!ground_enabled_) {
+            RCLCPP_WARN(node_->get_logger(),
+                        "Ground collision plane disabled; planning will not "
+                        "protect the mounting surface below the robot");
+            return true;
+        }
+
         moveit_msgs::msg::CollisionObject obj;
         obj.header.frame_id = group_.getPlanningFrame();
         obj.id = "ground_plane";
@@ -387,11 +400,13 @@ private:
         return true;
     }
 
-    // Insert a large box just behind the canvas plane, oriented with the
-    // canvas frame. On a wall-mounted paper it models the wall; on a stand
-    // it models the board. Its front face sits canvas_backing_clearance_m
-    // behind the drawing plane so pen contact itself is not a collision,
-    // while any arm/claw link pushing past the paper is rejected.
+    // Insert a box just behind the canvas plane, oriented with the canvas
+    // frame. On a wall-mounted paper it models the wall; on a stand or the
+    // ground it models the board under the paper. Its front face sits
+    // canvas_backing_clearance_m behind the drawing plane so pen contact
+    // itself is not a collision, while any arm/claw link pushing past the
+    // paper is rejected. The patch size comes from canvas_backing_size_xy_m,
+    // or the canvas plus canvas_backing_margin_m per side when unset.
     bool addCanvasBacking()
     {
         if (!backing_enabled_) {
@@ -405,11 +420,24 @@ private:
         obj.header.frame_id = group_.getPlanningFrame();
         obj.id = "canvas_backing";
 
+        if (backing_size_xy_.size() != 2 || backing_size_xy_[0] < 0.0 ||
+            backing_size_xy_[1] < 0.0) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "canvas_backing_size_xy_m must be two non-negative "
+                         "values ([0, 0] auto-sizes to the canvas)");
+            return false;
+        }
+        double size_x = backing_size_xy_[0];
+        double size_y = backing_size_xy_[1];
+        if (size_x == 0.0 && size_y == 0.0) {
+            size_x = canvas_w_mm_ / 1000.0 + 2.0 * backing_margin_;
+            size_y = canvas_h_mm_ / 1000.0 + 2.0 * backing_margin_;
+        }
+
         shape_msgs::msg::SolidPrimitive box;
         box.type = shape_msgs::msg::SolidPrimitive::BOX;
-        constexpr double kSize = 2.0;       // wall patch side length, m
         constexpr double kThickness = 0.05; // m
-        box.dimensions = { kSize, kSize, kThickness };
+        box.dimensions = { size_x, size_y, kThickness };
 
         // Center of the box: canvas center, pushed behind the plane along
         // the canvas normal (+z points into the paper).
@@ -438,8 +466,9 @@ private:
             return false;
         }
         RCLCPP_INFO(node_->get_logger(),
-                    "Canvas backing plane added %.1f mm behind the paper",
-                    backing_clearance_ * 1000.0);
+                    "Canvas backing plane %.2fx%.2f m added %.1f mm behind "
+                    "the paper",
+                    size_x, size_y, backing_clearance_ * 1000.0);
         return true;
     }
 
@@ -1759,9 +1788,14 @@ private:
     tf2::Transform tool_offset_{ tf2::Quaternion::getIdentity() };
     tf2::Transform tool_offset_inv_{ tf2::Quaternion::getIdentity() };
     double safe_clearance_{ 0.02 };
+    bool ground_enabled_{ true };
     double ground_z_{ -0.005 };
     bool backing_enabled_{ true };
     double backing_clearance_{ 0.005 };
+    // Backing patch size in the canvas plane; [0,0] auto-sizes it to the
+    // canvas plus canvas_backing_margin_m on every side.
+    std::vector<double> backing_size_xy_{ 0.0, 0.0 };
+    double backing_margin_{ 0.05 };
     std::vector<double> claw_size_{ 0.0, 0.0, 0.0 };
     std::vector<double> claw_offset_{ 0.0, 0.0, 0.0 };
     double vel_scale_{ 0.3 };

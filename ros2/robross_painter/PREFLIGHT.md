@@ -7,7 +7,7 @@ physical setup.
 
 ## 1. Config matches the physical setup
 
-- [ ] `calibration_file` is the hardware profile (`hardware_wall_a4.yaml`
+- [ ] `calibration_file` is the hardware profile (`hardware_a4.yaml`
       or a copy), not an RViz demo profile.
 - [ ] `tool_offset_xyz` / `tool_offset_rpy` match the mounted claw + pen
       (from CAD or measured on the flange). Re-measure after any pen swap.
@@ -16,8 +16,14 @@ physical setup.
       The executor refuses to start if the box would reach the wall at
       pen contact — treat that error as "measure again", not "shrink the
       box until it starts".
-- [ ] `ground_z_m` matches the actual mounting surface.
-- [ ] `canvas_backing_enabled: true` for any wall/board setup.
+- [ ] `canvas_backing_enabled: true`. With `ground_enabled: false` (the
+      `hardware_a4.yaml` default) the auto-sized backing patch is the ONLY
+      modeled protection for the surface under the paper — confirm the
+      real surface extends past the paper by at least
+      `canvas_backing_margin_m`, and nothing else (table edge, clamps,
+      easel frame) intrudes into the arm's path, because it is not modeled.
+- [ ] If the setup re-enables the ground plane (`ground_enabled: true`),
+      `ground_z_m` matches the actual mounting surface.
 - [ ] `cartesian_jump_threshold` is nonzero (never 0 — 0 disables the
       guard against arm-configuration flips, which execute as unchecked
       sweeps through the robot/ground/wall).
