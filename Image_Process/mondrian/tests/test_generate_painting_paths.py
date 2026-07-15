@@ -193,8 +193,17 @@ class TestRenderAnimatedSvg(unittest.TestCase):
                 self.assertIn("<animate", svg)
                 self.assertIn("stroke-dashoffset", svg)
                 self.assertIn("<circle", svg)  # tool marker
-                num_strokes = paths["debug"]["num_paint_stroke_commands"]
-                self.assertEqual(svg.count('attributeName="stroke-dashoffset"'), num_strokes)
+                # One dashoffset animation per painted segment: a
+                # paint_stroke is one segment, a paint_path with N points
+                # is N-1 segments.
+                num_segments = sum(
+                    1 if cmd["command"] == "paint_stroke"
+                    else len(cmd["points_mm"]) - 1
+                    for cmd in paths["commands"]
+                    if cmd["command"] in ("paint_stroke", "paint_path")
+                )
+                self.assertGreater(num_segments, 0)
+                self.assertEqual(svg.count('attributeName="stroke-dashoffset"'), num_segments)
 
 
 if __name__ == "__main__":

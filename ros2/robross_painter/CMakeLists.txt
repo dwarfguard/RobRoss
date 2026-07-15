@@ -6,7 +6,9 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_core REQUIRED)
+find_package(moveit_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -19,7 +21,9 @@ ament_target_dependencies(painting_executor
   rclcpp
   moveit_ros_planning_interface
   moveit_core
+  moveit_msgs
   geometry_msgs
+  sensor_msgs
   visualization_msgs
   tf2
   tf2_geometry_msgs
@@ -29,8 +33,16 @@ target_link_libraries(painting_executor jsoncpp_lib)
 install(TARGETS painting_executor
   DESTINATION lib/${PROJECT_NAME}
 )
+install(PROGRAMS scripts/teach_canvas.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_paint_launch test/test_paint_launch.py)
+endif()
 
 ament_package()
