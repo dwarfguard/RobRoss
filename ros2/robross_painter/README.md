@@ -67,7 +67,8 @@ limit merely to make a rejected trajectory execute.
 
 `paint.launch.py` defaults to `rviz_wall_a4.yaml`. Never use that default on a
 real arm. A real-arm launch must explicitly pass both `calibration_file` and a
-taught `canvas_file`.
+taught `canvas_file`. The launch fails before starting the executor if any
+supplied file is missing or if the calibration/canvas YAML has the wrong role.
 
 ## Run In RViz
 
@@ -76,11 +77,21 @@ Generate the path files first by following the
 colcon workspace root:
 
 ```bash
-export ROBROSS_REPO=$PWD/src/RobRoss
-source install/setup.bash
+colcon build --packages-select robross_painter
 ```
 
-Terminal 1, start fake controllers:
+Each terminal below is opened at the workspace root. Source the workspace in
+every terminal, and export `ROBROSS_REPO` in each terminal that references it
+(Terminal 3 and the real-arm dry run):
+
+```bash
+source install/setup.bash
+export ROBROSS_REPO=$PWD/src/RobRoss
+```
+
+Terminal 1, start fake controllers. The `aubo_ros2_driver` and
+`aubo_moveit_config` packages come from the Aubo fork imported through
+`ros2/robross_aubo.repos` during the [workspace setup](../../README.md):
 
 ```bash
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
@@ -94,7 +105,8 @@ Terminal 2, start MoveIt and RViz:
 ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=aubo_i5
 ```
 
-Terminal 3, run the full artwork with the default virtual wall:
+Terminal 3, run the full artwork with the default virtual wall
+(`config/rviz_wall_a4.yaml`):
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
@@ -106,10 +118,14 @@ Use `output/test_line_paths.json` instead for the 50 mm line. Add an RViz
 `Marker` display on `robross_markers` to see the paper outline and completed
 strokes.
 
-For the horizontal-paper simulation, add:
+For the horizontal-paper simulation, pass the legacy profile as an extra
+argument to the Terminal 3 launch:
 
 ```bash
-calibration_file:=$(ros2 pkg prefix robross_painter)/share/robross_painter/config/demo_v1_rviz.yaml
+ros2 launch robross_painter paint.launch.py \
+  aubo_type:=aubo_i5 \
+  paths_file:=$ROBROSS_REPO/output/painting_paths.json \
+  calibration_file:=$(ros2 pkg prefix robross_painter)/share/robross_painter/config/demo_v1_rviz.yaml
 ```
 
 ## Teach A Real Canvas
@@ -118,7 +134,14 @@ Complete the [hardware preflight](PREFLIGHT.md) in order; this section only
 documents the teaching tool.
 
 1. Calibrate the robot model as described by the maintained Aubo driver.
-2. Copy `hardware_a4.yaml`, measure every `TODO`, and keep `dry_run: true`.
+2. Create a working copy of `hardware_a4.yaml`, measure every `TODO`, and keep
+   `dry_run: true` for the initial full-artwork plan:
+
+```bash
+cp "$(ros2 pkg prefix robross_painter)/share/robross_painter/config/hardware_a4.yaml" \
+  "$HOME/hardware_a4.yaml"
+```
+
 3. Start the real driver, enable pendant freedrive, and run the teaching node
    with the exact measured tool offset from that hardware profile:
 
@@ -146,7 +169,7 @@ taught canvas:
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
-  calibration_file:=$HOME/robross_hardware_a4.yaml \
+  calibration_file:=$HOME/hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
   paths_file:=$ROBROSS_REPO/output/painting_paths.json
 ```
@@ -166,7 +189,9 @@ e-stop.
 - `No bounded elbow-up joint-space plan found` with a ground-lying or low
   canvas: the ground collision plane is blocking the approach. Use a profile
   with `ground_enabled: false` so the auto-sized backing patch protects the
-  surface under the paper instead.
+  surface under the paper instead. The executor removes its prior ground object
+  when applying the disabled profile; a `Ground collision plane disabled and
+  absent` log confirms the update.
 - The executor logs only to its own file; after a silent exit check
   `~/.ros/log/painting_executor_<pid>_<stamp>.log`.
 - Restart the whole simulation stack after stale DDS state or a planning-scene

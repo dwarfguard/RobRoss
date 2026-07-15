@@ -22,6 +22,7 @@ painting_executor:
     # rejects any motion where an arm link would pass below this. Slightly
     # negative so the robot's own base, resting at z=0, is not flagged as
     # permanently in collision. Match this to the real mounting surface.
+    ground_enabled: true
     ground_z_m: -0.005
     # Collision plane just behind the paper (wall / board / table top).
     # Disabled for this fake-hardware profile: with a zero tool offset,

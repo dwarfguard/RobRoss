@@ -40,7 +40,7 @@ painting_executor:
     # TODO: pen tip position (and axis, if angled) in ee_link, from the
     # claw CAD or measured on the flange. Example: pen sticking 120 mm
     # straight out along ee_link z.
-    tool_offset_xyz: [0.0, 0.0, 0.12]
+    tool_offset_xyz: [0.0595, 0.0, 0.0514]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     # Spin of the claw about the pen axis, degrees. Pick the value that
     # keeps the claw and cable clear of the wrist and wall.
@@ -49,8 +49,8 @@ painting_executor:
     # TODO: box that fully encloses the claw, attached to ee_link so
     # MoveIt collision-checks it against the wall (the claw is not in the
     # URDF). Size in meters, offset = box center in ee_link.
-    claw_collision_size_xyz: [0.08, 0.08, 0.10]
-    claw_collision_offset_xyz: [0.0, 0.0, 0.05]
+    claw_collision_size_xyz: [0.06, 0.02, 0.02]
+    claw_collision_offset_xyz: [0.03, 0.0, 0.0]
 
     # Slow for first contact tests; raise once trusted.
     velocity_scaling: 0.1
@@ -86,4 +86,4 @@ painting_executor:
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
     # Keep true for the first run: plans everything, executes nothing.
-    dry_run: true
+    dry_run: false

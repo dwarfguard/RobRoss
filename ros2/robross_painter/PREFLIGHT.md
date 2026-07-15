@@ -81,9 +81,9 @@ ros2 launch robross_painter paint.launch.py \
 ## 5. Rules during the session
 
 - **Stack restart ⇒ painting restart.** Collision objects (ground, wall,
-  claw box) live in move_group's planning scene and are applied once at
-  executor startup. If move_group or the driver restarts mid-run, the
-  scene is empty — never "resume" a painting, rerun it.
+  claw box) live in move_group's planning scene and are reconciled with the
+  active profile at executor startup. If move_group or the driver restarts
+  mid-run, the scene is empty — never "resume" a painting, rerun it.
 - **Elbow posture:** startup and every trajectory must remain in the
   configured elbow-up band. An elbow-down start aborts before motion; use
   freedrive or the pendant to place the arm in the approved posture.

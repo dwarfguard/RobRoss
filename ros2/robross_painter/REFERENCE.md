@@ -30,7 +30,9 @@ limits.
 | `claw_touch_links` | Robot links allowed to touch the attached claw object. Usually left at the executor defaults. |
 
 The executor validates claw dimensions and refuses startup if the configured box
-would intersect the backing at pen contact.
+would intersect the backing at pen contact. At startup it also reconciles the
+three objects it owns (`ground_plane`, `canvas_backing`, and `pen_claw`): an
+object disabled by the active profile is removed from MoveIt's planning scene.
 
 ## Planning And Execution
 

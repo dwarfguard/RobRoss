@@ -293,6 +293,16 @@ public:
 
         canvas_w_mm_ = root["canvas"]["width_mm"].asDouble();
         canvas_h_mm_ = root["canvas"]["height_mm"].asDouble();
+        const bool claw_enabled =
+            std::any_of(claw_size_.begin(), claw_size_.end(),
+                        [](double value) { return value != 0.0; });
+        RCLCPP_INFO(node_->get_logger(),
+                    "Planning scene config: ground=%s, backing=%s, claw=%s, "
+                    "dry_run=%s",
+                    ground_enabled_ ? "enabled" : "disabled",
+                    backing_enabled_ ? "enabled" : "disabled",
+                    claw_enabled ? "enabled" : "disabled",
+                    dry_run_ ? "true" : "false");
         if (!addGroundPlane() || !addCanvasBacking() || !attachClawBox()) {
             return false;
         }
@@ -356,6 +366,50 @@ public:
     }
 
 private:
+    bool removeWorldObjectIfPresent(const std::string &id,
+                                    const char *description)
+    {
+        if (scene_.getObjects({ id }).empty()) {
+            RCLCPP_INFO(node_->get_logger(), "%s already absent", description);
+            return true;
+        }
+
+        moveit_msgs::msg::CollisionObject obj;
+        obj.header.frame_id = group_.getPlanningFrame();
+        obj.id = id;
+        obj.operation = moveit_msgs::msg::CollisionObject::REMOVE;
+        if (!scene_.applyCollisionObject(obj)) {
+            RCLCPP_ERROR(node_->get_logger(), "Failed to remove %s",
+                         description);
+            return false;
+        }
+        RCLCPP_INFO(node_->get_logger(), "%s removed", description);
+        return true;
+    }
+
+    bool removeAttachedObjectIfPresent(const std::string &id,
+                                       const char *description)
+    {
+        const auto objects = scene_.getAttachedObjects({ id });
+        const auto found = objects.find(id);
+        if (found == objects.end()) {
+            RCLCPP_INFO(node_->get_logger(), "%s already absent", description);
+            return true;
+        }
+
+        moveit_msgs::msg::AttachedCollisionObject attached;
+        attached.link_name = found->second.link_name;
+        attached.object.id = id;
+        attached.object.operation = moveit_msgs::msg::CollisionObject::REMOVE;
+        if (!scene_.applyAttachedCollisionObject(attached)) {
+            RCLCPP_ERROR(node_->get_logger(), "Failed to remove %s",
+                         description);
+            return false;
+        }
+        RCLCPP_INFO(node_->get_logger(), "%s removed", description);
+        return true;
+    }
+
     // Insert a large flat box into the planning scene so that both
     // joint-space planning and Cartesian path collision checking refuse
     // trajectories where any arm link dips below the mounting surface.
@@ -364,9 +418,13 @@ private:
     bool addGroundPlane()
     {
         if (!ground_enabled_) {
+            if (!removeWorldObjectIfPresent("ground_plane", "Ground plane")) {
+                return false;
+            }
             RCLCPP_WARN(node_->get_logger(),
-                        "Ground collision plane disabled; planning will not "
-                        "protect the mounting surface below the robot");
+                        "Ground collision plane disabled and absent; "
+                        "planning will not protect the mounting surface "
+                        "below the robot");
             return true;
         }
 
@@ -410,9 +468,13 @@ private:
     bool addCanvasBacking()
     {
         if (!backing_enabled_) {
+            if (!removeWorldObjectIfPresent("canvas_backing",
+                                            "Canvas backing plane")) {
+                return false;
+            }
             RCLCPP_WARN(node_->get_logger(),
-                        "Canvas backing plane disabled; planning will not "
-                        "protect the wall/board behind the paper");
+                        "Canvas backing plane disabled and absent; planning "
+                        "will not protect the wall/board behind the paper");
             return true;
         }
 
@@ -487,9 +549,18 @@ private:
         const bool disabled = claw_size_[0] == 0.0 && claw_size_[1] == 0.0 &&
                               claw_size_[2] == 0.0;
         if (disabled) {
+            if (!removeAttachedObjectIfPresent("pen_claw",
+                                               "Attached claw collision box")) {
+                return false;
+            }
+            if (!removeWorldObjectIfPresent("pen_claw",
+                                            "World claw collision box")) {
+                return false;
+            }
             RCLCPP_WARN(node_->get_logger(),
-                         "No claw collision box configured; the claw is "
-                         "invisible to collision checking");
+                        "No claw collision box configured; stale claw objects "
+                        "were removed and the claw is invisible to collision "
+                        "checking");
             return true;
         }
         if (!std::all_of(claw_size_.begin(), claw_size_.end(),
@@ -568,6 +639,10 @@ private:
         aco.object.primitive_poses.push_back(pose);
         aco.object.operation = moveit_msgs::msg::CollisionObject::ADD;
 
+        if (!removeWorldObjectIfPresent(aco.object.id,
+                                        "World claw collision box")) {
+            return false;
+        }
         if (!scene_.applyAttachedCollisionObject(aco)) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Failed to attach claw collision box to '%s'",
