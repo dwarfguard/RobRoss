@@ -35,8 +35,8 @@
     {
       "command": "move_to",
       "label": "grid_line_4",
-      "x_mm": 10.0,
-      "y_mm": 111.82
+      "x_mm": 58.08,
+      "y_mm": 10.0
     },
     {
       "command": "lower_tool",
@@ -48,12 +48,12 @@
       "color": "black",
       "points_mm": [
         [
-          10.0,
-          111.82
+          58.08,
+          10.0
         ],
         [
-          120.78,
-          111.82
+          58.08,
+          207.92
         ]
       ]
     },
@@ -63,154 +63,9 @@
     },
     {
       "command": "move_to",
-      "label": "grid_line_9",
-      "x_mm": 120.78,
-      "y_mm": 92.77
-    },
-    {
-      "command": "lower_tool",
-      "label": "grid_line_9"
-    },
-    {
-      "command": "paint_path",
-      "label": "grid_line_9",
-      "color": "black",
-      "points_mm": [
-        [
-          120.78,
-          92.77
-        ],
-        [
-          200.0,
-          92.77
-        ]
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "grid_line_9"
-    },
-    {
-      "command": "move_to",
-      "label": "grid_line_6",
-      "x_mm": 164.04,
-      "y_mm": 92.77
-    },
-    {
-      "command": "lower_tool",
-      "label": "grid_line_6"
-    },
-    {
-      "command": "paint_path",
-      "label": "grid_line_6",
-      "color": "black",
-      "points_mm": [
-        [
-          164.04,
-          92.77
-        ],
-        [
-          164.04,
-          10.0
-        ]
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "grid_line_6"
-    },
-    {
-      "command": "move_to",
-      "label": "grid_line_10",
-      "x_mm": 120.78,
-      "y_mm": 10.0
-    },
-    {
-      "command": "lower_tool",
-      "label": "grid_line_10"
-    },
-    {
-      "command": "paint_path",
-      "label": "grid_line_10",
-      "color": "black",
-      "points_mm": [
-        [
-          120.78,
-          10.0
-        ],
-        [
-          120.78,
-          287.0
-        ]
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "grid_line_10"
-    },
-    {
-      "command": "move_to",
-      "label": "grid_line_8",
-      "x_mm": 162.44,
-      "y_mm": 287.0
-    },
-    {
-      "command": "lower_tool",
-      "label": "grid_line_8"
-    },
-    {
-      "command": "paint_path",
-      "label": "grid_line_8",
-      "color": "black",
-      "points_mm": [
-        [
-          162.44,
-          287.0
-        ],
-        [
-          162.44,
-          92.77
-        ]
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "grid_line_8"
-    },
-    {
-      "command": "move_to",
-      "label": "grid_line_5",
-      "x_mm": 164.04,
-      "y_mm": 53.89
-    },
-    {
-      "command": "lower_tool",
-      "label": "grid_line_5"
-    },
-    {
-      "command": "paint_path",
-      "label": "grid_line_5",
-      "color": "black",
-      "points_mm": [
-        [
-          164.04,
-          53.89
-        ],
-        [
-          120.78,
-          53.89
-        ]
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "grid_line_5"
-    },
-    {
-      "command": "move_to",
       "label": "grid_line_2",
-      "x_mm": 66.71,
-      "y_mm": 111.82
+      "x_mm": 58.08,
+      "y_mm": 161.44
     },
     {
       "command": "lower_tool",
@@ -222,53 +77,24 @@
       "color": "black",
       "points_mm": [
         [
-          66.71,
-          111.82
+          58.08,
+          161.44
         ],
         [
-          66.71,
-          179.92
+          10.0,
+          161.44
         ]
       ]
     },
     {
       "command": "lift_tool",
       "label": "grid_line_2"
-    },
-    {
-      "command": "move_to",
-      "label": "grid_line_1",
-      "x_mm": 37.82,
-      "y_mm": 179.92
-    },
-    {
-      "command": "lower_tool",
-      "label": "grid_line_1"
-    },
-    {
-      "command": "paint_path",
-      "label": "grid_line_1",
-      "color": "black",
-      "points_mm": [
-        [
-          37.82,
-          179.92
-        ],
-        [
-          37.82,
-          111.82
-        ]
-      ]
-    },
-    {
-      "command": "lift_tool",
-      "label": "grid_line_1"
     },
     {
       "command": "move_to",
       "label": "grid_line_3",
       "x_mm": 10.0,
-      "y_mm": 179.92
+      "y_mm": 117.45
     },
     {
       "command": "lower_tool",
@@ -281,11 +107,11 @@
       "points_mm": [
         [
           10.0,
-          179.92
+          117.45
         ],
         [
-          120.78,
-          179.92
+          58.08,
+          117.45
         ]
       ]
     },
@@ -295,9 +121,96 @@
     },
     {
       "command": "move_to",
+      "label": "grid_line_1",
+      "x_mm": 58.08,
+      "y_mm": 59.73
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_1"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_1",
+      "color": "black",
+      "points_mm": [
+        [
+          58.08,
+          59.73
+        ],
+        [
+          10.0,
+          59.73
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_1"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_8",
+      "x_mm": 128.5,
+      "y_mm": 10.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_8"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_8",
+      "color": "black",
+      "points_mm": [
+        [
+          128.5,
+          10.0
+        ],
+        [
+          128.5,
+          287.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_8"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_6",
+      "x_mm": 165.13,
+      "y_mm": 287.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_6"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_6",
+      "color": "black",
+      "points_mm": [
+        [
+          165.13,
+          287.0
+        ],
+        [
+          165.13,
+          194.33
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_6"
+    },
+    {
+      "command": "move_to",
       "label": "grid_line_7",
-      "x_mm": 162.44,
-      "y_mm": 231.72
+      "x_mm": 200.0,
+      "y_mm": 194.33
     },
     {
       "command": "lower_tool",
@@ -309,18 +222,47 @@
       "color": "black",
       "points_mm": [
         [
-          162.44,
-          231.72
+          200.0,
+          194.33
         ],
         [
-          200.0,
-          231.72
+          128.5,
+          194.33
         ]
       ]
     },
     {
       "command": "lift_tool",
       "label": "grid_line_7"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_5",
+      "x_mm": 128.5,
+      "y_mm": 207.92
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_5"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_5",
+      "color": "black",
+      "points_mm": [
+        [
+          128.5,
+          207.92
+        ],
+        [
+          10.0,
+          207.92
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_5"
     },
     {
       "command": "move_to",
@@ -365,16 +307,16 @@
     }
   ],
   "debug": {
-    "num_commands": 46,
+    "num_commands": 38,
     "num_paint_stroke_commands": 0,
-    "num_paint_path_commands": 11,
-    "estimated_total_paint_distance_mm": 2005.8,
-    "estimated_total_travel_distance_mm": 594.56,
+    "num_paint_path_commands": 9,
+    "estimated_total_paint_distance_mm": 1835.83,
+    "estimated_total_travel_distance_mm": 626.53,
     "num_fill_regions": 0,
-    "num_grid_lines": 14,
+    "num_grid_lines": 12,
     "num_select_tool_commands": 1,
-    "num_lift_tool_commands": 11,
-    "num_lower_tool_commands": 11,
+    "num_lift_tool_commands": 9,
+    "num_lower_tool_commands": 9,
     "num_dip_paint_commands": 1,
     "num_move_to_commands": 0
   },

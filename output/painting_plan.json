@@ -32,12 +32,12 @@
       "label": "grid_line_1",
       "color": "black",
       "from_mm": [
-        37.82,
-        111.82
+        10.0,
+        59.73
       ],
       "to_mm": [
-        37.82,
-        179.92
+        58.08,
+        59.73
       ],
       "stroke_width_mm": 1.0
     },
@@ -46,12 +46,12 @@
       "label": "grid_line_2",
       "color": "black",
       "from_mm": [
-        66.71,
-        111.82
+        10.0,
+        161.44
       ],
       "to_mm": [
-        66.71,
-        179.92
+        58.08,
+        161.44
       ],
       "stroke_width_mm": 1.0
     },
@@ -61,11 +61,11 @@
       "color": "black",
       "from_mm": [
         10.0,
-        179.92
+        117.45
       ],
       "to_mm": [
-        120.78,
-        179.92
+        58.08,
+        117.45
       ],
       "stroke_width_mm": 1.0
     },
@@ -74,12 +74,12 @@
       "label": "grid_line_4",
       "color": "black",
       "from_mm": [
-        10.0,
-        111.82
+        58.08,
+        10.0
       ],
       "to_mm": [
-        120.78,
-        111.82
+        58.08,
+        207.92
       ],
       "stroke_width_mm": 1.0
     },
@@ -88,12 +88,12 @@
       "label": "grid_line_5",
       "color": "black",
       "from_mm": [
-        120.78,
-        53.89
+        10.0,
+        207.92
       ],
       "to_mm": [
-        164.04,
-        53.89
+        128.5,
+        207.92
       ],
       "stroke_width_mm": 1.0
     },
@@ -102,12 +102,12 @@
       "label": "grid_line_6",
       "color": "black",
       "from_mm": [
-        164.04,
-        10.0
+        165.13,
+        194.33
       ],
       "to_mm": [
-        164.04,
-        92.77
+        165.13,
+        287.0
       ],
       "stroke_width_mm": 1.0
     },
@@ -116,12 +116,12 @@
       "label": "grid_line_7",
       "color": "black",
       "from_mm": [
-        162.44,
-        231.72
+        128.5,
+        194.33
       ],
       "to_mm": [
         200.0,
-        231.72
+        194.33
       ],
       "stroke_width_mm": 1.0
     },
@@ -130,39 +130,11 @@
       "label": "grid_line_8",
       "color": "black",
       "from_mm": [
-        162.44,
-        92.77
-      ],
-      "to_mm": [
-        162.44,
-        287.0
-      ],
-      "stroke_width_mm": 1.0
-    },
-    {
-      "operation": "paint_line",
-      "label": "grid_line_9",
-      "color": "black",
-      "from_mm": [
-        120.78,
-        92.77
-      ],
-      "to_mm": [
-        200.0,
-        92.77
-      ],
-      "stroke_width_mm": 1.0
-    },
-    {
-      "operation": "paint_line",
-      "label": "grid_line_10",
-      "color": "black",
-      "from_mm": [
-        120.78,
+        128.5,
         10.0
       ],
       "to_mm": [
-        120.78,
+        128.5,
         287.0
       ],
       "stroke_width_mm": 1.0
@@ -225,10 +197,10 @@
     }
   ],
   "debug": {
-    "seed": 1719784145,
+    "seed": 3350566593,
     "num_rectangles": 0,
-    "num_lines": 14,
-    "num_operations": 14,
+    "num_lines": 12,
+    "num_operations": 12,
     "colors_used": []
   }
 }
