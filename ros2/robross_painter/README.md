@@ -142,8 +142,20 @@ cp "$(ros2 pkg prefix robross_painter)/share/robross_painter/config/hardware_a4.
   "$HOME/hardware_a4.yaml"
 ```
 
-3. Start the real driver, enable pendant freedrive, and run the teaching node
-   with the exact measured tool offset from that hardware profile:
+3. Start the real driver, then release its position controller before enabling
+   pendant freedrive. This keeps the joint-state broadcaster and TF active
+   while stopping servo-position commands:
+
+```bash
+ros2 control switch_controllers \
+  --deactivate joint_trajectory_controller --strict
+ros2 control list_controllers
+```
+
+Confirm that `joint_trajectory_controller` is `inactive` and
+`joint_state_broadcaster` remains `active`. Then enable freedrive on the
+pendant and run the teaching node with the exact measured tool offset from the
+hardware profile:
 
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
@@ -163,6 +175,18 @@ ros2 service call /teach_canvas/save std_srvs/srv/Trigger
 
 `save` writes `canvas_origin_xyz` and `canvas_quat_xyzw`. Re-teach if the
 reported dimensions differ materially from A4 or the corners are not square.
+
+Disable freedrive on the pendant before returning control to ROS, then
+reactivate the trajectory controller. The driver resumes from the measured
+joint pose rather than the pre-teach command pose:
+
+```bash
+ros2 control switch_controllers \
+  --activate joint_trajectory_controller --strict
+```
+
+The driver rejects controller activation while freedrive is still enabled.
+Never attempt to use freedrive while `joint_trajectory_controller` is active.
 
 First dry-run the **complete artwork** with the reviewed hardware profile and
 taught canvas:

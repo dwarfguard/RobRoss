@@ -6,7 +6,13 @@ the three touched corners define the full 3D canvas plane.
 
 Workflow:
   1. Start the Aubo driver (real hardware) so TF base_link -> ee_link is
-     published, and put the arm in the pendant's freedrive / hand-guide mode.
+     published. Release servo control before enabling pendant freedrive:
+
+       ros2 control switch_controllers \
+         --deactivate joint_trajectory_controller --strict
+
+     Confirm joint_trajectory_controller is inactive and
+     joint_state_broadcaster remains active, then enable freedrive.
   2. Run this node with the same tool offset the executor will use:
 
        ros2 run robross_painter teach_canvas.py --ros-args \\
@@ -28,6 +34,10 @@ Workflow:
 
      The written YAML is a painting_executor parameter file; pass it to the
      paint launch as canvas_file:=<path>.
+  5. Disable pendant freedrive, then return control to ROS:
+
+       ros2 control switch_controllers \
+         --activate joint_trajectory_controller --strict
 """
 
 import math
@@ -106,8 +116,9 @@ class TeachCanvas(Node):
         self.create_service(Trigger, "~/save", self.save)
 
         self.get_logger().info(
-            "Teach mode: freedrive the arm, touch the pen tip to each paper "
-            "corner and call ~/record_top_left, ~/record_top_right, "
+            "Teach mode: verify joint_trajectory_controller is inactive, "
+            "enable pendant freedrive, touch the pen tip to each paper corner "
+            "and call ~/record_top_left, ~/record_top_right, "
             "~/record_bottom_left, then ~/save."
         )
 

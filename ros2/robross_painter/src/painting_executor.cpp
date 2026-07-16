@@ -22,11 +22,13 @@
 #include <cmath>
 #include <condition_variable>
 #include <cstdint>
+#include <exception>
 #include <fstream>
 #include <future>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -44,7 +46,10 @@
 #include <moveit_msgs/srv/get_state_validity.hpp>
 #include <shape_msgs/msg/solid_primitive.hpp>
 #include <moveit/trajectory_processing/time_optimal_trajectory_generation.h>
+#include <moveit_msgs/action/execute_trajectory.hpp>
+#include <moveit_msgs/action/move_group.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -53,6 +58,38 @@
 #include <visualization_msgs/msg/marker.hpp>
 
 namespace {
+
+moveit::planning_interface::MoveGroupInterface
+connectMoveGroup(const rclcpp::Node::SharedPtr &node)
+{
+    constexpr auto timeout = std::chrono::seconds(10);
+    RCLCPP_INFO(node->get_logger(),
+                "Waiting up to 10 seconds for MoveIt action servers");
+
+    auto move_client =
+        rclcpp_action::create_client<moveit_msgs::action::MoveGroup>(
+            node, "/move_action");
+    if (!move_client->wait_for_action_server(timeout)) {
+        throw std::runtime_error(
+            "MoveIt action server /move_action is unavailable; verify "
+            "move_group is running and ROS_DOMAIN_ID/ROS_LOCALHOST_ONLY "
+            "match this terminal");
+    }
+
+    auto execute_client =
+        rclcpp_action::create_client<moveit_msgs::action::ExecuteTrajectory>(
+            node, "/execute_trajectory");
+    if (!execute_client->wait_for_action_server(timeout)) {
+        throw std::runtime_error(
+            "MoveIt action server /execute_trajectory is unavailable; "
+            "verify move_group is running and ROS_DOMAIN_ID/"
+            "ROS_LOCALHOST_ONLY match this terminal");
+    }
+
+    return moveit::planning_interface::MoveGroupInterface(
+        node, "manipulator", std::shared_ptr<tf2_ros::Buffer>(),
+        rclcpp::Duration::from_seconds(1.0));
+}
 
 struct CanvasFrame
 {
@@ -113,7 +150,7 @@ class PaintingExecutor
 {
 public:
     PaintingExecutor(const rclcpp::Node::SharedPtr &node)
-        : node_(node), group_(node, "manipulator")
+        : node_(node), group_(connectMoveGroup(node))
     {
         marker_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>(
             "robross_markers", rclcpp::QoS(10).transient_local());
@@ -1924,9 +1961,12 @@ int main(int argc, char **argv)
     // own internal executor thread; a second executor would steal its action
     // responses ("unknown goal response, ignoring").
     bool ok = false;
-    {
+    try {
         PaintingExecutor painter(node);
         ok = painter.run();
+    } catch (const std::exception &error) {
+        RCLCPP_FATAL(node->get_logger(), "Painting executor startup failed: %s",
+                     error.what());
     }
 
     rclcpp::shutdown();
