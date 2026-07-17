@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_core REQUIRED)
 find_package(moveit_msgs REQUIRED)
@@ -19,6 +20,7 @@ add_compile_options(-Wall -Wextra)
 add_executable(painting_executor src/painting_executor.cpp)
 ament_target_dependencies(painting_executor
   rclcpp
+  rclcpp_action
   moveit_ros_planning_interface
   moveit_core
   moveit_msgs

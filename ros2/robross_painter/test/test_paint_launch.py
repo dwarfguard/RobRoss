@@ -72,6 +72,26 @@ def test_canvas_requires_taught_pose(tmp_path):
         paint_launch.validate_canvas_file(path)
 
 
+def test_robot_description_names_match():
+    paint_launch.validate_robot_description_names(
+        '<robot name="aubo_robot"/>', '<robot name="aubo_robot"/>'
+    )
+
+
+def test_robot_description_names_reject_mismatch():
+    with pytest.raises(RuntimeError, match="does not match"):
+        paint_launch.validate_robot_description_names(
+            '<robot name="aubo_robot"/>', '<robot name="aubo_i5_robot"/>'
+        )
+
+
+def test_robot_description_names_reject_malformed_xml():
+    with pytest.raises(RuntimeError, match="Cannot parse URDF"):
+        paint_launch.validate_robot_description_names(
+            '<robot name="aubo_robot">', '<robot name="aubo_robot"/>'
+        )
+
+
 def test_shipped_calibration_profiles_are_valid():
     for path in (PACKAGE_ROOT / "config").glob("*.yaml"):
         paint_launch.validate_calibration_file(str(path))

@@ -43,12 +43,17 @@ taught plane then sits ~2 mm "into" the wall, so:
 
 Checklist:
 
-- [ ] Arm in freedrive, `teach_canvas.py` running with the SAME
-      `tool_offset_xyz` as the executor config.
+- [ ] `joint_trajectory_controller` is inactive and
+      `joint_state_broadcaster` remains active. Only then enable pendant
+      freedrive and run `teach_canvas.py` with the SAME `tool_offset_xyz` as
+      the executor config.
 - [ ] Touch top-left / top-right / bottom-left with consistent ~1.5–2 mm
       spring compression; record each corner.
 - [ ] `save` reports paper size within a few mm of A4 and no skew
       warning. Any warning: re-teach, don't rationalize.
+- [ ] After saving, disable pendant freedrive before reactivating
+      `joint_trajectory_controller`. Confirm the controller is active before
+      planning or executing motion.
 
 ## 3. Dry-run the full artwork (after ANY calibration, spin, or artwork change)
 
