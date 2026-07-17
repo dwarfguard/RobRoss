@@ -59,9 +59,13 @@ Checklist:
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
+  aubo_type:=$AUBO_TYPE \
   calibration_file:=<hardware yaml> canvas_file:=<taught yaml> \
   paths_file:=<painting_paths.json>        # with dry_run: true
 ```
+
+- [ ] `aubo_type` matches the driver and MoveIt launches (after
+      calibration that is `aubo_i5_calibrated`, never the stock `aubo_i5`).
 
 - [ ] Completes all commands. The dry run carries each plan's end state
       into the next plan, so it validates one coherent sequence and exposes
