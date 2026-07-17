@@ -175,9 +175,21 @@ export AUBO_TYPE=aubo_i5_calibrated
 ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=$AUBO_TYPE
 ```
 
-3. Start the real driver with `aubo_type:=$AUBO_TYPE`, enable pendant freedrive,
-   and run the teaching node
-   with the exact measured tool offset from that hardware profile:
+3. Start the real driver with `aubo_type:=$AUBO_TYPE`, then release its
+   position controller before enabling pendant freedrive. This keeps the
+   joint-state broadcaster and TF active while stopping servo-position
+   commands:
+
+```bash
+ros2 control switch_controllers \
+  --deactivate joint_trajectory_controller --strict
+ros2 control list_controllers
+```
+
+Confirm that `joint_trajectory_controller` is `inactive` and
+`joint_state_broadcaster` remains `active`. Then enable freedrive on the
+pendant and run the teaching node with the exact measured tool offset from
+that hardware profile:
 
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
