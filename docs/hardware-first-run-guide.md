@@ -5,7 +5,7 @@ full A4 artwork. Companion to `docs/hardware-test-checklist.md` (what to verify)
 `ros2/robross_painter/PREFLIGHT.md` (run top-to-bottom before every session) — this guide is the
 "exact commands" walkthrough; those two remain the authoritative checklists.
 
-## Readiness status (as of 2026-07-15)
+## Readiness status (as of 2026-07-17)
 
 **Ready:**
 - Workspace built: `install/` contains all packages (`aubo_ros2_driver`, `aubo_moveit_config`,
@@ -13,22 +13,20 @@ full A4 artwork. Companion to `docs/hardware-test-checklist.md` (what to verify)
 - Path files generated in `output/`: `painting_paths.json` (46 commands, validated) and
   `test_line_paths.json` (the 50 mm first-contact line) + previews.
 - `~/hardware_a4.yaml` exists (copy of `ros2/robross_painter/config/hardware_a4.yaml`);
-  `tool_offset_xyz: [0.0595, 0.0, 0.0514]` matches the value used during teaching.
+  `tool_offset_xyz: [0.0, -0.0595, 0.0514]` matches the value used during teaching.
+- Claw collision box measured on the real claw (2026-07-16 session):
+  `claw_collision_size_xyz: [0.02, 0.06, 0.02]`, offset `[0.0, -0.03, 0.0]`. The hardware
+  profile is the source of truth for the tool offset and claw box; the sim profiles
+  (`rviz_wall_a4.yaml`, `rviz_taught_a4.yaml`) carry the same values.
 - `velocity_scaling`/`acceleration_scaling` at 0.1 (correct for first runs);
   `cartesian_jump_threshold: 2.0` (nonzero, correct); `canvas_backing_enabled: true`.
-- `dry_run: true` in both the shipped profile and `~/hardware_a4.yaml`.
+- `dry_run: true` in the shipped profile (flip it only in `~/hardware_a4.yaml`, Step 6).
 
 **Gaps to fix before first contact (in order):**
-1. Claw collision box mismatch: the hardware profile has
-   `claw_collision_size_xyz: [0.06, 0.02, 0.02]` (the template's TODO example) while
-   `rviz_taught_a4.yaml` has `[0.118, 0.075, 0.049]` with offset `[0.0184, 0.0, 0.0245]`, which
-   looks like real measured values → confirm against the real claw and copy the measured box into
-   `~/hardware_a4.yaml`. PREFLIGHT: the box must generously enclose the claw, pen tip protruding
-   beyond it.
-2. `~/canvas_calibration.yaml` is invalid (measured 366.7 × 315.8 mm, corner skew 23.75°; an A4
+1. `~/canvas_calibration.yaml` is invalid (measured 366.7 × 315.8 mm, corner skew 23.75°; an A4
    is 210 × 297 mm, skew must be < 2°) → re-teach on the real paper (Step 4). This bad teach —
    not the elbow constraints — is what caused the RViz `wrist3_joint` motion-guard abort.
-3. Robot IP unknown — read it off the teach pendant (Settings → Network) once cabled.
+2. Robot IP unknown — read it off the teach pendant (Settings → Network) once cabled.
 
 ## Step 0 — Network (Ethernet direct)
 
@@ -85,7 +83,7 @@ consistent at every corner. Put the pendant into freedrive, then (terminal 3):
 
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
-  -p tool_offset_xyz:="[0.0595, 0.0, 0.0514]" \
+  -p tool_offset_xyz:="[0.0, -0.0595, 0.0514]" \
   -p output_file:=$HOME/canvas_calibration.yaml
 ```
 

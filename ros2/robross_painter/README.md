@@ -63,7 +63,7 @@ limit merely to make a rejected trajectory execute.
 | `config/rviz_wall_a4.yaml` | Default fake-hardware A4 wall. Simulation only. |
 | `config/rviz_taught_a4.yaml` | Fake-hardware tests with a taught canvas on any plane (slanted, ground). No ground collision plane, auto-sized backing patch, relaxed base-axis guards. Simulation only. |
 | `config/demo_v1_rviz.yaml` | Earlier fake-hardware horizontal-paper setup. |
-| `config/hardware_a4.yaml` | Real-arm template for any taught surface. Every `TODO` must be measured and reviewed. |
+| `config/hardware_a4.yaml` | Real-arm profile for any taught surface. Source of truth for the measured tool offset and claw collision box; the sim profiles must carry the same values. |
 
 `paint.launch.py` defaults to `rviz_wall_a4.yaml`. Never use that default on a
 real arm. A real-arm launch must explicitly pass both `calibration_file` and a
@@ -134,7 +134,7 @@ Complete the [hardware preflight](PREFLIGHT.md) in order; this section only
 documents the teaching tool.
 
 1. Calibrate the robot model as described by the maintained Aubo driver.
-2. Create a working copy of `hardware_a4.yaml`, measure every `TODO`, and keep
+2. Create a working copy of `hardware_a4.yaml`, re-verify the measured values, and keep
    `dry_run: true` for the initial full-artwork plan:
 
 ```bash

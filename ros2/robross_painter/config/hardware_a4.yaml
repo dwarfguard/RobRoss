@@ -1,7 +1,8 @@
 # RobRoss hardware profile: A4 paper on any taught surface (wall, table,
-# ground, slanted stand), pen held by the custom claw. Template for the
-# first real-arm tests - measure and edit every value marked TODO before
-# running with dry_run: false.
+# ground, slanted stand), pen held by the custom claw. Source of truth for
+# the measured tool offset and claw collision box (2026-07-16 hardware
+# session) - keep the sim profiles' copies of those values identical, and
+# re-verify every measured value before running with dry_run: false.
 #
 # The canvas pose itself does NOT live here. Teach it on the real setup:
 #   1. Put the arm in freedrive, run teach_canvas.py with the same
@@ -37,20 +38,21 @@ painting_executor:
     canvas_backing_size_xy_m: [0.0, 0.0]
     canvas_backing_margin_m: 0.05
 
-    # TODO: pen tip position (and axis, if angled) in ee_link, from the
-    # claw CAD or measured on the flange. Example: pen sticking 120 mm
-    # straight out along ee_link z.
-    tool_offset_xyz: [0.0595, 0.0, 0.0514]
+    # Pen tip position (and axis, if angled) in ee_link. Measured on the
+    # real claw (2026-07-16 hardware session); re-measure after any pen or
+    # claw change and keep the sim profiles identical.
+    tool_offset_xyz: [0.0, -0.0595, 0.0514]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     # Spin of the claw about the pen axis, degrees. Pick the value that
     # keeps the claw and cable clear of the wrist and wall.
     tool_spin_deg: -90.0
 
-    # TODO: box that fully encloses the claw, attached to ee_link so
-    # MoveIt collision-checks it against the wall (the claw is not in the
-    # URDF). Size in meters, offset = box center in ee_link.
-    claw_collision_size_xyz: [0.06, 0.02, 0.02]
-    claw_collision_offset_xyz: [0.03, 0.0, 0.0]
+    # Box that fully encloses the claw, attached to ee_link so MoveIt
+    # collision-checks it against the wall (the claw is not in the URDF).
+    # Size in meters, offset = box center in ee_link. Measured on the real
+    # claw (2026-07-16 hardware session).
+    claw_collision_size_xyz: [0.02, 0.06, 0.02]
+    claw_collision_offset_xyz: [0.0, -0.03, 0.0]
 
     # Slow for first contact tests; raise once trusted.
     velocity_scaling: 0.1

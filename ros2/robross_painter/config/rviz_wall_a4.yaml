@@ -6,15 +6,16 @@ painting_executor:
   ros__parameters:
     canvas_origin_xyz: [0.55, 0.105, 0.55]   # top-left corner
     canvas_quat_xyzw: [0.5, -0.5, 0.5, -0.5]
-    tool_offset_xyz: [0.0595, 0.0, 0.0514]
+    # Measured claw + pen; keep identical to hardware_a4.yaml.
+    tool_offset_xyz: [0.0, -0.0595, 0.0514]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     tool_spin_deg: -90.0
     ground_enabled: true
     canvas_backing_enabled: true             # the wall itself
     canvas_backing_clearance_m: 0.005
     canvas_backing_size_xy_m: [2.0, 2.0]     # protect the whole virtual wall
-    claw_collision_size_xyz: [0.118, 0.075, 0.0490]
-    claw_collision_offset_xyz: [0.0184, 0.0, 0.0245]
+    claw_collision_size_xyz: [0.02, 0.06, 0.02]
+    claw_collision_offset_xyz: [0.0, -0.03, 0.0]
     safe_clearance_m: 0.02
     ground_z_m: -0.005
     velocity_scaling: 0.3

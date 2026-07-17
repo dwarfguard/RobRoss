@@ -14,7 +14,8 @@ painting_executor:
     # Fallback canvas pose, overridden by the taught canvas_file.
     canvas_origin_xyz: [0.55, 0.105, 0.55]
     canvas_quat_xyzw: [0.5, -0.5, 0.5, -0.5]
-    tool_offset_xyz: [0.0595, 0.0, 0.0514]
+    # Measured claw + pen; keep identical to hardware_a4.yaml.
+    tool_offset_xyz: [0.0, -0.0595, 0.0514]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     tool_spin_deg: -90.0
     # No 4x4 m ground box; the auto-sized backing patch below protects the
@@ -25,8 +26,8 @@ painting_executor:
     canvas_backing_clearance_m: 0.005
     canvas_backing_size_xy_m: [0.0, 0.0]     # auto: canvas + margin
     canvas_backing_margin_m: 0.05
-    claw_collision_size_xyz: [0.118, 0.075, 0.0490]
-    claw_collision_offset_xyz: [0.0184, 0.0, 0.0245]
+    claw_collision_size_xyz: [0.02, 0.06, 0.02]
+    claw_collision_offset_xyz: [0.0, -0.03, 0.0]
     safe_clearance_m: 0.02
     velocity_scaling: 0.3
     acceleration_scaling: 0.3
