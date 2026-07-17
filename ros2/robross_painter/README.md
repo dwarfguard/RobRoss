@@ -140,9 +140,43 @@ documents the teaching tool.
 ```bash
 cp "$(ros2 pkg prefix robross_painter)/share/robross_painter/config/hardware_a4.yaml" \
   "$HOME/hardware_a4.yaml"
+grep -n "dry_run: true" "$HOME/hardware_a4.yaml"
 ```
 
-3. Start the real driver, enable pendant freedrive, and run the teaching node
+The calibration command creates `aubo_i5_calibrated.urdf`. Rebuild
+`aubo_description`, then use the corresponding model name in every launch:
+
+```bash
+cd ~/robross_aubo_ws
+python3 src/aubo_ros2_driver/aubo_description/scripts/calibrate_urdf_dh.py \
+  --robot-model aubo_i5 \
+  --robot-ip <robot-ip>
+colcon build --packages-select aubo_description
+source install/setup.bash
+export AUBO_TYPE=aubo_i5_calibrated
+```
+
+Using `aubo_i5` after calibration silently selects the stock, uncalibrated
+model. The control, MoveIt, and painter launches must all receive the same
+`aubo_type:=$AUBO_TYPE` value.
+
+Start the real stack in separate terminals before teaching or painting:
+
+```bash
+# Terminal 1
+source ~/robross_aubo_ws/install/setup.bash
+export AUBO_TYPE=aubo_i5_calibrated
+ros2 launch aubo_ros2_driver aubo_control.launch.py \
+  aubo_type:=$AUBO_TYPE robot_ip:=<robot-ip> use_fake_hardware:=false
+
+# Terminal 2
+source ~/robross_aubo_ws/install/setup.bash
+export AUBO_TYPE=aubo_i5_calibrated
+ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=$AUBO_TYPE
+```
+
+3. Start the real driver with `aubo_type:=$AUBO_TYPE`, enable pendant freedrive,
+   and run the teaching node
    with the exact measured tool offset from that hardware profile:
 
 ```bash
@@ -169,6 +203,7 @@ taught canvas:
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
+  aubo_type:=$AUBO_TYPE \
   calibration_file:=$HOME/hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
   paths_file:=$ROBROSS_REPO/output/painting_paths.json

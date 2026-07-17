@@ -54,27 +54,72 @@ The active artwork profile is `configs/demo_v1_a4_pen.json`. The
 `mondrian_12x12_paint.json` profile preserves the older color-canvas behavior
 for development and is not the Demo v1 hardware target.
 
-## ROS 2 Workspace
+## Reproduce The ROS 2 Workspace
 
-The painter uses ROS 2 Humble, MoveIt 2, and the RobRoss-maintained Aubo driver
-fork. Create a workspace with the repository and its pinned dependencies:
+The supported baseline is Ubuntu 22.04 with ROS 2 Humble. Install ROS 2 first,
+then install the workspace tools and MoveIt packages:
+
+```bash
+sudo apt update
+sudo apt install \
+  python3-colcon-common-extensions \
+  python3-rosdep \
+  python3-vcstool \
+  ros-humble-moveit \
+  ros-humble-ros2-control \
+  ros-humble-ros2-controllers
+sudo rosdep init 2>/dev/null || true
+rosdep update
+```
+
+Create the workspace from the `sai` branch. The repository manifest imports the
+RobRoss Aubo branch, and that repository pins the description submodule:
 
 ```bash
 mkdir -p ~/robross_aubo_ws/src
-git clone https://github.com/dwarfguard/RobRoss.git ~/robross_aubo_ws/src/RobRoss
+git clone --branch sai https://github.com/dwarfguard/RobRoss.git \
+  ~/robross_aubo_ws/src/RobRoss
 vcs import ~/robross_aubo_ws/src < ~/robross_aubo_ws/src/RobRoss/ros2/robross_aubo.repos
 git -C ~/robross_aubo_ws/src/aubo_ros2_driver submodule update --init --recursive
 source /opt/ros/humble/setup.bash
 cd ~/robross_aubo_ws
-colcon build
+rosdep install --from-paths src --ignore-src --rosdistro humble -r -y
+colcon build --event-handlers console_direct+
 source install/setup.bash
 ```
 
-Prerequisites:
+Before approving a hardware build, record all three source revisions. Use the
+same revisions on every computer; do not assume a moving branch still contains
+the approved build:
 
-- ROS 2 Humble, MoveIt 2, `colcon`, and `python3-vcstool`.
-- Network access during the first driver build.
-- The [`robross-fixes` Aubo driver](https://github.com/dwarfguard/aubo_ros2_driver/tree/robross-fixes), including its robot-calibration guidance for real hardware.
+```bash
+git -C src/RobRoss rev-parse HEAD
+git -C src/aubo_ros2_driver rev-parse HEAD
+git -C src/aubo_ros2_driver/aubo_description rev-parse HEAD
+```
+
+On a reproduction computer, check out the recorded RobRoss and driver SHAs,
+then run `git submodule update --init --recursive` again so the recorded driver
+selects its matching description SHA. Network access is required during the
+first driver build to download Aubo SDK `0.24.1-rc.3+318754d`. Do not copy an
+existing `build/` or `install/` directory to another computer.
+
+```bash
+git -C src/RobRoss checkout <recorded-robross-sha>
+git -C src/aubo_ros2_driver checkout <recorded-driver-sha>
+git -C src/aubo_ros2_driver submodule update --init --recursive
+test "$(git -C src/aubo_ros2_driver/aubo_description rev-parse HEAD)" = \
+  "<recorded-description-sha>"
+```
+
+Run the tests before using the workspace:
+
+```bash
+colcon test --packages-select \
+  aubo_description aubo_moveit_config aubo_msgs aubo_ros2_driver \
+  robross_painter ros_joints_plan
+colcon test-result --verbose
+```
 
 Continue with the [painter guide](ros2/robross_painter/README.md) for the
 fake-hardware and RViz launch sequence.

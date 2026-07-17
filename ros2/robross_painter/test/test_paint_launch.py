@@ -75,3 +75,10 @@ def test_canvas_requires_taught_pose(tmp_path):
 def test_shipped_calibration_profiles_are_valid():
     for path in (PACKAGE_ROOT / "config").glob("*.yaml"):
         paint_launch.validate_calibration_file(str(path))
+
+
+def test_shipped_hardware_profile_is_dry_run():
+    path = PACKAGE_ROOT / "config" / "hardware_a4.yaml"
+    parameters = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    assert parameters["painting_executor"]["ros__parameters"]["dry_run"] is True

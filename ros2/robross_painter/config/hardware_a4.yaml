@@ -86,4 +86,4 @@ painting_executor:
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
     # Keep true for the first run: plans everything, executes nothing.
-    dry_run: false
+    dry_run: true

@@ -9,3 +9,6 @@ __pycache__/
 build/
 install/
 log/
+
+# Claude Code local state
+.claude/
