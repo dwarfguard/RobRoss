@@ -47,10 +47,18 @@ Checklist:
       `joint_state_broadcaster` remains active. Only then enable pendant
       freedrive and run `teach_canvas.py` with the SAME `tool_offset_xyz` as
       the executor config.
+- [ ] Freedrive only for the coarse approach (~10 mm out); the final
+      approach to each corner is made with the pendant's slowest jog, not
+      by pushing the arm — freedrive breakaway force ruins millimeter
+      motions.
 - [ ] Touch top-left / top-right / bottom-left with consistent ~1.5–2 mm
-      spring compression; record each corner.
-- [ ] `save` reports paper size within a few mm of A4 and no skew
-      warning. Any warning: re-teach, don't rationalize.
+      spring compression; hands fully off the arm before each record (the
+      node rejects a record if the arm moved in the last second — release
+      and re-record, don't raise the tolerance).
+- [ ] Record bottom-right as a validation corner.
+- [ ] `save` reports paper size within a few mm of A4, no skew warning,
+      and no bottom-right residual warning. Any warning: re-teach, don't
+      rationalize.
 - [ ] After saving, disable pendant freedrive before reactivating
       `joint_trajectory_controller`. Confirm the controller is active before
       planning or executing motion.

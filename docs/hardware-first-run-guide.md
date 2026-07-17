@@ -89,17 +89,22 @@ ros2 run robross_painter teach_canvas.py --ros-args \
   -p output_file:=$HOME/canvas_calibration.yaml
 ```
 
-Touch the pen tip to each physical paper corner and record it, then save:
+Per corner: freedrive to ~10 mm out (freedrive breakaway force is too high for accurate small
+motions), disable freedrive, finish the approach with the pendant's slowest jog, hands off the
+arm, then record. A record is rejected if the arm moved in the last second — release, let it
+settle, re-record. Bottom-right is a validation-only corner; `save` warns if it sits > 2 mm
+from where the other three predict it:
 
 ```bash
-ros2 service call /teach_canvas/record_top_left    std_srvs/srv/Trigger
-ros2 service call /teach_canvas/record_top_right   std_srvs/srv/Trigger
-ros2 service call /teach_canvas/record_bottom_left std_srvs/srv/Trigger
-ros2 service call /teach_canvas/save               std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_top_left     std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_top_right    std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_bottom_left  std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_bottom_right std_srvs/srv/Trigger
+ros2 service call /teach_canvas/save                std_srvs/srv/Trigger
 ```
 
-**Gate:** `save` must report ≈210 × 297 mm and no skew warning (< 2°). Any warning → re-teach;
-don't rationalize.
+**Gate:** `save` must report ≈210 × 297 mm, no skew warning (< 2°), and no bottom-right
+residual warning. Any warning → re-teach; don't rationalize.
 
 ## Step 5 — Dry-run everything (`dry_run: true` in `~/hardware_a4.yaml`)
 

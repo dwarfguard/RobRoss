@@ -19,15 +19,28 @@ Workflow:
          -p tool_offset_xyz:="[0.0, 0.0, 0.12]" \\
          -p output_file:=$HOME/canvas_calibration.yaml
 
-  3. Touch the pen tip to each corner of the paper and record it:
+  3. Position the pen tip on each corner of the paper and record it. Use
+     freedrive only for the coarse approach (to ~10 mm from the corner);
+     the i5's freedrive breakaway force is too high for accurate small
+     motions. Disable freedrive and make the final approach with the
+     pendant's slowest jog speed, then take your hands off the arm and
+     record:
 
        ros2 service call /teach_canvas/record_top_left std_srvs/srv/Trigger
        ros2 service call /teach_canvas/record_top_right std_srvs/srv/Trigger
        ros2 service call /teach_canvas/record_bottom_left std_srvs/srv/Trigger
+       ros2 service call /teach_canvas/record_bottom_right std_srvs/srv/Trigger
 
-     "Top-left" is the top-left of the artwork as it should appear on the
-     paper (canvas x runs top-left -> top-right, y runs top-left ->
-     bottom-left). Corners can be re-recorded at any time.
+     Each record averages the pen-tip position over the last
+     record_window_s seconds and is rejected if the arm moved more than
+     stillness_tol_mm in that window — release the arm, let it settle,
+     and call the service again. "Top-left" is the top-left of the
+     artwork as it should appear on the paper (canvas x runs top-left ->
+     top-right, y runs top-left -> bottom-left). Corners can be
+     re-recorded at any time. bottom_right is optional: it is used only
+     to validate the other three corners, and save warns when it sits
+     more than corner_residual_warn_mm from the predicted rectangle
+     corner.
   4. Save the calibration:
 
        ros2 service call /teach_canvas/save std_srvs/srv/Trigger
@@ -40,7 +53,9 @@ Workflow:
          --activate joint_trajectory_controller --strict
 """
 
+import collections
 import math
+import time
 
 import numpy as np
 import rclpy
@@ -48,6 +63,27 @@ import yaml
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 from tf2_ros import Buffer, TransformListener
+
+
+def average_still_samples(positions, tol_mm):
+    """Average recorded pen-tip positions if the arm was still.
+
+    Returns (mean, spread_mm) where spread_mm is the largest sample
+    distance from the mean. mean is None when the spread exceeds tol_mm
+    (the arm moved during the window — likely still hand-loaded).
+    """
+    arr = np.asarray(positions, dtype=float)
+    mean = arr.mean(axis=0)
+    spread_mm = float(np.linalg.norm(arr - mean, axis=1).max() * 1000.0)
+    return (mean if spread_mm <= tol_mm else None), spread_mm
+
+
+def rectangle_residual_mm(tl, tr, bl, br):
+    """Distance from the measured bottom-right corner to where the other
+    three corners predict it (tr + bl - tl), in millimeters."""
+    predicted = np.asarray(tr, dtype=float) + np.asarray(bl, dtype=float) \
+        - np.asarray(tl, dtype=float)
+    return float(np.linalg.norm(np.asarray(br, dtype=float) - predicted) * 1000.0)
 
 
 def quat_to_matrix(x, y, z, w):
@@ -86,6 +122,9 @@ def matrix_to_quat(m):
 
 class TeachCanvas(Node):
     CORNERS = ("top_left", "top_right", "bottom_left")
+    # Recorded only to validate the required three; never used for the pose.
+    OPTIONAL_CORNERS = ("bottom_right",)
+    SAMPLE_RATE_HZ = 50.0
 
     def __init__(self):
         super().__init__("teach_canvas")
@@ -98,16 +137,31 @@ class TeachCanvas(Node):
         self.declare_parameter("canvas_width_mm", 210.0)
         self.declare_parameter("canvas_height_mm", 297.0)
         self.declare_parameter("output_file", "canvas_calibration.yaml")
+        # Each record averages the pen tip over this window and rejects the
+        # sample if the arm moved more than stillness_tol_mm within it.
+        self.declare_parameter("record_window_s", 1.0)
+        self.declare_parameter("stillness_tol_mm", 0.5)
+        self.declare_parameter("min_record_samples", 10)
+        self.declare_parameter("corner_residual_warn_mm", 2.0)
 
         self.base_frame = self.get_parameter("base_frame").value
         self.ee_frame = self.get_parameter("ee_frame").value
         self.tool_offset = np.array(self.get_parameter("tool_offset_xyz").value)
+        self.record_window_s = float(self.get_parameter("record_window_s").value)
+        self.stillness_tol_mm = float(self.get_parameter("stillness_tol_mm").value)
+        self.min_record_samples = int(self.get_parameter("min_record_samples").value)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.points = {}
+        # (monotonic time, pen-tip position) history, twice the record window.
+        self.samples = collections.deque(
+            maxlen=max(2, int(2 * self.record_window_s * self.SAMPLE_RATE_HZ))
+        )
+        self._tf_wait_logged = False
+        self.create_timer(1.0 / self.SAMPLE_RATE_HZ, self._sample_pen_tip)
 
-        for corner in self.CORNERS:
+        for corner in self.CORNERS + self.OPTIONAL_CORNERS:
             self.create_service(
                 Trigger,
                 f"~/record_{corner}",
@@ -119,8 +173,21 @@ class TeachCanvas(Node):
             "Teach mode: verify joint_trajectory_controller is inactive, "
             "enable pendant freedrive, touch the pen tip to each paper corner "
             "and call ~/record_top_left, ~/record_top_right, "
-            "~/record_bottom_left, then ~/save."
+            "~/record_bottom_left (plus optional ~/record_bottom_right for "
+            "validation), then ~/save. Hands off the arm while recording."
         )
+
+    def _sample_pen_tip(self):
+        try:
+            p = self.pen_tip_in_base()
+        except Exception:  # TF not available yet / frame missing
+            if not self._tf_wait_logged:
+                self.get_logger().info(
+                    f"Waiting for TF {self.base_frame} -> {self.ee_frame}..."
+                )
+                self._tf_wait_logged = True
+            return
+        self.samples.append((time.monotonic(), p))
 
     def pen_tip_in_base(self):
         tf = self.tf_buffer.lookup_transform(
@@ -132,17 +199,34 @@ class TeachCanvas(Node):
         return np.array([t.x, t.y, t.z]) + rot @ self.tool_offset
 
     def record(self, corner, res):
-        try:
-            p = self.pen_tip_in_base()
-        except Exception as exc:  # TF not available yet / frame missing
+        cutoff = time.monotonic() - self.record_window_s
+        window = [p for t, p in self.samples if t >= cutoff]
+        if len(window) < self.min_record_samples:
             res.success = False
-            res.message = f"TF lookup failed: {exc}"
+            res.message = (
+                f"Only {len(window)} pen-tip samples in the last "
+                f"{self.record_window_s:.1f} s (need "
+                f"{self.min_record_samples}); TF may not be streaming yet — "
+                "wait a moment and re-record"
+            )
+            return res
+        p, spread_mm = average_still_samples(window, self.stillness_tol_mm)
+        if p is None:
+            res.success = False
+            res.message = (
+                f"Arm moved {spread_mm:.2f} mm during the last "
+                f"{self.record_window_s:.1f} s (tolerance "
+                f"{self.stillness_tol_mm:.2f} mm). Release the arm, let it "
+                "settle, and re-record"
+            )
+            self.get_logger().warn(res.message)
             return res
         self.points[corner] = p
         missing = [c for c in self.CORNERS if c not in self.points]
         res.success = True
         res.message = (
-            f"{corner} = [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}] m"
+            f"{corner} = [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}] m "
+            f"(mean of {len(window)} samples, spread {spread_mm:.2f} mm)"
             + (f"; still missing: {', '.join(missing)}" if missing else
                "; all corners recorded, call ~/save")
         )
@@ -201,6 +285,18 @@ class TeachCanvas(Node):
                 f"measured height {height_m * 1000:.1f} mm vs expected "
                 f"{exp_h:.0f} mm"
             )
+        residual_mm = None
+        if "bottom_right" in self.points:
+            residual_mm = rectangle_residual_mm(
+                tl, tr, bl, self.points["bottom_right"]
+            )
+            warn_mm = self.get_parameter("corner_residual_warn_mm").value
+            if residual_mm > warn_mm:
+                warnings.append(
+                    f"bottom-right corner is {residual_mm:.1f} mm from the "
+                    f"position the other corners predict (tolerance "
+                    f"{warn_mm:.1f} mm), re-teach"
+                )
         for w in warnings:
             self.get_logger().warn(w)
 
@@ -224,7 +320,13 @@ class TeachCanvas(Node):
             f"# top_left:     {tl.tolist()}\n"
             f"# top_right:    {tr.tolist()}\n"
             f"# bottom_left:  {bl.tolist()}\n"
-            "# Pass to the executor as: canvas_file:=<this file>\n"
+            + (
+                f"# bottom_right: "
+                f"{self.points['bottom_right'].tolist()} "
+                f"(validation residual {residual_mm:.2f} mm)\n"
+                if residual_mm is not None else ""
+            )
+            + "# Pass to the executor as: canvas_file:=<this file>\n"
         )
         try:
             with open(out, "w") as f:

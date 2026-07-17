@@ -197,18 +197,29 @@ ros2 run robross_painter teach_canvas.py --ros-args \
   -p output_file:=$HOME/canvas_calibration.yaml
 ```
 
-Touch the **physical paper corners**, not the artwork-margin corners, and record
-top-left, top-right, then bottom-left:
+Touch the **physical paper corners**, not the artwork-margin corners. Use
+freedrive only for the coarse approach, to about 10 mm from each corner — the
+i5's freedrive breakaway force is too high for accurate millimeter motions.
+Disable freedrive, make the final approach with the pendant's slowest jog
+speed (commanded motion is immune to freedrive friction), then take your
+hands off the arm before recording. Each record averages the pen tip over the
+last second and is rejected if the arm was still moving — release, let it
+settle, and call the service again. Record top-left, top-right, bottom-left,
+then bottom-right as a validation point:
 
 ```bash
 ros2 service call /teach_canvas/record_top_left std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_top_right std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_bottom_left std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_bottom_right std_srvs/srv/Trigger
 ros2 service call /teach_canvas/save std_srvs/srv/Trigger
 ```
 
-`save` writes `canvas_origin_xyz` and `canvas_quat_xyzw`. Re-teach if the
-reported dimensions differ materially from A4 or the corners are not square.
+`save` writes `canvas_origin_xyz` and `canvas_quat_xyzw`. The optional
+bottom-right corner never changes the saved pose; `save` warns when it lies
+more than 2 mm from where the other three corners predict it. Re-teach if the
+reported dimensions differ materially from A4, the corners are not square, or
+the bottom-right residual warning appears.
 
 Disable freedrive on the pendant before returning control to ROS, then
 reactivate the trajectory controller. The driver resumes from the measured

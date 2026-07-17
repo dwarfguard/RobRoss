@@ -45,6 +45,7 @@ install(DIRECTORY launch config
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_paint_launch test/test_paint_launch.py)
+  ament_add_pytest_test(test_teach_canvas_math test/test_teach_canvas_math.py)
 endif()
 
 ament_package()
