@@ -1,73 +1,97 @@
 # robross_painter
 
-Aubo i5 adapter for the RobRoss project. It executes a `painting_paths.json`
-file through MoveIt on the `aubo_ros2_driver` stack. It works against fake
-hardware for the RViz milestone and can later run against the real arm after
-physical calibration.
+ROS 2 and MoveIt adapter for RobRoss path files. It supports Aubo i5
+fake-hardware testing in RViz and calibrated real-arm operation.
 
-## Workspace Context
+## Documentation
 
-This package is source-controlled in `RobRoss/ros2/robross_painter`, but it is
-built as a normal ROS 2 package inside a colcon workspace:
-
-```text
-robross_aubo_ws/
-  src/
-    RobRoss/
-      ros2/robross_painter/
-    aubo_ros2_driver/
-```
-
-The RobRoss root README contains the full workspace setup using
-`ros2/robross_aubo.repos`.
-
-## What It Does
-
-`painting_executor` reads the RobRoss path file (mm, origin top-left, y down)
-and maps each command to robot motion:
-
-| Command | Motion |
+| Document | Purpose |
 | --- | --- |
-| `select_tool`, `dip_paint` | No-op for pen Demo v1, logged. |
-| `move_to` | Travel at safe height; first one joint-space, rest straight Cartesian. |
-| `lower_tool` | Straight descent to pen-contact height. |
-| `paint_stroke` | Straight Cartesian line at contact height. |
-| `lift_tool` | Straight ascent to safe height. |
+| This README | Build context, RViz workflow, and canvas teaching |
+| [Configuration reference](REFERENCE.md) | Profiles, parameters, collision model, and motion checks |
+| [Hardware preflight](PREFLIGHT.md) | Required real-arm procedure and abort rules |
+| [Path format](../../docs/painting-paths-format.md) | Canvas coordinates and command schema |
 
-Safety checks refuse out-of-canvas coordinates, `move_to` with the pen down,
-strokes with the pen up, and abort on any planning/execution failure. Cartesian
-trajectories are retimed with TOTG using the configured velocity and
-acceleration scaling.
+The repository [root README](../../README.md) contains the workspace import and
+build instructions. This package is built from
+`RobRoss/ros2/robross_painter` as a normal colcon package alongside the Aubo
+driver and MoveIt configuration.
 
-It also publishes markers on `robross_markers` so RViz can show the paper
-outline and completed strokes.
+## Path Execution
 
-## Canvas Calibration
+The executor converts canvas-space commands into pen-tip poses:
 
-`config/demo_v1_rviz.yaml` holds robot-specific settings that intentionally do
-not belong in the artwork configs:
-
-| Parameter | Meaning |
+| Command | Behavior |
 | --- | --- |
-| `canvas_origin_xyz` | Paper top-left corner in `base_link`; z is pen-contact height. |
-| `canvas_x_yaw_deg` | Direction of the page x axis in the base XY plane. |
-| `safe_clearance_m` | Hover height for travel moves. |
-| `tool_rpy` | Pen-down orientation of `ee_link`. |
-| `velocity_scaling`, `acceleration_scaling`, `eef_step_m`, `dry_run` | Motion execution settings. |
+| `select_tool`, `dip_paint` | Logged no-op for the pen prototype. |
+| `move_to` | Pen-up travel; the first move uses nearby joint-space IK. |
+| `lower_tool` | Straight motion along the canvas normal to contact. |
+| `paint_stroke` | Straight contact motion. |
+| `paint_path` | One continuous contact trajectory through every polyline point. |
+| `lift_tool` | Straight retreat along the canvas normal. |
 
-For the real robot, replace origin/yaw with measured values from taught paper
-corners and lower speed scaling before contact tests.
+Canvas coordinates are in millimeters from the paper's top-left, with `x`
+right and `y` down. The canvas may be horizontal, vertical, or slanted. Its
+calibrated frame maps those coordinates into `base_link`; tool-offset settings
+then convert pen-tip targets into `ee_link` targets.
 
-## Run In RViz With Fake Hardware
+## Safety Model
 
-From the colcon workspace root:
+Before execution, the node adds the configured ground, canvas backing, and claw
+collision geometry. It then applies these fail-closed checks:
+
+- fresh measured joint state before motion and after execution;
+- current-state-seeded IK for a nearby first approach;
+- configured elbow-family limits at startup and along every trajectory;
+- bounded goal displacement, total travel, and sample steps for guarded joints;
+- tighter guarded-joint travel while lowering, painting, or lifting;
+- Cartesian jump detection and post-retiming pen-tip path validation;
+- MoveIt bounds and collision checks at interpolated trajectory samples;
+- measured pen-tip endpoint checks after execution.
+
+The executor does not move through an automatic home pose, switch elbow family,
+or retry an unconstrained IK goal. If contact-state execution becomes uncertain,
+it attempts only a measured straight retreat from the canvas.
+
+See [REFERENCE.md](REFERENCE.md) for the exact controls. Do not weaken a safety
+limit merely to make a rejected trajectory execute.
+
+## Calibration Profiles
+
+| Profile | Use |
+| --- | --- |
+| `config/rviz_wall_a4.yaml` | Default fake-hardware A4 wall. Simulation only. |
+| `config/rviz_taught_a4.yaml` | Fake-hardware tests with a taught canvas on any plane (slanted, ground). No ground collision plane, auto-sized backing patch, relaxed base-axis guards. Simulation only. |
+| `config/demo_v1_rviz.yaml` | Earlier fake-hardware horizontal-paper setup. |
+| `config/hardware_a4.yaml` | Real-arm template for any taught surface. Every `TODO` must be measured and reviewed. |
+
+`paint.launch.py` defaults to `rviz_wall_a4.yaml`. Never use that default on a
+real arm. A real-arm launch must explicitly pass both `calibration_file` and a
+taught `canvas_file`. The launch fails before starting the executor if any
+supplied file is missing or if the calibration/canvas YAML has the wrong role.
+
+## Run In RViz
+
+Generate the path files first by following the
+[Mondrian pipeline guide](../../Image_Process/mondrian/README.md). From the
+colcon workspace root:
 
 ```bash
-export ROBROSS_REPO=$PWD/src/RobRoss
-source install/setup.bash
+colcon build --packages-select robross_painter
 ```
 
-Terminal 1, start controllers with fake hardware:
+Each terminal below is opened at the workspace root. Source the workspace in
+every terminal, and export `ROBROSS_REPO` in each terminal that references it
+(Terminal 3 and the real-arm dry run):
+
+```bash
+source install/setup.bash
+export ROBROSS_REPO=$PWD/src/RobRoss
+```
+
+Terminal 1, start fake controllers. The `aubo_ros2_driver` and
+`aubo_moveit_config` packages come from the Aubo fork imported through
+`ros2/robross_aubo.repos` during the [workspace setup](../../README.md):
 
 ```bash
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
@@ -81,10 +105,8 @@ Terminal 2, start MoveIt and RViz:
 ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=aubo_i5
 ```
 
-In RViz, add a `Marker` display on topic `robross_markers` to see the paper
-outline and strokes.
-
-Terminal 3, execute the generated RobRoss path file:
+Terminal 3, run the full artwork with the default virtual wall
+(`config/rviz_wall_a4.yaml`):
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
@@ -92,21 +114,89 @@ ros2 launch robross_painter paint.launch.py \
   paths_file:=$ROBROSS_REPO/output/painting_paths.json
 ```
 
-The 50 mm first-contact test line uses the same executor:
+Use `output/test_line_paths.json` instead for the 50 mm line. Add an RViz
+`Marker` display on `robross_markers` to see the paper outline and completed
+strokes.
+
+For the horizontal-paper simulation, pass the legacy profile as an extra
+argument to the Terminal 3 launch:
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
   aubo_type:=aubo_i5 \
-  paths_file:=$ROBROSS_REPO/output/test_line_paths.json
+  paths_file:=$ROBROSS_REPO/output/painting_paths.json \
+  calibration_file:=$(ros2 pkg prefix robross_painter)/share/robross_painter/config/demo_v1_rviz.yaml
 ```
 
-Optional argument: `calibration_file:=<yaml>` overrides the canvas pose,
-heights, and speeds.
+## Teach A Real Canvas
 
-## Implementation Note
+Complete the [hardware preflight](PREFLIGHT.md) in order; this section only
+documents the teaching tool.
 
-Do not spin the executor node in an external executor. In MoveIt Humble,
-`MoveGroupInterface` spins the passed node internally, and a second executor
-can steal its action responses. For the same reason the code avoids
-`getCurrentState()` and builds the retiming start state from the trajectory's
-first waypoint.
+1. Calibrate the robot model as described by the maintained Aubo driver.
+2. Create a working copy of `hardware_a4.yaml`, measure every `TODO`, and keep
+   `dry_run: true` for the initial full-artwork plan:
+
+```bash
+cp "$(ros2 pkg prefix robross_painter)/share/robross_painter/config/hardware_a4.yaml" \
+  "$HOME/hardware_a4.yaml"
+```
+
+3. Start the real driver, enable pendant freedrive, and run the teaching node
+   with the exact measured tool offset from that hardware profile:
+
+```bash
+ros2 run robross_painter teach_canvas.py --ros-args \
+  -p tool_offset_xyz:="[<x>, <y>, <z>]" \
+  -p output_file:=$HOME/canvas_calibration.yaml
+```
+
+Touch the **physical paper corners**, not the artwork-margin corners, and record
+top-left, top-right, then bottom-left:
+
+```bash
+ros2 service call /teach_canvas/record_top_left std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_top_right std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_bottom_left std_srvs/srv/Trigger
+ros2 service call /teach_canvas/save std_srvs/srv/Trigger
+```
+
+`save` writes `canvas_origin_xyz` and `canvas_quat_xyzw`. Re-teach if the
+reported dimensions differ materially from A4 or the corners are not square.
+
+First dry-run the **complete artwork** with the reviewed hardware profile and
+taught canvas:
+
+```bash
+ros2 launch robross_painter paint.launch.py \
+  calibration_file:=$HOME/hardware_a4.yaml \
+  canvas_file:=$HOME/canvas_calibration.yaml \
+  paths_file:=$ROBROSS_REPO/output/painting_paths.json
+```
+
+Only after that succeeds should a reviewed profile set `dry_run: false` and run
+`output/test_line_paths.json` at the preflight speeds. Keep an operator on the
+e-stop.
+
+## Troubleshooting
+
+- Start from a collision-free, approved elbow-up posture. The executor will not
+  reposition an invalid start automatically.
+- `IK goal moves <joint> by N deg (limit M deg)`: the taught canvas sits
+  outside the guarded base-swing range of the active profile. In simulation use
+  `rviz_taught_a4.yaml`; on hardware, place the paper within the guarded range
+  instead of raising the limits.
+- `No bounded elbow-up joint-space plan found` with a ground-lying or low
+  canvas: the ground collision plane is blocking the approach. Use a profile
+  with `ground_enabled: false` so the auto-sized backing patch protects the
+  surface under the paper instead. The executor removes its prior ground object
+  when applying the disabled profile; a `Ground collision plane disabled and
+  absent` log confirms the update.
+- The executor logs only to its own file; after a silent exit check
+  `~/.ros/log/painting_executor_<pid>_<stamp>.log`.
+- Restart the whole simulation stack after stale DDS state or a planning-scene
+  reset. Restart the painting rather than resuming midway.
+- In MoveIt Humble, do not spin the executor node in a second external executor;
+  `MoveGroupInterface` manages the passed node's action responses.
+- The independent `/joint_states` monitor measures freshness at receipt time so
+  fake controllers with zero message timestamps remain supported.

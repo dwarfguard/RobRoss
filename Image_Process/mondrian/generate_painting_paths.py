@@ -6,11 +6,23 @@ from html import escape
 from pathlib import Path
 
 from config_loader import load_config
+from path_optimizer import (
+    optimize_polylines,
+    polyline_length,
+    serpentine_points,
+    travel_distance,
+)
 from path_validation import validate_painting_paths
 
 # This script does NOT generate a new random layout. It reads the layout
 # already decided by mondrian_generator.py and converts it into concrete
 # robot-style stroke paths.
+#
+# Stroke ordering is NOT the plan's creation order: operations are turned
+# into continuous polylines (one serpentine per rectangle fill, chained
+# touching lines) and reordered nearest-neighbor by path_optimizer.py, so
+# the pen draws continuously and travels as little as possible. Only the
+# fills-before-lines phase split is preserved (grid goes over fills).
 
 DEFAULT_CONFIG_FILE = "configs/demo_v1_a4_pen.json"
 
@@ -83,6 +95,17 @@ def lift_tool(label: str) -> dict:
     return {"command": "lift_tool", "label": label}
 
 
+def paint_path(points, color: str, label: str) -> dict:
+    """Continuous pen-down polyline through all points (enables curved
+    lines later: sample the curve densely into points)."""
+    return {
+        "command": "paint_path",
+        "label": label,
+        "color": color,
+        "points_mm": [[round(x, 2), round(y, 2)] for x, y in points],
+    }
+
+
 # --- Converting painting_plan.json operations into stroke commands -----
 
 def compute_stripe_row_centers(y: float, height: float, tool_width_mm: float, stroke_overlap_ratio: float) -> list[float]:
@@ -110,8 +133,60 @@ def compute_stripe_row_centers(y: float, height: float, tool_width_mm: float, st
     return centers
 
 
+def rectangle_to_polyline(op: dict, path_settings: dict) -> dict | None:
+    """
+    Convert one paint_rectangle operation into a single continuous
+    serpentine polyline: boustrophedon rows connected inside the fill, so
+    the whole region paints without lifting the tool. Returns None when
+    the rectangle is too small to paint after the edge inset.
+    """
+    label = op["label"]
+
+    tool_width_mm = path_settings["tool_width_mm"]
+    stroke_overlap_ratio = path_settings["stroke_overlap_ratio"]
+    edge_inset_mm = path_settings["edge_inset_mm"]
+
+    x = op["x_mm"] + edge_inset_mm
+    y = op["y_mm"] + edge_inset_mm
+    width = op["width_mm"] - 2 * edge_inset_mm
+    height = op["height_mm"] - 2 * edge_inset_mm
+
+    if width <= 0 or height <= 0:
+        print(f"Skipping {label}: too small to paint after edge inset")
+        return None
+
+    row_centers = compute_stripe_row_centers(y, height, tool_width_mm, stroke_overlap_ratio)
+    points = serpentine_points(row_centers, x, x + width)
+    return {"points": points, "color": op["color"], "label": label}
+
+
+def line_to_polyline(op: dict) -> dict:
+    """Convert one paint_line operation into a two-point polyline."""
+    return {
+        "points": [tuple(op["from_mm"]), tuple(op["to_mm"])],
+        "color": op["color"],
+        "label": op["label"],
+    }
+
+
+def polyline_to_commands(poly: dict) -> list[dict]:
+    """Emit the motion commands for one continuous polyline."""
+    points = poly["points"]
+    label = poly["label"]
+    return [
+        move_to(points[0][0], points[0][1], label),
+        lower_tool(label),
+        paint_path(points, poly["color"], label),
+        lift_tool(label),
+    ]
+
+
 def rectangle_to_commands(op: dict, path_settings: dict) -> list[dict]:
-    """Convert one paint_rectangle operation into boustrophedon stripe strokes."""
+    """Convert one paint_rectangle operation into boustrophedon stripe strokes.
+
+    Legacy per-operation converter (one lift per row, plan order); the
+    pipeline now uses rectangle_to_polyline + path_optimizer instead.
+    """
     label = op["label"]
     color = op["color"]
 
@@ -151,7 +226,11 @@ def rectangle_to_commands(op: dict, path_settings: dict) -> list[dict]:
 
 
 def line_to_commands(op: dict) -> list[dict]:
-    """Convert one paint_line operation into a single stroke."""
+    """Convert one paint_line operation into a single stroke.
+
+    Legacy per-operation converter; the pipeline now uses
+    line_to_polyline + path_optimizer instead.
+    """
     label = op["label"]
     color = op["color"]
     from_point = op["from_mm"]
@@ -169,25 +248,69 @@ def line_to_commands(op: dict) -> list[dict]:
 
 def build_commands(plan: dict, path_settings: dict) -> list[dict]:
     """
-    Walk the painting plan's operations in order and convert each one into
-    stroke commands. Operation order is preserved, so if the plan already
-    has black grid lines last, the resulting commands do too.
+    Convert the painting plan's operations into optimized stroke commands.
+
+    Two phases keep the painting semantics of the plan: all rectangle
+    fills first, then all lines (the black grid paints over the fills).
+    Within each phase, operations are grouped by color (one select_tool /
+    dip_paint per group), turned into continuous polylines, chained where
+    endpoints touch, and reordered nearest-neighbor — so the command
+    order comes from travel optimization, not the subdivide creation
+    order.
     """
-    commands = []
+    fill_polys = []
+    line_polys = []
     for op in plan["operations"]:
         if op["operation"] == "paint_rectangle":
-            commands.extend(rectangle_to_commands(op, path_settings))
+            poly = rectangle_to_polyline(op, path_settings)
+            if poly is not None:
+                fill_polys.append(poly)
         elif op["operation"] == "paint_line":
-            commands.extend(line_to_commands(op))
+            line_polys.append(line_to_polyline(op))
+
+    commands = []
+    position = (0.0, 0.0)  # tool starts near the canvas origin
+
+    for phase_polys in (fill_polys, line_polys):
+        # Group by color, in order of first appearance in the plan.
+        color_order = []
+        by_color = {}
+        for poly in phase_polys:
+            if poly["color"] not in by_color:
+                color_order.append(poly["color"])
+                by_color[poly["color"]] = []
+            by_color[poly["color"]].append(poly)
+
+        for color in color_order:
+            ordered, position = optimize_polylines(by_color[color], position)
+            group_label = ordered[0]["label"]
+            commands.append(select_tool(color, group_label))
+            commands.append(dip_paint(color, group_label))
+            for poly in ordered:
+                commands.extend(polyline_to_commands(poly))
+
     return commands
 
 
 def build_painting_paths(plan: dict, commands: list[dict], config: dict, config_path: Path, plan_path: Path) -> dict:
     """Assemble the full painting_paths.json structure."""
     stroke_commands = [cmd for cmd in commands if cmd["command"] == "paint_stroke"]
+    path_commands = [cmd for cmd in commands if cmd["command"] == "paint_path"]
     total_distance = sum(
         math.dist(cmd["from_mm"], cmd["to_mm"]) for cmd in stroke_commands
-    )
+    ) + sum(polyline_length(cmd["points_mm"]) for cmd in path_commands)
+
+    # Lifted-travel distance actually incurred by the emitted command
+    # order, and what the plan's raw creation order would have cost, so
+    # the optimizer's effect is visible in the debug block.
+    painted = [
+        {"points": [tuple(cmd["from_mm"]), tuple(cmd["to_mm"])]}
+        if cmd["command"] == "paint_stroke"
+        else {"points": [tuple(p) for p in cmd["points_mm"]]}
+        for cmd in commands
+        if cmd["command"] in ("paint_stroke", "paint_path")
+    ]
+    total_travel = travel_distance(painted, (0.0, 0.0))
 
     def count_commands(command_name: str) -> int:
         return sum(1 for cmd in commands if cmd["command"] == command_name)
@@ -229,7 +352,9 @@ def build_painting_paths(plan: dict, commands: list[dict], config: dict, config_
         "debug": {
             "num_commands": len(commands),
             "num_paint_stroke_commands": len(stroke_commands),
+            "num_paint_path_commands": len(path_commands),
             "estimated_total_paint_distance_mm": round(total_distance, 2),
+            "estimated_total_travel_distance_mm": round(total_travel, 2),
             "num_fill_regions": num_fill_regions,
             "num_grid_lines": num_grid_lines,
             "num_select_tool_commands": count_commands("select_tool"),
@@ -281,6 +406,16 @@ def render_svg(painting_paths: dict) -> str:
             )
             last_point = (x2, y2)
 
+        elif cmd["command"] == "paint_path":
+            points_attr = " ".join(f"{x},{y}" for x, y in cmd["points_mm"])
+            elements.append(
+                f'<polyline points="{points_attr}" fill="none" '
+                f'stroke="{escape(cmd["color"])}" stroke-width="{painting_paths["path_settings"]["tool_width_mm"]}" '
+                f'stroke-linecap="round" stroke-linejoin="round" '
+                f'stroke-opacity="{STROKE_PREVIEW_OPACITY}" />'
+            )
+            last_point = tuple(cmd["points_mm"][-1])
+
     svg_body = "\n  ".join(elements)
 
     return f'''<svg
@@ -326,9 +461,12 @@ def build_animation_timeline(commands: list) -> tuple[list, float]:
                 time_s += dur
             position = target
 
-        elif name == "paint_stroke":
-            start_pt = tuple(cmd["from_mm"])
-            end_pt = tuple(cmd["to_mm"])
+        elif name in ("paint_stroke", "paint_path"):
+            if name == "paint_stroke":
+                points = [tuple(cmd["from_mm"]), tuple(cmd["to_mm"])]
+            else:
+                points = [tuple(p) for p in cmd["points_mm"]]
+            start_pt = points[0]
             if position is None:
                 events.append({"type": "place", "at": start_pt, "start": time_s})
             elif position != start_pt:
@@ -337,17 +475,20 @@ def build_animation_timeline(commands: list) -> tuple[list, float]:
                 dur = max(math.dist(position, start_pt) / ANIMATION_TRAVEL_SPEED_MM_S, 0.02)
                 events.append({"type": "travel", "from": position, "to": start_pt, "start": time_s, "dur": dur})
                 time_s += dur
-            dur = max(math.dist(start_pt, end_pt) / ANIMATION_PAINT_SPEED_MM_S, 0.02)
-            events.append({
-                "type": "stroke",
-                "from": start_pt,
-                "to": end_pt,
-                "color": cmd["color"],
-                "start": time_s,
-                "dur": dur,
-            })
-            time_s += dur
-            position = end_pt
+            # A paint_path animates as back-to-back per-segment strokes
+            # with no pause in between: visually one continuous line.
+            for seg_from, seg_to in zip(points, points[1:]):
+                dur = max(math.dist(seg_from, seg_to) / ANIMATION_PAINT_SPEED_MM_S, 0.02)
+                events.append({
+                    "type": "stroke",
+                    "from": seg_from,
+                    "to": seg_to,
+                    "color": cmd["color"],
+                    "start": time_s,
+                    "dur": dur,
+                })
+                time_s += dur
+            position = points[-1]
 
         elif name in ("lower_tool", "lift_tool", "dip_paint"):
             events.append({"type": name, "start": time_s})

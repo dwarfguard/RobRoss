@@ -63,6 +63,50 @@ class TestValidateCommand(unittest.TestCase):
         _, warnings = validate_command(command, 0, A4_CANVAS)
         self.assertEqual(len(warnings), 1)
 
+    def test_valid_paint_path_is_ok(self):
+        command = {
+            "command": "paint_path",
+            "label": "poly",
+            "color": "black",
+            "points_mm": [[10.0, 10.0], [200.0, 10.0], [200.0, 287.0]],
+        }
+        errors, warnings = validate_command(command, 0, A4_CANVAS)
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+
+    def test_paint_path_needs_two_points(self):
+        command = {"command": "paint_path", "color": "black", "points_mm": [[10.0, 10.0]]}
+        errors, _ = validate_command(command, 0, A4_CANVAS)
+        self.assertEqual(len(errors), 1)
+
+    def test_paint_path_point_outside_canvas_is_an_error(self):
+        command = {
+            "command": "paint_path",
+            "color": "black",
+            "points_mm": [[10.0, 10.0], [500.0, 10.0]],
+        }
+        errors, _ = validate_command(command, 0, A4_CANVAS)
+        self.assertEqual(len(errors), 1)
+
+    def test_paint_path_zero_total_length_is_an_error(self):
+        command = {
+            "command": "paint_path",
+            "color": "black",
+            "points_mm": [[10.0, 10.0], [10.0, 10.0]],
+        }
+        errors, _ = validate_command(command, 0, A4_CANVAS)
+        self.assertTrue(any("zero total length" in e for e in errors))
+
+    def test_paint_path_duplicate_point_is_a_warning(self):
+        command = {
+            "command": "paint_path",
+            "color": "black",
+            "points_mm": [[10.0, 10.0], [10.0, 10.0], [50.0, 10.0]],
+        }
+        errors, warnings = validate_command(command, 0, A4_CANVAS)
+        self.assertEqual(errors, [])
+        self.assertEqual(len(warnings), 1)
+
 
 class TestValidatePaintingPaths(unittest.TestCase):
     def test_missing_commands_list_is_an_error(self):
