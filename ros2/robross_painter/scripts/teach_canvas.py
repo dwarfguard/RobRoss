@@ -13,18 +13,25 @@ Workflow:
 
      Confirm joint_trajectory_controller is inactive and
      joint_state_broadcaster remains active, then enable freedrive.
-  2. Run this node with the same tool offset the executor will use:
+  2. Run this node with the same tool offset the executor will use, and
+     the intended pen preload as plane_bias_mm (see step 3):
 
        ros2 run robross_painter teach_canvas.py --ros-args \\
          -p tool_offset_xyz:="[0.0, 0.0, 0.12]" \\
+         -p plane_bias_mm:=1.8 \\
          -p output_file:=$HOME/canvas_calibration.yaml
 
-  3. Position the pen tip on each corner of the paper and record it. Use
-     freedrive only for the coarse approach (to ~10 mm from the corner);
-     the i5's freedrive breakaway force is too high for accurate small
-     motions. Disable freedrive and make the final approach with the
-     pendant's slowest jog speed, then take your hands off the arm and
-     record:
+  3. Bring the pen tip to each corner of the paper at JUST-touch (the
+     spring at free length) and record it. Use freedrive only for the
+     coarse approach (hover a few mm off the corner); the i5's freedrive
+     breakaway force is too high for accurate small motions. Disable
+     freedrive, reactivate joint_trajectory_controller, and step in with
+     the teach_nudge node (~/nudge_in, 0.2 mm steps) until the pen body
+     FIRST visibly moves relative to the claw — that is the true paper
+     surface — then record. The recorded point is the free-length virtual
+     tip, so any spring compression at record time pushes the taught
+     plane that far behind the paper; plane_bias_mm applies the drawing
+     preload in software instead, at save time:
 
        ros2 service call /teach_canvas/record_top_left std_srvs/srv/Trigger
        ros2 service call /teach_canvas/record_top_right std_srvs/srv/Trigger
@@ -76,6 +83,45 @@ def average_still_samples(positions, tol_mm):
     mean = arr.mean(axis=0)
     spread_mm = float(np.linalg.norm(arr - mean, axis=1).max() * 1000.0)
     return (mean if spread_mm <= tol_mm else None), spread_mm
+
+
+def compute_canvas_pose(tl, tr, bl, plane_bias_mm=0.0):
+    """Canvas pose from the three touched corners.
+
+    Returns (origin, quat_xyzw, width_m, height_m, skew_deg). origin is
+    the top-left corner shifted plane_bias_mm along the canvas +z normal
+    (into the wall — the executor hovers at -z, so +z is behind the
+    paper). With the just-touch doctrine the corners are recorded at zero
+    spring compression (the true paper surface) and the bias IS the pen
+    preload: drawing compresses the spring by exactly plane_bias_mm when
+    the taught plane is perfect. Raises ValueError when the corners are
+    too close together to define a plane.
+    """
+    tl = np.asarray(tl, dtype=float)
+    tr = np.asarray(tr, dtype=float)
+    bl = np.asarray(bl, dtype=float)
+
+    x_raw = tr - tl
+    y_raw = bl - tl
+    width_m = float(np.linalg.norm(x_raw))
+    if width_m < 0.01 or np.linalg.norm(y_raw) < 0.01:
+        raise ValueError("Corners are too close together, re-record them")
+
+    xc = x_raw / width_m
+    y_proj = y_raw - np.dot(y_raw, xc) * xc
+    height_m = float(np.linalg.norm(y_proj))
+    yc = y_proj / height_m
+    zc = np.cross(xc, yc)
+    skew_deg = math.degrees(
+        math.acos(
+            np.clip(
+                np.dot(y_raw / np.linalg.norm(y_raw), yc), -1.0, 1.0
+            )
+        )
+    )
+    origin = tl + zc * (plane_bias_mm / 1000.0)
+    quat = matrix_to_quat(np.column_stack((xc, yc, zc)))
+    return origin, quat, width_m, height_m, skew_deg
 
 
 def rectangle_residual_mm(tl, tr, bl, br):
@@ -143,6 +189,12 @@ class TeachCanvas(Node):
         self.declare_parameter("stillness_tol_mm", 0.5)
         self.declare_parameter("min_record_samples", 10)
         self.declare_parameter("corner_residual_warn_mm", 2.0)
+        # Pen preload: the saved plane is shifted this far along the canvas
+        # normal INTO the wall. Use with the just-touch doctrine (record
+        # each corner at first visible spring movement, zero compression);
+        # keep 0.0 when corners are recorded the old way, with the spring
+        # already ~half compressed, or the preload doubles up.
+        self.declare_parameter("plane_bias_mm", 0.0)
 
         self.base_frame = self.get_parameter("base_frame").value
         self.ee_frame = self.get_parameter("ee_frame").value
@@ -243,31 +295,24 @@ class TeachCanvas(Node):
         tl = self.points["top_left"]
         tr = self.points["top_right"]
         bl = self.points["bottom_left"]
+        bias_mm = float(self.get_parameter("plane_bias_mm").value)
 
-        x_raw = tr - tl
-        y_raw = bl - tl
-        width_m = float(np.linalg.norm(x_raw))
-        if width_m < 0.01 or np.linalg.norm(y_raw) < 0.01:
+        try:
+            origin, (qx, qy, qz, qw), width_m, height_m, skew_deg = \
+                compute_canvas_pose(tl, tr, bl, bias_mm)
+        except ValueError as exc:
             res.success = False
-            res.message = "Corners are too close together, re-record them"
+            res.message = str(exc)
             return res
 
-        xc = x_raw / width_m
-        y_proj = y_raw - np.dot(y_raw, xc) * xc
-        height_m = float(np.linalg.norm(y_proj))
-        yc = y_proj / height_m
-        zc = np.cross(xc, yc)
-        skew_deg = math.degrees(
-            math.acos(
-                np.clip(
-                    np.dot(y_raw / np.linalg.norm(y_raw), yc), -1.0, 1.0
-                )
-            )
-        )
-
-        qx, qy, qz, qw = matrix_to_quat(np.column_stack((xc, yc, zc)))
-
         warnings = []
+        # 3.8 mm is the pen spring's full travel: a negative bias draws in
+        # the air, a bias past full travel bottoms the spring out.
+        if bias_mm < 0.0 or bias_mm > 3.8:
+            warnings.append(
+                f"plane_bias_mm {bias_mm:.1f} is outside the pen spring's "
+                "0-3.8 mm travel — check the sign/value"
+            )
         if skew_deg > 2.0:
             warnings.append(
                 f"corners are {skew_deg:.1f} deg off square, re-teach if "
@@ -304,7 +349,7 @@ class TeachCanvas(Node):
         data = {
             "painting_executor": {
                 "ros__parameters": {
-                    "canvas_origin_xyz": [round(float(v), 6) for v in tl],
+                    "canvas_origin_xyz": [round(float(v), 6) for v in origin],
                     "canvas_quat_xyzw": [
                         round(float(v), 6) for v in (qx, qy, qz, qw)
                     ],
@@ -317,6 +362,8 @@ class TeachCanvas(Node):
             f"tool_offset_xyz: {self.tool_offset.tolist()}\n"
             f"# measured paper: {width_m * 1000:.1f} x "
             f"{height_m * 1000:.1f} mm, corner skew {skew_deg:.2f} deg\n"
+            f"# plane_bias_mm: {bias_mm} (origin sits this far behind the "
+            "raw top_left, along the canvas normal into the wall)\n"
             f"# top_left:     {tl.tolist()}\n"
             f"# top_right:    {tr.tolist()}\n"
             f"# bottom_left:  {bl.tolist()}\n"
@@ -340,7 +387,7 @@ class TeachCanvas(Node):
         res.success = True
         res.message = (
             f"Saved {out} (paper {width_m * 1000:.1f} x "
-            f"{height_m * 1000:.1f} mm"
+            f"{height_m * 1000:.1f} mm, plane bias {bias_mm:.1f} mm"
             + (f"; WARNINGS: {'; '.join(warnings)})" if warnings else ")")
         )
         self.get_logger().info(res.message)

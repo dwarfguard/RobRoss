@@ -187,25 +187,55 @@ ros2 control list_controllers
 ```
 
 Confirm that `joint_trajectory_controller` is `inactive` and
-`joint_state_broadcaster` remains `active`. Then enable freedrive on the
-pendant and run the teaching node with the exact measured tool offset from
-that hardware profile:
+`joint_state_broadcaster` remains `active`. Then run the teaching node with
+the exact measured tool offset from that hardware profile and the intended
+pen preload as `plane_bias_mm`, plus the nudge helper in another terminal
+(it needs the Terminal 2 `move_group` and reports "ready" once connected):
 
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
   -p tool_offset_xyz:="[<x>, <y>, <z>]" \
+  -p plane_bias_mm:=1.8 \
   -p output_file:=$HOME/canvas_calibration.yaml
+
+# Second terminal: sub-millimeter approach steps along the pen axis. Launch
+# (not `ros2 run`) so its MoveGroupInterface gets the robot_description/SRDF;
+# aubo_type must match the running stack.
+ros2 launch robross_painter teach_nudge.launch.py \
+  aubo_type:=aubo_i5 \
+  tool_offset_rpy:="[<r>, <p>, <y>]"
 ```
 
-Touch the **physical paper corners**, not the artwork-margin corners. Use
-freedrive only for the coarse approach, to about 10 mm from each corner — the
-i5's freedrive breakaway force is too high for accurate millimeter motions.
-Disable freedrive, make the final approach with the pendant's slowest jog
-speed (commanded motion is immune to freedrive friction), then take your
-hands off the arm before recording. Each record averages the pen tip over the
-last second and is rejected if the arm was still moving — release, let it
-settle, and call the service again. Record top-left, top-right, bottom-left,
-then bottom-right as a validation point:
+Teach at **just-touch**: the recorded point is the free-length virtual pen
+tip, so any spring compression at record time pushes the taught plane that
+far behind the paper — the drawing preload is applied in software by
+`plane_bias_mm` instead (see PREFLIGHT.md section 2). Touch the **physical
+paper corners**, not the artwork-margin corners. For each corner:
+
+1. Enable pendant freedrive and bring the pen tip to hover a few mm off
+   the corner, roughly perpendicular to the paper — the i5's freedrive
+   breakaway force is too high for accurate millimeter motions, so stop
+   there.
+2. Disable freedrive and reactivate the controller
+   (`ros2 control switch_controllers --activate joint_trajectory_controller
+   --strict`). Before the first corner only, verify the nudge direction
+   well clear of the paper: `~/nudge_out` must move the pen away from it.
+3. Step the pen in until the pen body **first visibly moves** relative to
+   the claw — that is the paper surface at zero compression; stop there:
+
+   ```bash
+   ros2 service call /teach_nudge/nudge_in std_srvs/srv/Trigger
+   ros2 param set /teach_nudge nudge_step_mm 0.2   # finer steps for the last mm
+   ```
+
+4. Record the corner (hands are already off the arm; each record averages
+   the pen tip over the last second and is rejected if the arm was still
+   moving — wait and call it again).
+5. `~/nudge_out` a few steps to clear the paper, deactivate the controller
+   again, and freedrive to the next corner.
+
+Record top-left, top-right, bottom-left, then bottom-right as a validation
+point:
 
 ```bash
 ros2 service call /teach_canvas/record_top_left std_srvs/srv/Trigger
@@ -215,11 +245,12 @@ ros2 service call /teach_canvas/record_bottom_right std_srvs/srv/Trigger
 ros2 service call /teach_canvas/save std_srvs/srv/Trigger
 ```
 
-`save` writes `canvas_origin_xyz` and `canvas_quat_xyzw`. The optional
-bottom-right corner never changes the saved pose; `save` warns when it lies
-more than 2 mm from where the other three corners predict it. Re-teach if the
-reported dimensions differ materially from A4, the corners are not square, or
-the bottom-right residual warning appears.
+`save` writes `canvas_origin_xyz` (the top-left corner pushed `plane_bias_mm`
+behind the paper along the canvas normal) and `canvas_quat_xyzw`. The
+optional bottom-right corner never changes the saved pose; `save` warns when
+it lies more than 2 mm from where the other three corners predict it. Re-teach
+if the reported dimensions differ materially from A4, the corners are not
+square, or the bottom-right residual warning appears.
 
 Disable freedrive on the pendant before returning control to ROS, then
 reactivate the trajectory controller. The driver resumes from the measured

@@ -11,6 +11,7 @@ find_package(moveit_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(jsoncpp REQUIRED)
@@ -32,7 +33,19 @@ ament_target_dependencies(painting_executor
 )
 target_link_libraries(painting_executor jsoncpp_lib)
 
-install(TARGETS painting_executor
+add_executable(teach_nudge src/teach_nudge.cpp)
+ament_target_dependencies(teach_nudge
+  rclcpp
+  rclcpp_action
+  moveit_ros_planning_interface
+  moveit_core
+  moveit_msgs
+  geometry_msgs
+  std_srvs
+  tf2
+)
+
+install(TARGETS painting_executor teach_nudge
   DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS scripts/teach_canvas.py

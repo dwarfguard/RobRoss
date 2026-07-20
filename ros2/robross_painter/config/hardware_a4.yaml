@@ -5,10 +5,11 @@
 # re-verify every measured value before running with dry_run: false.
 #
 # The canvas pose itself does NOT live here. Teach it on the real setup:
-#   1. Put the arm in freedrive, run teach_canvas.py with the same
-#      tool_offset_xyz as below, touch the pen tip to the paper's top-left,
-#      top-right and bottom-left corners, call the record services, then
-#      ~/save (see the package README).
+#   1. Run teach_canvas.py with the same tool_offset_xyz as below and
+#      plane_bias_mm:=1.8, plus the teach_nudge node. Freedrive to hover
+#      near each corner, nudge the pen in to just-touch (first visible
+#      spring movement), record top-left, top-right and bottom-left, then
+#      ~/save (full loop: package README / PREFLIGHT section 2).
 #   2. Launch with both files:
 #        ros2 launch robross_painter paint.launch.py \
 #          calibration_file:=<this file> \

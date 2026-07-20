@@ -56,3 +56,65 @@ def test_offset_fourth_corner_reports_residual_in_mm():
     br = [0.4, -0.105, 0.303 - 0.005]  # 5 mm low
     residual = teach_canvas.rectangle_residual_mm(tl, tr, bl, br)
     np.testing.assert_allclose(residual, 5.0, atol=1e-9)
+
+
+# Vertical A4 wall canvas facing the robot: x runs right (-y in base),
+# y runs down (-z in base), so the canvas normal x cross y is +x in base
+# (into the wall, away from the robot).
+_WALL_TL = [0.4, 0.105, 0.6]
+_WALL_TR = [0.4, -0.105, 0.6]
+_WALL_BL = [0.4, 0.105, 0.303]
+
+
+def test_canvas_pose_zero_bias_keeps_top_left_as_origin():
+    origin, quat, width_m, height_m, skew_deg = teach_canvas.compute_canvas_pose(
+        _WALL_TL, _WALL_TR, _WALL_BL
+    )
+    np.testing.assert_allclose(origin, _WALL_TL, atol=1e-12)
+    np.testing.assert_allclose(width_m, 0.210, atol=1e-9)
+    np.testing.assert_allclose(height_m, 0.297, atol=1e-9)
+    np.testing.assert_allclose(skew_deg, 0.0, atol=1e-9)
+    rot = teach_canvas.quat_to_matrix(*quat)
+    np.testing.assert_allclose(rot[:, 0], [0.0, -1.0, 0.0], atol=1e-9)  # xc
+    np.testing.assert_allclose(rot[:, 1], [0.0, 0.0, -1.0], atol=1e-9)  # yc
+    np.testing.assert_allclose(rot[:, 2], [1.0, 0.0, 0.0], atol=1e-9)   # zc
+
+
+def test_plane_bias_shifts_origin_into_wall_only():
+    unbiased = teach_canvas.compute_canvas_pose(_WALL_TL, _WALL_TR, _WALL_BL)
+    biased = teach_canvas.compute_canvas_pose(
+        _WALL_TL, _WALL_TR, _WALL_BL, plane_bias_mm=1.8
+    )
+    # Origin moves exactly 1.8 mm along +zc (base +x here, into the wall).
+    np.testing.assert_allclose(
+        biased[0] - unbiased[0], [0.0018, 0.0, 0.0], atol=1e-12
+    )
+    # Orientation and measured size are untouched by the bias.
+    np.testing.assert_allclose(biased[1], unbiased[1], atol=1e-12)
+    assert biased[2:] == unbiased[2:]
+
+
+def test_plane_bias_follows_a_slanted_canvas_normal():
+    # 45 deg easel: y runs down-and-away from the robot, x still right.
+    s = 0.297 / np.sqrt(2.0)
+    tl = np.array([0.4, 0.105, 0.6])
+    tr = np.array([0.4, -0.105, 0.6])
+    bl = tl + np.array([s, 0.0, -s])
+    origin, _quat, width_m, height_m, _skew = teach_canvas.compute_canvas_pose(
+        tl, tr, bl, plane_bias_mm=2.0
+    )
+    normal = np.array([1.0, 0.0, 1.0]) / np.sqrt(2.0)
+    np.testing.assert_allclose(origin - tl, 0.002 * normal, atol=1e-12)
+    np.testing.assert_allclose(width_m, 0.210, atol=1e-9)
+    np.testing.assert_allclose(height_m, 0.297, atol=1e-9)
+
+
+def test_degenerate_corners_raise():
+    try:
+        teach_canvas.compute_canvas_pose(
+            _WALL_TL, _WALL_TL, _WALL_BL, plane_bias_mm=1.8
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for coincident corners")

@@ -31,37 +31,50 @@ physical setup.
 
 ## 2. Teach the canvas (after ANY paper/wall change)
 
-The pen is spring-loaded with **3.8 mm of compliance**. Use it as the
-error budget: teach each corner with the spring compressed roughly
-**1.5–2 mm** (about half travel), the same amount at every corner. The
-taught plane then sits ~2 mm "into" the wall, so:
+The pen is spring-loaded with **3.8 mm of compliance**. The recorded
+point is the free-length virtual tip (TF x the fixed tool offset), so
+every mm the spring is compressed at record time pushes the taught plane
+1 mm behind the real paper — invisible to every save-time check, and the
+mechanism that rips paper when the spring bottoms out mid-stroke.
+Therefore teach at **just-touch** (zero compression) and let
+`plane_bias_mm:=1.8` apply the preload in software: the saved plane sits
+exactly 1.8 mm "into" the wall, so
 
-- a plane error toward the wall of up to ~1.8 mm still stays within the
+- a plane error toward the wall of up to ~2 mm still stays within the
   spring's travel (no hard contact, no arm fault);
-- a plane error away from the wall of up to ~1.5 mm still leaves ink on
-  the paper (no air-drawing).
+- a plane error away from the wall of up to ~1.8 mm still leaves ink on
+  the paper (no air-drawing);
+- the preload itself is one number, tuned from test-line darkness, not an
+  eyeballed compression repeated identically at every corner.
 
 Checklist:
 
 - [ ] `joint_trajectory_controller` is inactive and
-      `joint_state_broadcaster` remains active. Only then enable pendant
-      freedrive and run `teach_canvas.py` with the SAME `tool_offset_xyz` as
-      the executor config.
-- [ ] Freedrive only for the coarse approach (~10 mm out); the final
-      approach to each corner is made with the pendant's slowest jog, not
-      by pushing the arm — freedrive breakaway force ruins millimeter
-      motions.
-- [ ] Touch top-left / top-right / bottom-left with consistent ~1.5–2 mm
-      spring compression; hands fully off the arm before each record (the
-      node rejects a record if the arm moved in the last second — release
-      and re-record, don't raise the tolerance).
+      `joint_state_broadcaster` remains active. Run `teach_canvas.py` with
+      the SAME `tool_offset_xyz` as the executor config and
+      `plane_bias_mm:=1.8`, and launch `teach_nudge.launch.py` with the SAME
+      `tool_offset_rpy` (launch, not `ros2 run`, so its MoveGroupInterface
+      gets the robot model; it needs `move_group` running).
+- [ ] Freedrive only for the coarse approach (hover a few mm out,
+      roughly perpendicular to the paper) — freedrive breakaway force
+      ruins millimeter motions. Then freedrive OFF, controller
+      reactivated, and the final approach made with `~/nudge_in` steps.
+- [ ] Nudge direction verified with `~/nudge_out` well clear of the paper
+      (first corner only, and after any claw/`tool_offset_rpy` change).
+- [ ] Each corner recorded at JUST-touch: nudge in (0.2 mm steps for the
+      last mm) until the pen body FIRST visibly moves relative to the
+      claw, then stop and record — never press to a visible compression.
+      Hands are off the arm during nudged approaches; the node still
+      rejects a record if the arm moved in the last second (wait and
+      re-record, don't raise the tolerance).
 - [ ] Record bottom-right as a validation corner.
 - [ ] `save` reports paper size within a few mm of A4, no skew warning,
       and no bottom-right residual warning. Any warning: re-teach, don't
       rationalize.
-- [ ] After saving, disable pendant freedrive before reactivating
-      `joint_trajectory_controller`. Confirm the controller is active before
-      planning or executing motion.
+- [ ] After the last corner the controller is already active and freedrive
+      off (the nudged approach requires it); confirm both — and kill
+      `teach_nudge` together with `teach_canvas.py` — before planning or
+      executing motion.
 
 ## 3. Dry-run the full artwork (after ANY calibration, spin, or artwork change)
 

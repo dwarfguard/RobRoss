@@ -76,22 +76,32 @@ Sanity check (terminal 3): `ros2 topic echo /joint_states --once` shows live joi
 change when the arm is jogged. (`aubo_client.launch.py` is a separate service demo — not needed
 for this flow.)
 
-## Step 4 — Teach the canvas (real paper, freedrive)
+## Step 4 — Teach the canvas (real paper, freedrive + nudge)
 
-The pen spring has 3.8 mm of compliance — touch each corner with ~1.5–2 mm compression,
-consistent at every corner. Put the pendant into freedrive, then (terminal 3):
+Teach each corner at **just-touch** (spring at free length): the recorded point is the
+free-length virtual tip, so any compression at record time pushes the taught plane that far
+behind the paper. The 1.8 mm drawing preload is applied in software by `plane_bias_mm`.
+Terminal 3 and 4:
 
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
   -p tool_offset_xyz:="[0.0, -0.0595, 0.0514]" \
+  -p plane_bias_mm:=1.8 \
   -p output_file:=$HOME/canvas_calibration.yaml
+
+ros2 launch robross_painter teach_nudge.launch.py aubo_type:=$AUBO_TYPE \
+  tool_offset_rpy:="[0.0, 0.0, 0.0]"      # launch (not run): supplies the
+                                          # robot model; needs Terminal 2's move_group
 ```
 
-Per corner: freedrive to ~10 mm out (freedrive breakaway force is too high for accurate small
-motions), disable freedrive, finish the approach with the pendant's slowest jog, hands off the
-arm, then record. A record is rejected if the arm moved in the last second — release, let it
-settle, re-record. Bottom-right is a validation-only corner; `save` warns if it sits > 2 mm
-from where the other three predict it:
+Per corner: freedrive to hover a few mm out (freedrive breakaway force is too high for
+accurate small motions), disable freedrive, reactivate `joint_trajectory_controller`, then
+step in with `/teach_nudge/nudge_in` (drop to `nudge_step_mm 0.2` for the last mm) until the
+pen body first visibly moves relative to the claw — stop there and record. Then `nudge_out`
+clear, controller off, freedrive to the next corner (full loop: package README / PREFLIGHT
+section 2). A record is rejected if the arm moved in the last second — wait, re-record.
+Bottom-right is a validation-only corner; `save` warns if it sits > 2 mm from where the
+other three predict it:
 
 ```bash
 ros2 service call /teach_canvas/record_top_left     std_srvs/srv/Trigger
