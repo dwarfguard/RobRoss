@@ -34,7 +34,7 @@
   },
 
   "output": {
-    "directory": "output",
+    "directory": "output/mondrian_12x12_paint",
     "painting_plan_file": "painting_plan.json",
     "painting_paths_file": "painting_paths.json",
     "preview_svg_file": "mondrian_preview.svg",

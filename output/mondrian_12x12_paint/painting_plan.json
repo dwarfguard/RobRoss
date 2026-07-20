@@ -1,0 +1,184 @@
+{
+  "project": "R.O.B Ross",
+  "style": "mondrian",
+  "version": "0.1",
+  "config": {
+    "profile_name": "mondrian_12x12_paint",
+    "source_file": "configs/mondrian_12x12_paint.json"
+  },
+  "canvas": {
+    "width_mm": 304.8,
+    "height_mm": 304.8,
+    "width_in": 12.0,
+    "height_in": 12.0,
+    "margin_mm": 0.0,
+    "origin": "top-left"
+  },
+  "units": "mm",
+  "coordinate_system": {
+    "x_direction": "right",
+    "y_direction": "down"
+  },
+  "assumptions": [
+    "Canvas starts white.",
+    "All strokes stay at least 0.0 mm inside the canvas edge.",
+    "Colored rectangles are painted before black grid lines.",
+    "Black grid lines are painted last to clean up rectangle edges.",
+    "This is an intermediate painting plan, not final robot motor code."
+  ],
+  "operations": [
+    {
+      "operation": "paint_rectangle",
+      "label": "blue_block_1",
+      "color": "#1d4ed8",
+      "x_mm": 0.0,
+      "y_mm": 132.04,
+      "width_mm": 61.81,
+      "height_mm": 46.01,
+      "fill_strategy": "solid_fill"
+    },
+    {
+      "operation": "paint_rectangle",
+      "label": "red_block_1",
+      "color": "#d62828",
+      "x_mm": 238.81,
+      "y_mm": 0.0,
+      "width_mm": 65.99,
+      "height_mm": 304.8,
+      "fill_strategy": "solid_fill"
+    },
+    {
+      "operation": "paint_rectangle",
+      "label": "yellow_block_1",
+      "color": "#f7c600",
+      "x_mm": 0.0,
+      "y_mm": 0.0,
+      "width_mm": 61.81,
+      "height_mm": 132.04,
+      "fill_strategy": "solid_fill"
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_1",
+      "color": "black",
+      "from_mm": [
+        0.0,
+        178.05
+      ],
+      "to_mm": [
+        61.81,
+        178.05
+      ],
+      "stroke_width_mm": 6.13
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_2",
+      "color": "black",
+      "from_mm": [
+        0.0,
+        132.04
+      ],
+      "to_mm": [
+        61.81,
+        132.04
+      ],
+      "stroke_width_mm": 6.13
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_3",
+      "color": "black",
+      "from_mm": [
+        238.81,
+        0.0
+      ],
+      "to_mm": [
+        238.81,
+        304.8
+      ],
+      "stroke_width_mm": 6.13
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_4",
+      "color": "black",
+      "from_mm": [
+        61.81,
+        0.0
+      ],
+      "to_mm": [
+        61.81,
+        304.8
+      ],
+      "stroke_width_mm": 6.13
+    },
+    {
+      "operation": "paint_line",
+      "label": "border_top",
+      "color": "black",
+      "from_mm": [
+        0.0,
+        0.0
+      ],
+      "to_mm": [
+        304.8,
+        0.0
+      ],
+      "stroke_width_mm": 6.13
+    },
+    {
+      "operation": "paint_line",
+      "label": "border_bottom",
+      "color": "black",
+      "from_mm": [
+        0.0,
+        304.8
+      ],
+      "to_mm": [
+        304.8,
+        304.8
+      ],
+      "stroke_width_mm": 6.13
+    },
+    {
+      "operation": "paint_line",
+      "label": "border_left",
+      "color": "black",
+      "from_mm": [
+        0.0,
+        0.0
+      ],
+      "to_mm": [
+        0.0,
+        304.8
+      ],
+      "stroke_width_mm": 6.13
+    },
+    {
+      "operation": "paint_line",
+      "label": "border_right",
+      "color": "black",
+      "from_mm": [
+        304.8,
+        0.0
+      ],
+      "to_mm": [
+        304.8,
+        304.8
+      ],
+      "stroke_width_mm": 6.13
+    }
+  ],
+  "debug": {
+    "seed": 123,
+    "num_rectangles": 3,
+    "num_lines": 8,
+    "num_operations": 11,
+    "colors_used": [
+      "#1d4ed8",
+      "#d62828",
+      "#f7c600"
+    ]
+  }
+}

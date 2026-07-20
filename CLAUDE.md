@@ -18,10 +18,18 @@ compatibility only (`configs/mondrian_12x12_paint.json`).
 
 ```
 Config profile (configs/*.json)
-  -> Image_Process/mondrian/mondrian_generator.py    -> output/painting_plan.json (+ preview SVG)
-  -> Image_Process/mondrian/generate_painting_paths.py -> output/painting_paths.json (+ preview/animated SVG)
+  -> Image_Process/mondrian/mondrian_generator.py    -> output/<config-name>/painting_plan.json (+ preview SVG)
+  -> Image_Process/mondrian/generate_painting_paths.py -> output/<config-name>/painting_paths.json (+ preview/animated SVG)
   -> ros2/robross_painter (painting_executor.cpp)     -> MoveIt motion on Aubo i5
 ```
+
+Every config's `output.directory` points at its own `output/<config-name>/` subfolder (named after
+the config file, minus `.json`) — this is what keeps different profiles' generated files from
+overwriting each other (demo_v1_a4_pen and mondrian_12x12_paint used to share the same literal
+output filenames and clobbered one another before each config got its own subfolder). After
+generating one or more configs, `python3 generate_output_gallery.py` scans `output/*/` and writes
+`output/index.html`, a static gallery (previews, validation status, `debug` stats) for eyeballing
+every generated run at once instead of opening files individually.
 
 Both Python scripts are config-driven (`--config`, defaults to `configs/demo_v1_a4_pen.json`) —
 **always pass the same `--config` to both scripts in a run**; `generate_painting_paths.py` reads
@@ -251,11 +259,17 @@ command/validation schema (shared by all three routes).
   `image_to_mondrian/` (photo quantized to a 5-color palette, fully filled, plus black grid
   lines). New generation approaches get their own sibling subfolder rather than growing inside an
   existing one.
-- `output/` — generated artifacts (plans, paths, SVG previews). Intentionally committed
-  (seed-123 reference samples), not gitignored.
+- `output/` — generated artifacts (plans, paths, SVG previews), one subfolder per config profile
+  (subfolder name = config filename minus `.json`). Intentionally committed (seed-123 reference
+  samples), not gitignored.
 - `ros2/` — `robross_painter` ROS 2 package (MoveIt executor) and the vcstool manifest for the
   Aubo driver fork workspace.
 - `CAD/` — SolidWorks 2025 SP5.0 prototype files for hardware (canvas/paint holders).
+- `generate_output_gallery.py` — repo-root, standard-library-only script that scans `output/*/`
+  and writes `output/index.html`, a static gallery (previews + `debug` stats + validation status
+  per run) for browsing every generated config's result at once. Rerun after regenerating any
+  config's output; not wired into the generation scripts themselves, since not every run (e.g. CI
+  validation) needs the extra HTML artifact.
 
 ## Conventions
 

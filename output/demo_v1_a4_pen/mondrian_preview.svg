@@ -1,0 +1,16 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="8.267716535433072in"
+  height="11.692913385826772in"
+  viewBox="0 0 210.0 297.0"
+>
+  <rect x="0" y="0" width="210.0" height="297.0" fill="white" />
+  <line x1="10.0" y1="171.81121323673653" x2="48.527137485096105" y2="171.81121323673653" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="10.0" y1="130.00029734642425" x2="48.527137485096105" y2="130.00029734642425" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="158.8641286379313" y1="10.0" x2="158.8641286379313" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="48.527137485096105" y1="10.0" x2="48.527137485096105" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="10.0" y1="10.0" x2="200.0" y2="10.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="10.0" y1="287.0" x2="200.0" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="10.0" y1="10.0" x2="10.0" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+  <line x1="200.0" y1="10.0" x2="200.0" y2="287.0" stroke="black" stroke-width="1.0" stroke-linecap="square" />
+</svg>

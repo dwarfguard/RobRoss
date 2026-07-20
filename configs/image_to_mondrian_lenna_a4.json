@@ -53,7 +53,7 @@
   },
 
   "output": {
-    "directory": "output",
+    "directory": "output/image_to_mondrian_lenna_a4",
     "painting_paths_file": "image_to_mondrian_lenna_painting_paths.json",
     "preview_svg_file": "image_to_mondrian_lenna_path_preview.svg",
     "quantized_preview_png_file": "image_to_mondrian_lenna_quantized_preview.png"

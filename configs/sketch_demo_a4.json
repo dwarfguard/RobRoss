@@ -24,7 +24,7 @@
   },
 
   "output": {
-    "directory": "output",
+    "directory": "output/sketch_demo_a4",
     "painting_paths_file": "sketch_painting_paths.json",
     "preview_svg_file": "sketch_path_preview.svg"
   }
