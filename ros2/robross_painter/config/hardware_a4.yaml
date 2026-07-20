@@ -72,7 +72,7 @@ painting_executor:
     elbow_up_max_deg: 175.0
     # Bound base-axis movement. Tune only from recorded dry-run trajectories;
     # do not raise these merely to make a rejected plan execute.
-    guarded_joints: [shoulder_joint, wrist3_joint]
+    guarded_joints: [shoulder_joint]
     max_guarded_joint_goal_delta_deg: 120.0
     max_guarded_joint_travel_deg: 150.0
     max_guarded_joint_paint_travel_deg: 90.0
