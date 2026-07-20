@@ -43,32 +43,57 @@ def resolve_output_files(output_config: dict) -> dict:
     return files
 
 
+def _load_run(name: str, run_dir: Path, config: dict) -> dict:
+    files = resolve_output_files(config["output"])
+    if "paths_json" not in files:
+        return None
+    paths_json_path = run_dir / files["paths_json"]
+    if not paths_json_path.is_file():
+        return None
+    painting_paths = json.loads(paths_json_path.read_text(encoding="utf-8"))
+    return {
+        "name": name,
+        "run_dir": run_dir,
+        "config": config,
+        "files": files,
+        "painting_paths": painting_paths,
+        # Proxy for "when was this generated" - the main artifact's mtime,
+        # not a separately-tracked field, so nothing new needs maintaining.
+        "created_ts": paths_json_path.stat().st_mtime,
+    }
+
+
 def collect_runs() -> list:
+    """Two sources of runs, merged: hand-curated profiles in `configs/*.json`
+    (matched to `output/<config-stem>/`), and ad-hoc runs (e.g. from
+    webapp/'s uploads) that carry their own `output/<name>/_config.json`
+    instead of a `configs/` entry - `configs/` stays reserved for the
+    documented, hand-maintained profile list."""
     runs = []
+    seen_names = set()
+
     for config_path in sorted(CONFIGS_DIR.glob("*.json")):
         name = config_path.stem
         run_dir = OUTPUT_DIR / name
         if not run_dir.is_dir():
             continue
-
         config = json.loads(config_path.read_text(encoding="utf-8"))
-        files = resolve_output_files(config["output"])
-        if "paths_json" not in files:
-            continue
-        paths_json_path = run_dir / files["paths_json"]
-        if not paths_json_path.is_file():
-            continue
+        run = _load_run(name, run_dir, config)
+        if run:
+            runs.append(run)
+            seen_names.add(name)
 
-        painting_paths = json.loads(paths_json_path.read_text(encoding="utf-8"))
-        runs.append(
-            {
-                "name": name,
-                "run_dir": run_dir,
-                "config": config,
-                "files": files,
-                "painting_paths": painting_paths,
-            }
-        )
+    for run_dir in sorted(OUTPUT_DIR.iterdir()):
+        if not run_dir.is_dir() or run_dir.name in seen_names:
+            continue
+        generated_config_path = run_dir / "_config.json"
+        if not generated_config_path.is_file():
+            continue
+        config = json.loads(generated_config_path.read_text(encoding="utf-8"))
+        run = _load_run(run_dir.name, run_dir, config)
+        if run:
+            runs.append(run)
+
     return runs
 
 
@@ -90,7 +115,11 @@ def render_validation_badge(validation: dict) -> str:
     )
 
 
-def render_card(run: dict) -> str:
+def render_card(run: dict, base_url: str = "") -> str:
+    """base_url prefixes every file link/src - "" (default) gives paths
+    relative to output/index.html itself, which is how the static CLI usage
+    works under file://. webapp/app.py passes "/output/" instead, since it
+    serves the gallery page at "/" but the actual files under "/output/"."""
     name = run["name"]
     run_dir = run["run_dir"]
     files = run["files"]
@@ -100,7 +129,7 @@ def render_card(run: dict) -> str:
     validation = painting_paths.get("validation", {"passed": None, "errors": []})
     debug = painting_paths.get("debug", {})
 
-    rel = lambda filename: f"{name}/{filename}"
+    rel = lambda filename: f"{base_url}{name}/{filename}"
 
     preview_html = ""
     if "quantized_png" in files:
@@ -127,7 +156,9 @@ def render_card(run: dict) -> str:
         links.append(f"<a href='{escape(rel(files['animation_svg']))}'>animation</a>")
 
     return f"""
-<section class="card">
+<section class="card" data-name="{escape(name.lower())}" data-style="{escape(style)}"
+          data-passed="{'true' if validation.get('passed') else 'false'}"
+          data-created="{run['created_ts']}">
   <h2>{escape(name)} <span class="style-badge">{escape(style)}</span></h2>
   <p class="canvas">{escape(str(canvas.get('width_mm', '?')))}mm x
      {escape(str(canvas.get('height_mm', '?')))}mm</p>
@@ -143,6 +174,9 @@ def render_card(run: dict) -> str:
 STYLE = """
 body { font-family: -apple-system, sans-serif; background: #f4f4f4; margin: 0; padding: 2rem; }
 h1 { margin-top: 0; }
+.toolbar { background: white; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.15); display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.toolbar input, .toolbar select { padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem; }
+.toolbar input { flex: 1; min-width: 160px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.5rem; }
 .card { background: white; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
 .card h2 { margin: 0 0 0.25rem 0; font-size: 1.1rem; }
@@ -163,8 +197,90 @@ table.stats td:last-child { text-align: right; font-variant-numeric: tabular-num
 """
 
 
-def build_html(runs: list) -> str:
-    cards = "\n".join(render_card(run) for run in runs)
+def render_toolbar(runs: list) -> str:
+    """Search/filter/sort controls, pure client-side (no fetch/XHR, which
+    file:// blocks) - just shows/hides and reorders the already-rendered
+    .card elements via their data-* attributes. Route options are built from
+    the styles actually present in `runs`, not a hardcoded enum, so a future
+    fourth route shows up automatically."""
+    styles = sorted({run["painting_paths"].get("style", "?") for run in runs})
+    style_options = "".join(f"<option value='{escape(s)}'>{escape(s)}</option>" for s in styles)
+    return f"""
+<div class="toolbar">
+  <input type="text" id="gallery-search" placeholder="Search by name...">
+  <select id="gallery-style-filter">
+    <option value="">All routes</option>
+    {style_options}
+  </select>
+  <select id="gallery-validation-filter">
+    <option value="">All validation</option>
+    <option value="true">Passed</option>
+    <option value="false">Failed</option>
+  </select>
+  <select id="gallery-sort">
+    <option value="created-desc">Newest first</option>
+    <option value="created-asc">Oldest first</option>
+    <option value="name-asc">Name A-Z</option>
+  </select>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {{
+  // Deferred to DOMContentLoaded because this <script> is emitted (and
+  // would otherwise run) before <div class="grid"> exists in the page -
+  // querying it eagerly here returns null and silently no-ops every filter.
+  var search = document.getElementById('gallery-search');
+  var styleFilter = document.getElementById('gallery-style-filter');
+  var validationFilter = document.getElementById('gallery-validation-filter');
+  var sortSelect = document.getElementById('gallery-sort');
+  var grid = document.querySelector('.grid');
+  if (!grid) return;
+
+  function applyFilters() {{
+    var query = search.value.trim().toLowerCase();
+    var styleVal = styleFilter.value;
+    var validationVal = validationFilter.value;
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('.card'));
+
+    cards.forEach(function(card) {{
+      var matchesQuery = !query || card.dataset.name.indexOf(query) !== -1;
+      var matchesStyle = !styleVal || card.dataset.style === styleVal;
+      var matchesValidation = !validationVal || card.dataset.passed === validationVal;
+      card.style.display = (matchesQuery && matchesStyle && matchesValidation) ? '' : 'none';
+    }});
+
+    var sortVal = sortSelect.value;
+    cards.sort(function(a, b) {{
+      if (sortVal === 'created-desc') return b.dataset.created - a.dataset.created;
+      if (sortVal === 'created-asc') return a.dataset.created - b.dataset.created;
+      if (sortVal === 'name-asc') return a.dataset.name.localeCompare(b.dataset.name);
+      return 0;
+    }});
+    cards.forEach(function(card) {{ grid.appendChild(card); }});
+  }}
+
+  [search, styleFilter, validationFilter, sortSelect].forEach(function(el) {{
+    el.addEventListener('input', applyFilters);
+    el.addEventListener('change', applyFilters);
+  }});
+  applyFilters();
+}});
+</script>
+"""
+
+
+def render_gallery_grid(runs: list, base_url: str = "") -> str:
+    """The toolbar + cards-in-a-grid markup, no <html>/<head>/<body> wrapper -
+    reused as-is by webapp/app.py so both the static CLI and the Flask app
+    render identical cards (and the same search/filter/sort behavior) from
+    the same code. See render_card() for what base_url does."""
+    cards = "\n".join(render_card(run, base_url) for run in runs)
+    return f'{render_toolbar(runs)}\n<div class="grid">\n{cards}\n</div>'
+
+
+def build_html(runs: list, extra_body_html: str = "") -> str:
+    """extra_body_html is injected right after the intro paragraph - used by
+    webapp/app.py to add its upload form without duplicating the page shell
+    or STYLE block."""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -175,9 +291,8 @@ def build_html(runs: list) -> str:
 <body>
 <h1>RobRoss output gallery</h1>
 <p>Generated by <code>generate_output_gallery.py</code> - rerun it after regenerating any config's output.</p>
-<div class="grid">
-{cards}
-</div>
+{extra_body_html}
+{render_gallery_grid(runs)}
 </body>
 </html>
 """

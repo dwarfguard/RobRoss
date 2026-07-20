@@ -22,8 +22,17 @@
 //   'S'          -> STOP immediately (writes kStopValue). Highest priority -
 //                   interrupts an in-progress 'A' digit read too, so it's
 //                   always available no matter what state the parser is in.
-//   'O'          -> spin at kOpenSpeedValue until 'S' or the watchdog stops it
-//   'C'          -> spin at kCloseSpeedValue until 'S' or the watchdog stops it
+//   'O'          -> timed move: spin open for kTimedMoveDurationMs, then
+//                   auto-stop. Same routine boot uses to home the gripper.
+//   'H'          -> timed move: spin close for kTimedMoveDurationMs (same
+//                   duration as 'O'), then auto-stop - the reverse of 'O',
+//                   returning to the original (closed) position.
+//   'M'          -> timed move: spin close for half of kTimedMoveDurationMs,
+//                   then auto-stop - a middle position, half as far as 'H'
+//                   (assumes starting from fully open, same as 'H' does).
+//   'C'          -> spin at kCloseSpeedValue until 'S' or the watchdog stops
+//                   it (manual/continuous - kept for re-calibrating timing,
+//                   e.g. if kTimedMoveDurationMs needs to change).
 //   'A' ddd '\n' -> set a raw 0-180 speed value directly (90 = stop) -
 //                   digits accumulate until '\n' or a non-digit byte.
 // Every accepted command echoes the resulting value back over Serial.
@@ -43,9 +52,14 @@ const int kStopValue = 90;
 // Carried over from earlier testing - confirmed to spin (not grind/stall)
 // at these values. Use 'A<value>' to explore further from 90 if a
 // different open/close speed is wanted.
-const int kOpenSpeedValue = 60;
-const int kCloseSpeedValue = 120;
+const int kOpenSpeedValue = 120;
+const int kCloseSpeedValue = 60;
 const unsigned long kWatchdogTimeoutMs = 2000;
+// Measured by hand: how long spinning at kOpenSpeedValue takes to reach
+// fully open from a fully-closed start. Used for both 'O' (open) and 'H'
+// (close, the reverse) since the open/close travel is assumed symmetric -
+// re-measure and update this if the gripper mechanism changes.
+const unsigned long kTimedMoveDurationMs = 800;
 
 Servo gripper;
 
@@ -61,6 +75,18 @@ void SetSpeed(int value) {
   gripper.write(value);
   Serial.print("value=");
   Serial.println(value);
+}
+
+// Spins at speed_value for duration_ms, then auto-stops. Used for 'O'
+// (open), 'H' (close/return), 'M' (middle, half duration), and boot homing -
+// all the same shape of move, just with a different speed_value/duration_ms
+// and different log text.
+void TimedMove(int speed_value, unsigned long duration_ms, const char *start_label, const char *done_label) {
+  Serial.println(start_label);
+  SetSpeed(speed_value);
+  delay(duration_ms);
+  SetSpeed(kStopValue);
+  Serial.println(done_label);
 }
 
 void HandleByte(char c) {
@@ -89,7 +115,13 @@ void HandleByte(char c) {
 
   switch (c) {
     case 'O':
-      SetSpeed(kOpenSpeedValue);
+      TimedMove(kOpenSpeedValue, kTimedMoveDurationMs, "opening...", "opened");
+      break;
+    case 'H':
+      TimedMove(kCloseSpeedValue, kTimedMoveDurationMs, "returning...", "returned");
+      break;
+    case 'M':
+      TimedMove(kCloseSpeedValue, kTimedMoveDurationMs / 2, "closing to middle...", "at middle");
       break;
     case 'C':
       SetSpeed(kCloseSpeedValue);
@@ -107,8 +139,11 @@ void HandleByte(char c) {
 void setup() {
   Serial.begin(115200);
   gripper.attach(kServoPin);  // no custom pulse-width range - library defaults
-  SetSpeed(kStopValue);  // boot stopped, not spinning
-  Serial.println("gripper ready: send 'S' (stop), 'O', 'C', or 'A<0-180>\\n'");
+
+  // Known starting position before accepting commands - same routine as 'O'.
+  TimedMove(kOpenSpeedValue, kTimedMoveDurationMs, "homing...", "homed");
+
+  Serial.println("gripper ready: send 'S' (stop), 'O', 'H', 'M', 'C', or 'A<0-180>\\n'");
 }
 
 void loop() {

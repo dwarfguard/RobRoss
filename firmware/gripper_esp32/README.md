@@ -59,6 +59,32 @@ sketch's "open"/"close" mean "spin at a fixed speed until told to stop", not
 "move to a position and hold" - see the file header comment in
 `gripper_esp32.ino` for the full protocol.
 
+## Boot homing, and `O`/`H` as timed moves
+
+There's no positional feedback on a continuous-rotation servo, so "open" and
+"close" can't be "move to a position and hold" - instead `O` and `H` are
+**timed** moves: spin for a fixed duration (`kTimedMoveDurationMs`, measured
+by hand at 800ms) and then auto-stop.
+
+- `O` - spin open (`kOpenSpeedValue`) for `kTimedMoveDurationMs`, then stop.
+- `H` - spin close (`kCloseSpeedValue`) for the same duration, then stop -
+  the reverse of `O`, returning to the original (closed) position.
+- `M` - spin close for **half** of `kTimedMoveDurationMs`, then stop - a
+  middle position, half as far as `H` (assumes starting from fully open,
+  same as `H`).
+- On power-up, before accepting any commands, the sketch runs the same
+  routine as `O` to home to a known starting position (fully open) - this
+  assumes the gripper starts at (or past) fully closed. Watch the Serial
+  Monitor for `homing...` followed by `homed` to know when it's done.
+
+If the gripper mechanism changes and 800ms no longer lands at fully
+open/closed, re-measure (see "Testing" below) and update
+`kTimedMoveDurationMs`.
+
+`C` is kept separate from `H` as a manual, continuous (not timed) close -
+spins at `kCloseSpeedValue` until `S` or the watchdog stops it. Useful for
+re-measuring the timing by hand without touching the sketch first.
+
 ## Testing
 
 In the Serial Monitor:
@@ -68,21 +94,22 @@ In the Serial Monitor:
 2. Send `A080` - should spin one direction; send `S` - should stop
    immediately.
 3. Send `A120` - should spin the other direction; send `S` - should stop.
-4. Send `O` - should spin; **deliberately don't send `S`** and wait over 2
-   seconds - the watchdog should auto-stop it (look for a `value=90` line
-   printed on its own, without you having sent `S`).
-5. Once you've found a speed/direction you're happy with for "open" and
-   "close", use `A<value>` to explore further from 90 and confirm those
-   values spin cleanly (not straining/stalling) before relying on `O`/`C`.
+4. Send `C` - should spin closed continuously; **deliberately don't send
+   `S`** and wait over 2 seconds - the watchdog should auto-stop it (look
+   for a `value=90` line printed on its own, without you having sent `S`).
+5. Send `O` - should spin open for ~800ms and stop on its own at (roughly)
+   fully open.
+6. Send `H` - should spin closed for ~800ms and stop on its own, back at
+   (roughly) fully closed.
+7. Send `O` again, then `M` - should spin closed for ~400ms (half of `H`'s
+   duration) and stop roughly halfway between open and closed.
+8. Once you've found a speed/direction you're happy with for open/close, use
+   `A<value>` to explore further from 90 and confirm those values spin
+   cleanly (not straining/stalling) before relying on `O`/`H`/`M`.
 
-There's no positional feedback, so you can't assume `O` always lands the
-gripper in the same physical spot - only how long you leave it spinning at a
-given speed determines how far it moves. To find how long "fully open" or
-"fully closed" actually takes: send `O`, count seconds by hand, send `S`
-right when the gripper reaches the position you want, and note the time -
-that manual timing is what a future revision would use to make `O`/`C`
-auto-stop after a fixed duration instead of requiring a manual `S` (not
-implemented yet - see "Not in scope here" below).
+To re-measure `kTimedMoveDurationMs` by hand if the gripper mechanism
+changes: send `C`, count seconds, send `S` right when it reaches the
+position you want, note the time, and update the constant in the sketch.
 
 Also test once with the USB cable unplugged from the computer (ESP32 powered
 some other way, e.g. a battery/second USB source) to confirm the firmware
@@ -90,10 +117,6 @@ doesn't have a hidden dependency on USB 5V for the logic side - only the
 servo's own separate supply should matter for the servo itself.
 
 ## Not in scope here
-
-No auto-timed open/close (`O`/`C` spinning for a fixed duration and stopping
-themselves) - that needs the manually-timed open/close duration mentioned
-above first, which hasn't been measured yet.
 
 No ROS2/micro-ROS integration, no changes to `ros2/robross_painter` or
 `docs/painting-paths-format.md`. Those are separate follow-up work once

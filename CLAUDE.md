@@ -270,6 +270,19 @@ command/validation schema (shared by all three routes).
   per run) for browsing every generated config's result at once. Rerun after regenerating any
   config's output; not wired into the generation scripts themselves, since not every run (e.g. CI
   validation) needs the extra HTML artifact.
+- `webapp/` — optional local Flask control panel: upload a photo, pick a route, click Process, and
+  browse the result via the same card rendering `generate_output_gallery.py` uses (imported and
+  reused, not duplicated). It drives each route's existing CLI script(s) as subprocesses (never
+  imports more than one route's generation modules into the same process — see the module
+  docstring in `webapp/route_adapters.py` for why: sibling modules like `config_loader`/
+  `path_validation` are same-named top-level imports duplicated per route folder, so importing two
+  routes' modules into one long-lived process would collide in `sys.modules`). Route-specific
+  details (template config, whether it needs an uploaded photo, which script(s) to run) live in
+  one dict entry per route in `route_adapters.py` — adding a future route needs one new entry
+  there, nothing else changes. Uploaded photos and their generated one-off configs live entirely
+  under `output/upload_<timestamp>_<route>/`, never inside `configs/` (reserved for the
+  hand-maintained profile list below) or `Image_Process/*/assets/` (reserved for the repo's
+  curated sample images).
 
 ## Conventions
 
@@ -278,6 +291,12 @@ command/validation schema (shared by all three routes).
   `numpy`, `scikit-image`) and `Image_Process/image_to_mondrian/` (`opencv-python`, `numpy` only)
   are deliberate, folder-scoped exceptions for image loading/quantization/edge-detection — don't
   let that spread to other folders without similarly clear justification.
+- `webapp/`'s `flask` dependency is scoped the same way: it's the only folder that needs it (a
+  local upload form + routing needs more than stdlib `http.server` can do without hand-rolling
+  multipart parsing), it's optional (the rest of the repo, including
+  `generate_output_gallery.py`'s static-file CLI usage, works with zero knowledge of Flask), and
+  it doesn't affect any generation route's own dependencies — `webapp/` only ever shells out to
+  each route's existing CLI, never imports its generation code.
 - `Image_Process/image_to_mondrian/face_protection.py`'s `mediapipe` dependency is this repo's
   first ML model dependency, kept intentionally narrow: optional (`segmentation.protect_face_features`,
   default off), pretrained/no-training/CPU-only, and imported lazily inside the one function that

@@ -101,7 +101,12 @@ docs/                            Requirements and path-format references
 CAD/                             Tool, canvas, and paint-holder models
 output/                          Generated plans, paths, and previews (one subfolder per config)
 generate_output_gallery.py       Builds output/index.html, a static preview of every generated run
+webapp/                          Optional local control panel: upload a photo, run a route, browse the result
 ```
+
+`webapp/` is an optional add-on (needs `pip install flask`) — see
+[webapp/README.md](webapp/README.md). It's a thin wrapper around the same
+CLI scripts described above, not a separate implementation.
 
 ## Current Scope
 
