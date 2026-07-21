@@ -253,9 +253,9 @@ legacy behavior or one of the photo-input routes:
 | --- | --- | --- | --- |
 | `demo_v1_a4_pen.json` | A4 210x297mm, 10mm margin | mondrian | monochrome (lines only), 1mm pen, 0% overlap |
 | `mondrian_12x12_paint.json` | 12in square, no margin | mondrian | red/yellow/blue accents, 10mm brush, 25% overlap |
-| `sketch_demo_a4.json` | A4 210x297mm, 20mm margin | sketch | traces `Image_Process/sketch/assets/apple.png`, 1mm pen |
-| `image_to_mondrian_demo_a4.json` | A4 210x297mm, 10mm margin | image_to_mondrian | quantizes+fills `Image_Process/image_to_mondrian/assets/sample.jpg` to 5 colors, 3mm pen |
-| `gemini_mondrian_demo_a4.json` | A4 210x297mm, 10mm margin | gemini_mondrian | Gemini-restyles `Image_Process/image_to_mondrian/assets/sample.jpg`, own vectorization tuning (no `image_to_mondrian` config involved) |
+| `sketch_demo_a4.json` | A4 210x297mm, 20mm margin | sketch | traces `Image_Process/assets/apple.png`, 1mm pen |
+| `image_to_mondrian_demo_a4.json` | A4 210x297mm, 10mm margin | image_to_mondrian | quantizes+fills `Image_Process/assets/sample.jpg` to 5 colors, 3mm pen |
+| `gemini_mondrian_demo_a4.json` | A4 210x297mm, 10mm margin | gemini_mondrian | Gemini-restyles `Image_Process/assets/sample.jpg`, own vectorization tuning (no `image_to_mondrian` config involved) |
 
 See `Image_Process/mondrian/README.md` / `Image_Process/sketch/README.md` /
 `Image_Process/image_to_mondrian/README.md` ("Important config fields" / "Config fields") for the
@@ -298,7 +298,7 @@ command/validation schema (shared by all three routes).
   one dict entry per route in `route_adapters.py` — adding a future route needs one new entry
   there, nothing else changes. Uploaded photos and their generated one-off configs live entirely
   under `output/upload_<timestamp>_<route>/`, never inside `configs/` (reserved for the
-  hand-maintained profile list below) or `Image_Process/*/assets/` (reserved for the repo's
+  hand-maintained profile list below) or `Image_Process/assets/` (reserved for the repo's
   curated sample images).
 
 ## Conventions

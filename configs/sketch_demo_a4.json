@@ -12,7 +12,7 @@
   },
 
   "source_image": {
-    "path": "Image_Process/sketch/assets/apple.png",
+    "path": "Image_Process/assets/apple.png",
     "canny_threshold1": 100,
     "canny_threshold2": 200,
     "simplify_epsilon_ratio": 0.002

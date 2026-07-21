@@ -18,7 +18,7 @@ def make_valid_config() -> dict:
             "origin": "top-left",
         },
         "source_image": {
-            "path": "Image_Process/image_to_mondrian/assets/sample.jpg",
+            "path": "Image_Process/assets/sample.jpg",
         },
         "gemini": {
             "model": "gemini-2.5-flash-image",

@@ -13,7 +13,7 @@ class TestGenerateStyledImage(unittest.TestCase):
             os.environ.pop("GEMINI_API_KEY", None)
             with self.assertRaises(GeminiConfigError) as cm:
                 generate_styled_image(
-                    context.REPO_ROOT / "Image_Process/image_to_mondrian/assets/sample.jpg",
+                    context.REPO_ROOT / "Image_Process/assets/sample.jpg",
                     "prompt",
                     "gemini-2.5-flash-image",
                 )

@@ -12,7 +12,7 @@
   },
 
   "source_image": {
-    "path": "Image_Process/sketch/assets/lenna.png",
+    "path": "Image_Process/assets/lenna.png",
     "downscale_max_dimension_px": 1024
   },
 

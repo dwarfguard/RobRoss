@@ -12,7 +12,7 @@
   },
 
   "source_image": {
-    "path": "Image_Process/image_to_mondrian/assets/sample.jpg",
+    "path": "Image_Process/assets/sample.jpg",
     "downscale_max_dimension_px": 1024
   },
 
