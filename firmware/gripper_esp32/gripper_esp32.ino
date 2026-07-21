@@ -17,24 +17,32 @@
 // positional feedback, so "open"/"close" here means "nudge at a fixed
 // speed until told to stop" - not "move to a position and hold".
 //
+// Claw starts physically closed (default resting position when power/
+// serial is first connected). setup() then homes it open before accepting
+// commands, so by the time "gripper ready" prints, the claw is sitting
+// fully open.
+//
 // Protocol (single bytes, read non-blocking so a missing newline never
 // stalls the loop):
-//   'S'          -> STOP immediately (writes kStopValue). Highest priority -
-//                   interrupts an in-progress 'A' digit read too, so it's
-//                   always available no matter what state the parser is in.
-//   'O'          -> timed move: spin open for kTimedMoveDurationMs, then
-//                   auto-stop. Same routine boot uses to home the gripper.
-//   'H'          -> timed move: spin close for kTimedMoveDurationMs (same
-//                   duration as 'O'), then auto-stop - the reverse of 'O',
-//                   returning to the original (closed) position.
-//   'M'          -> timed move: spin close for half of kTimedMoveDurationMs,
-//                   then auto-stop - a middle position, half as far as 'H'
-//                   (assumes starting from fully open, same as 'H' does).
-//   'C'          -> spin at kCloseSpeedValue until 'S' or the watchdog stops
-//                   it (manual/continuous - kept for re-calibrating timing,
-//                   e.g. if kTimedMoveDurationMs needs to change).
+//   'S'  -> STOP immediately (writes kStopValue). Highest priority -
+//           interrupts an in-progress 'A' digit read too, so it's always
+//           available no matter what state the parser is in.
+//   'O'  -> timed move: spin open for kTimedMoveDurationMs * 69/48 (longer
+//           than one full open/close travel), then auto-stop. Deliberately
+//           overshoots a plain "open" so the marker pops loose - meant to
+//           be run from the 'G' (grabbed) position.
+//   'G'  -> timed move: spin close for kTimedMoveDurationMs * 20/24, then
+//           auto-stop - closes the claw enough to grab/secure the marker.
+//           Assumes starting from the fully-open (homed) position.
+//   'R'  -> timed move: spin close for kTimedMoveDurationMs * 6/24 (a short
+//           nudge), then auto-stop. Run this after 'O' to bring the claw
+//           back from its overshot-open position to the same fully-open
+//           position 'G' expects to start from, so 'G' can be called again.
+//   'C'  -> spin at kCloseSpeedValue until 'S' or the watchdog stops it
+//           (manual/continuous - kept for re-calibrating timing, e.g. if
+//           kTimedMoveDurationMs needs to change).
 //   'A' ddd '\n' -> set a raw 0-180 speed value directly (90 = stop) -
-//                   digits accumulate until '\n' or a non-digit byte.
+//           digits accumulate until '\n' or a non-digit byte.
 // Every accepted command echoes the resulting value back over Serial.
 //
 // Safety watchdog: if the last commanded value isn't "stop" and no new
@@ -55,11 +63,11 @@ const int kStopValue = 90;
 const int kOpenSpeedValue = 120;
 const int kCloseSpeedValue = 60;
 const unsigned long kWatchdogTimeoutMs = 2000;
-// Measured by hand: how long spinning at kOpenSpeedValue takes to reach
-// fully open from a fully-closed start. Used for both 'O' (open) and 'H'
-// (close, the reverse) since the open/close travel is assumed symmetric -
-// re-measure and update this if the gripper mechanism changes.
-const unsigned long kTimedMoveDurationMs = 800;
+// Measured by hand: how long spinning at kOpenSpeedValue/kCloseSpeedValue
+// takes to travel the full closed<->open range. Used as the base unit for
+// 'O', 'G', and 'R', each of which scales it by its own fraction (see
+// the switch statement below) rather than using it unscaled.
+const unsigned long kTimedMoveDurationMs = 470;
 
 Servo gripper;
 
@@ -78,9 +86,9 @@ void SetSpeed(int value) {
 }
 
 // Spins at speed_value for duration_ms, then auto-stops. Used for 'O'
-// (open), 'H' (close/return), 'M' (middle, half duration), and boot homing -
-// all the same shape of move, just with a different speed_value/duration_ms
-// and different log text.
+// (open/overshoot to release), 'G' (close to grab), 'R' (short return
+// nudge), and boot homing - all the same shape of move, just with a
+// different speed_value/duration_ms and different log text.
 void TimedMove(int speed_value, unsigned long duration_ms, const char *start_label, const char *done_label) {
   Serial.println(start_label);
   SetSpeed(speed_value);
@@ -115,13 +123,13 @@ void HandleByte(char c) {
 
   switch (c) {
     case 'O':
-      TimedMove(kOpenSpeedValue, kTimedMoveDurationMs, "opening...", "opened");
+      TimedMove(kOpenSpeedValue, kTimedMoveDurationMs * 69 / 48, "opening to release pen...", "opened");
       break;
-    case 'H':
-      TimedMove(kCloseSpeedValue, kTimedMoveDurationMs, "returning...", "returned");
+    case 'G':
+      TimedMove(kCloseSpeedValue, kTimedMoveDurationMs * 20 / 24, "closing to grab pen...", "closed");
       break;
-    case 'M':
-      TimedMove(kCloseSpeedValue, kTimedMoveDurationMs / 2, "closing to middle...", "at middle");
+    case 'R':
+      TimedMove(kCloseSpeedValue, kTimedMoveDurationMs * 6 / 24, "returning to grab-ready position...", "ready");
       break;
     case 'C':
       SetSpeed(kCloseSpeedValue);
@@ -140,10 +148,11 @@ void setup() {
   Serial.begin(115200);
   gripper.attach(kServoPin);  // no custom pulse-width range - library defaults
 
-  // Known starting position before accepting commands - same routine as 'O'.
+  // Claw starts physically closed. Home it fully open before accepting
+  // commands so 'G' always has a known, consistent starting position.
   TimedMove(kOpenSpeedValue, kTimedMoveDurationMs, "homing...", "homed");
 
-  Serial.println("gripper ready: send 'S' (stop), 'O', 'H', 'M', 'C', or 'A<0-180>\\n'");
+  Serial.println("gripper ready: send 'S' (stop), 'O', 'G', 'R', 'C', or 'A<0-180>\\n'");
 }
 
 void loop() {
