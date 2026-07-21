@@ -16,11 +16,17 @@ compatibility only (`configs/mondrian_12x12_paint.json`).
 
 ## Software pipeline
 
+Four independent artwork-generation routes, all producing the same `painting_paths.json` command
+vocabulary consumed by `ros2/robross_painter`:
+
 ```
-Config profile (configs/*.json)
-  -> Image_Process/mondrian/mondrian_generator.py    -> output/<config-name>/painting_plan.json (+ preview SVG)
-  -> Image_Process/mondrian/generate_painting_paths.py -> output/<config-name>/painting_paths.json (+ preview/animated SVG)
-  -> ros2/robross_painter (painting_executor.cpp)     -> MoveIt motion on Aubo i5
+Route                      Input          Steps                                      Output
+─────────────────────────────────────────────────────────────────────────────────────────────────
+mondrian/                  (none)         subdivide → style → plan → paths            painting_plan.json → painting_paths.json
+sketch/                    source photo   Canny → skeletonize → trace → paths         painting_paths.json
+image_to_mondrian/         source photo   quantize → segment → fill → border → paths  painting_paths.json
+gemini_mondrian/           source photo   Gemini API → quantize → segment → fill →    painting_paths.json
+                                           border → paths
 ```
 
 Every config's `output.directory` points at its own `output/<config-name>/` subfolder (named after
@@ -28,13 +34,11 @@ the config file, minus `.json`) — this is what keeps different profiles' gener
 overwriting each other (demo_v1_a4_pen and mondrian_12x12_paint used to share the same literal
 output filenames and clobbered one another before each config got its own subfolder). After
 generating one or more configs, `python3 generate_output_gallery.py` scans `output/*/` and writes
-`output/index.html`, a static gallery (previews, validation status, `debug` stats) for eyeballing
-every generated run at once instead of opening files individually.
+`output/index.html`, a static gallery for eyeballing every generated run at once.
 
-Both Python scripts are config-driven (`--config`, defaults to `configs/demo_v1_a4_pen.json`) —
-**always pass the same `--config` to both scripts in a run**; `generate_painting_paths.py` reads
-the `painting_plan.json` that `mondrian_generator.py` wrote for that same config, and mismatched
-configs silently mix profiles or fail to find the plan.
+Both mondrian Python scripts are config-driven (`--config`, defaults to `configs/demo_v1_a4_pen.json`). **Always pass the same `--config` to both scripts in a run** — `generate_painting_paths.py`
+reads the `painting_plan.json` that `mondrian_generator.py` wrote for that same config, and
+mismatched configs silently mix profiles or fail to find the plan.
 
 `painting_plan.json` and `painting_paths.json` are both intermediate representations in
 millimeters (origin top-left, x right, y down) — **not** direct robot motor code. The ROS 2
@@ -43,224 +47,123 @@ and robot calibration (taught paper corners, safe/contact Z height, tool offsets
 there (`config/demo_v1_rviz.yaml`), never inside the artwork/path configs. Preserve this
 separation between artwork generation, path generation, validation, and robot execution.
 
-There is a second, independent artwork-generation route in `Image_Process/sketch/`: instead of a
-procedurally generated vector design, it traces edges out of an arbitrary source bitmap (Canny
-edge detection + skeletonization) and goes straight to `painting_paths.json` — no intermediate
-`painting_plan.json`, since there's no vector design to describe first. It emits the exact same
-command vocabulary as the mondrian route, so it's consumable by the same
-`ros2/robross_painter` executor. See `Image_Process/sketch/README.md`.
+### Route summaries
 
-There is a third route in `Image_Process/image_to_mondrian/`: also takes an arbitrary source
-photo, but quantizes it to a fixed 5-color palette (the robot's actual pens — red/blue/yellow/
-black/white by default), segments same-color pixels into connected regions, and **fully fills**
-each region (not just outlines) plus classic Mondrian black grid lines between color blocks — a
-non-ML color-quantization + connected-component pipeline, chosen specifically because it can
-guarantee gap-free fill without the risk of vectorizing an ML model's raster output. Same
-`painting_paths.json` command vocabulary, same executor. See
-`Image_Process/image_to_mondrian/README.md`.
+- **mondrian/**: Procedural vector design — `subdivide()` recursively splits the canvas,
+  `generate_mondrian_layout()` styles per `palette_mode` (monochrome for Demo v1, color for
+  legacy), `render_svg()` and `build_painting_plan()` consume the same geometry. Full architecture
+  at `Image_Process/mondrian/README.md`.
+- **sketch/**: Traces edges from a source bitmap — Canny edge detection + skeletonization +
+  pixel-graph walk to centerlines → ordered `paint_stroke` segments. Full architecture at
+  `Image_Process/sketch/README.md`.
+- **image_to_mondrian/**: Classical (non-ML) color-quantization + connected-component pipeline —
+  quantizes a photo to the robot's actual 5-color pen palette, segments same-color regions, fully
+  fills each (not just outlines), plus black grid lines between color blocks. Can guarantee
+  gap-free fill without vectorizing an ML model's output. Full architecture at
+  `Image_Process/image_to_mondrian/README.md`.
+- **gemini_mondrian/**: Gemini image-to-image restyle → its **own** simplified
+  quantize/segment/fill/border-trace pipeline. `color_quantize.py`/`segmentation.py` are
+  deliberately simpler than image_to_mondrian's (no bilateral filtering, no chroma gating,
+  no face protection) because Gemini's output is already clean and flat-colored.
+  `region_fill.py`/`border_tracing.py`/`path_ordering.py`/`path_validation.py` are copied
+  byte-for-byte from image_to_mondrian (pure geometry, no real-photo assumptions). Full
+  architecture at `Image_Process/gemini_mondrian/README.md`.
 
-There is a fourth route in `Image_Process/gemini_mondrian/`: uses Gemini's image-to-image
-generation to redraw an arbitrary source photo as a Mondrian-style portrait (subject stays
-recognizably a person), then vectorizes that generated image with its **own**
-quantize/segment/fill/border-trace pipeline — an earlier version subprocess-called
-`image_to_mondrian`'s pipeline unmodified for this, but real testing showed that route's
-real-photo-tuned parameters (bilateral filtering, large morphological closing, MediaPipe face
-protection) badly distort Gemini's already-clean, already-flat-colored output, turning a
-recognizable portrait into unrecognizable blobs. `region_fill.py`/`border_tracing.py`/
-`path_ordering.py`/`path_validation.py` are still copied byte-for-byte from `image_to_mondrian`
-(pure geometry, no real-photo assumptions), but `color_quantize.py`/`segmentation.py` are
-deliberately simpler rewrites with no bilateral filtering, no chroma gating, no closing, and no
-face protection. See `Image_Process/gemini_mondrian/README.md`.
+### Byte-for-byte copied modules
+
+These modules are maintained as exact copies across route folders (see file-top comments for the
+canonical source). The route self-contained architecture intentionally duplicates rather than
+shares them — each route folder is a standalone pipeline that doesn't import from sibling folders:
+
+| Module | Canonical source | Copies in |
+|--------|-----------------|-----------|
+| `path_validation.py` | `image_to_mondrian/` | `gemini_mondrian/`, `sketch/` |
+| `path_ordering.py` | `image_to_mondrian/` | `gemini_mondrian/`, `sketch/` |
+| `border_tracing.py` | `image_to_mondrian/` | `gemini_mondrian/` |
+| `region_fill.py` | `image_to_mondrian/` | `gemini_mondrian/` |
+
+When modifying any of these, update the canonical source first, then sync the copies.
+
+### Key architectural constraints
+
+- **sys.modules collision**: `config_loader`/`path_validation`/`path_ordering` are same-named
+  top-level modules in each route folder. Importing two routes' modules into one long-lived Python
+  process would collide in `sys.modules` — this is why `webapp/route_adapters.py` shells out via
+  `subprocess.run()` instead of importing generation code.
+- **MoveGroupInterface spinning**: In ROS 2 Humble, `MoveGroupInterface` spins the node internally.
+  Do not spin it in an external executor — a second executor can steal its action responses.
+- **Retiming start state**: The painting executor builds the retiming start state from the
+  trajectory's first waypoint instead of calling `getCurrentState()` (which returns stale data
+  while MoveIt's internal node is spinning).
 
 ## Commands
 
 Run everything from the repo root (scripts use CWD-relative `configs/`/`output/` paths).
 
 ```bash
-# Generate Demo v1 (A4, pen, monochrome) artwork plan — new random layout each run
+# Mondrian route — Demo v1 (A4, pen, monochrome)
 python3 Image_Process/mondrian/mondrian_generator.py --config configs/demo_v1_a4_pen.json --seed 123
-
-# Convert that plan into robot-style stroke path commands
 python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
 
-# Generate the single 50mm first-contact test line (docs/hardware-test-checklist.md section 9)
-python3 Image_Process/mondrian/generate_test_line.py
-
-# Run the full test suite
-python3 -m unittest discover Image_Process/mondrian/tests
-
-# Run a single test file / test case
-python3 -m unittest Image_Process.mondrian.tests.test_path_validation
-python3 -m unittest Image_Process.mondrian.tests.test_path_validation.SomeTestClass.test_method
-```
-
-Same `--seed` + config produces deterministic output. Omit `--seed` for a random one (printed
-after generation, so it can be copied back in to reproduce that exact layout).
-
-The mondrian route is pure standard library — no `requirements.txt`/`pyproject.toml`, no install
-step. The sketch route needs third-party image libraries (see below).
-
-For the legacy 12-inch colored profile, substitute `configs/mondrian_12x12_paint.json` for
-`configs/demo_v1_a4_pen.json` in the same two commands.
-
-```bash
-# Sketch route: trace configs/sketch_demo_a4.json's source image straight to painting_paths.json
-# Needs opencv-python + numpy + scikit-image — see Image_Process/sketch/README.md for the apt install
+# Sketch route — trace a source image's edges
 python3 Image_Process/sketch/generate_sketch_paths.py --config configs/sketch_demo_a4.json
 
-# image_to_mondrian route: quantize + fill configs/image_to_mondrian_demo_a4.json's source photo
-# Needs opencv-python + numpy (no scikit-image) — see Image_Process/image_to_mondrian/README.md
+# image_to_mondrian route — quantize + fill a source photo
 python3 Image_Process/image_to_mondrian/generate_painting_paths.py --config configs/image_to_mondrian_demo_a4.json
+
+# gemini_mondrian route — Gemini restyle + vectorize (needs GEMINI_API_KEY env var)
+python3 Image_Process/gemini_mondrian/generate_painting_paths.py --config configs/gemini_mondrian_demo_a4.json
+
+# Test line — single 50mm first-contact stroke (docs/hardware-test-checklist.md section 9)
+python3 Image_Process/mondrian/generate_test_line.py
+
+# Test suites
+python3 -m unittest discover Image_Process/mondrian/tests
+python3 -m unittest discover Image_Process/image_to_mondrian/tests
+python3 -m unittest discover Image_Process/gemini_mondrian/tests
+
+# Regenerate the static output gallery
+python3 generate_output_gallery.py
 ```
+
+Same `--seed` + config produces deterministic output. Omit `--seed` for a random one (printed after
+generation, so it can be copied back in to reproduce that exact layout).
+
+The mondrian route is pure standard library. The sketch route needs `opencv-python` + `numpy` +
+`scikit-image`. The image_to_mondrian route needs `opencv-python` + `numpy`. The gemini_mondrian
+route needs `google-genai` (lazily imported, only in `gemini_client.py`). See each route's README
+for install commands.
 
 ### ROS 2 side (`ros2/robross_painter`)
 
-Built as a normal ROS 2 (Humble) package inside a colcon workspace alongside the
-RobRoss-maintained Aubo driver fork (`ros2/robross_aubo.repos` is the vcstool manifest). Full
-workspace bootstrap and three-terminal fake-hardware RViz flow is documented in `README.md`
-("ROS 2 Aubo Setup") and `ros2/robross_painter/README.md` — don't duplicate it here. Key points
-if touching this package:
+Built as a normal ROS 2 (Humble) package inside a colcon workspace alongside the RobRoss-maintained
+Aubo driver fork (`ros2/robross_aubo.repos` is the vcstool manifest). Full workspace bootstrap and
+three-terminal fake-hardware RViz flow is documented in `README.md` ("ROS 2 Aubo Setup") and
+`ros2/robross_painter/README.md` — don't duplicate it here. Key points if touching this package:
 
 - `painting_executor` (`src/painting_executor.cpp`) reads a `painting_paths.json`-format file and
-  maps each command to MoveIt motion (see command table in `ros2/robross_painter/README.md`).
-- Do not spin the executor node in an external executor — `MoveGroupInterface` spins the node
-  internally in MoveIt Humble, and a second executor can steal its action responses. For the same
-  reason the code builds the retiming start state from the trajectory's first waypoint instead of
-  calling `getCurrentState()`.
+  maps each command to MoveIt motion. See `ros2/robross_painter/README.md` for the command table.
 - Safety checks refuse out-of-canvas coordinates, `move_to` with the pen down, and strokes with
   the pen up.
 
-## Architecture within `Image_Process/mondrian/`
-
-- **`config_loader.py`** — `load_config(path)` / `validate_config(config)`. Shared validation so
-  the two main scripts can't drift on what counts as a valid config (required sections `canvas`,
-  `artwork`, `path_generation`, `output`; positive canvas size; `origin == "top-left"`;
-  `0 <= stroke_overlap_ratio < 1`; etc). Raises `ConfigError` (a `ValueError`) listing *every*
-  problem found, not just the first.
-
-- **`mondrian_generator.py`** — `subdivide()` recursively splits the canvas into leaf cells
-  (vertical/horizontal cuts, depth-scaled stop probability) in one pass, producing both leaf
-  rectangles and the internal grid lines. `generate_mondrian_layout()` then styles those per
-  `artwork.palette_mode`: `"monochrome"` (Demo v1) skips accent-cell selection entirely — no
-  `paint_rectangle` ops, grid lines + border only; `"color"` picks 2-4 accent-colored cells.
-  `render_svg()` and `build_painting_plan()` both consume the *same* generated rectangle/line
-  list, so the SVG preview and the JSON plan always describe identical artwork.
-
-- **`generate_painting_paths.py`** — read-only with respect to the layout (never generates new
-  random geometry, only converts an existing plan). `build_commands()` walks the plan's
-  `operations` in existing order; `rectangle_to_commands()` insets by `edge_inset_mm` and emits
-  boustrophedon (alternating direction) `paint_stroke` rows spaced by `tool_width_mm` /
-  `stroke_overlap_ratio`; `line_to_commands()` emits one
-  `select_tool -> dip_paint -> move_to -> lower_tool -> paint_stroke -> lift_tool` sequence per
-  line. Also renders a static preview SVG and a self-contained SMIL animated SVG
-  (`render_animated_svg()` — visual pacing constants only, not robot motion parameters). Before
-  writing output, runs `path_validation.validate_painting_paths()` and stores the result under
-  `painting_paths["validation"]`; exits non-zero on validation errors (files are still written so
-  a failing run can be inspected).
-
-- **`path_validation.py`** — importable, no CLI. `validate_painting_paths(painting_paths)` returns
-  `{"passed": bool, "errors": [...], "warnings": [...]}`; `passed` is true iff `errors` is empty.
-  Bounds-checks both `move_to` and `paint_stroke` coordinates against canvas size (the robot
-  physically travels to `move_to` targets too, so those need the same out-of-bounds error
-  treatment as strokes). Unknown command types warn rather than error, so new command types don't
-  break existing pipelines. Full rule set: `docs/painting-paths-format.md`.
-
-- **`generate_test_line.py`** — generates a `painting_paths.json`-format file with a single
-  straight line (default: the 50mm first-contact line from
-  `docs/hardware-test-checklist.md`), so the very first hardware pen stroke exercises the same
-  file format/robot adapter as real generated artwork. Fixed output filenames
-  (`test_line_paths.json`/`test_line_preview.svg`) so it can never overwrite real artwork outputs.
-
-- **`tests/`** — `context.py` adds `Image_Process/mondrian/` to `sys.path` (scripts there import
-  each other as top-level modules, not a package), matching how the scripts are run from the repo
-  root. Import it first in new test files the same way the existing `test_*.py` files do.
-
-## Architecture within `Image_Process/sketch/`
-
-Self-contained, own `config_loader.py`/`path_validation.py` (the latter copied byte-for-byte from
-the mondrian one — the `painting_paths.json` command-list format it validates doesn't care how the
-commands were generated). `canny_edges.py` does Canny edge detection + skeletonization + a pixel
-graph walk to produce one traced centerline per independent line; `path_ordering.py` is a shared
-greedy nearest-neighbor stroke sequencer; `generate_sketch_paths.py` maps traced pixel strokes onto
-the canvas (aspect-ratio-preserving, centered within `margin_mm`), orders them, and emits one
-`move_to -> lower_tool -> paint_stroke (xN) -> lift_tool` sequence per traced line — a curved line
-becomes multiple straight `paint_stroke` segments, one per consecutive point pair. Full detail:
-`Image_Process/sketch/README.md`.
-
-## Architecture within `Image_Process/image_to_mondrian/`
-
-Self-contained, own `config_loader.py` and a byte-for-byte copy of `path_validation.py` and
-`sketch/path_ordering.py`. `color_quantize.py::preprocess()` resizes then smooths the photo —
-either Gaussian blur (`blur_kernel_size`) or, preferably for real photos, edge-preserving
-`cv2.bilateralFilter` (`bilateral_d`, takes priority when set) which smooths flat/gradient areas
-but keeps real high-contrast edges (e.g. an eye against skin) sharp, unlike Gaussian blur.
-`quantize_to_palette()` does fully-vectorized nearest-palette-color matching (Lab space by
-default) — no per-pixel Python loop. Optional `palette.neutral_chroma_threshold` (Lab only,
-default 0/disabled) gates this: pixels below the threshold only match the palette's own neutral
-colors (white/black), pixels at or above only match its chromatic ones (red/blue/yellow) — keeps
-desaturated mid-tones (skin, hair, shadow) from being forced into a bold color just because
-they're marginally closer, so photos land closer to real Mondrian's mostly-white-canvas look
-instead of every pixel getting colored in. Prefer `palette.neutral_chroma_percentile` over a
-hand-picked `neutral_chroma_threshold` number — `color_quantize.compute_adaptive_chroma_threshold()`
-computes the threshold from *that photo's own* Lab chroma distribution, so the same percentile
-value generalizes across differently-colored photos instead of being one magic number tuned to a
-single image (verified against three visually different photos in
-`configs/image_to_mondrian_lenna_a4.json`'s development). `segmentation.py::segment_image()` runs
-a per-color morphological close (`morph_close_kernel_px`, optional) *then* open
-(`clean_label_image()`, strips single-pixel speckle — close runs first so open doesn't erase a
-gap's ragged edges before close can bridge them) then `cv2.connectedComponentsWithStats()` per
-color, then drops regions under `min_region_area_mm2`; each kept region dict carries its own
-boolean `mask`, consumed directly by both `region_fill.py` (fill) and `border_tracing.py`
-(outline). A closing kernel large enough to bridge a real gap in one object (e.g. a hat split by
-shadow) is also large enough to merge small nearby semantic features (e.g. an eye) into an
-adjacent region, since closing only sees pixel geometry — confirmed this isn't a tuning problem:
-an eye's pixel blob is often already connected to nearby hair through eyebrow/eyelash strands
-*before* any morphology runs, so no kernel size threads that needle. `face_protection.py`
-(optional, needs `mediapipe` — the one narrowly-scoped ML dependency in this otherwise-classical
-module) runs a pretrained MediaPipe Face Mesh model and returns a `protected_mask` that
-`clean_label_image()` uses to force-restore protected pixels to their pre-morphology
-classification after close/open run, regardless of what either decided — lets `morph_close_kernel_px`
-be large enough to fix a real object's shape without erasing nearby facial detail. Returns `None`
-(not an error) when `mediapipe` isn't installed or no face is detected. `region_fill.py` is the
-new polygon-fill algorithm
-(mondrian's rectangle boustrophedon only handles rectangles): `erode_mask()` shrinks a region
-inward by `mask_erosion_mm` so strokes don't bleed across color boundaries, `find_row_intervals()`
-is a vectorized run-length detector handling concave shapes (more than one paintable interval per
-row), `compute_stripe_rows()` mirrors mondrian's row-spacing formula in pixel space. No manual
-boustrophedon alternation here — travel optimization is deferred entirely to
-`path_ordering.order_strokes()`, since a concave shape's per-row interval count isn't fixed.
-`border_tracing.py` traces the classic Mondrian black grid lines via `trace_region_contours()` —
-`cv2.findContours()` on one region's own mask at a time (one closed loop per outer boundary, one
-per hole), **not** a single walk across a global boundary-pixel network like `sketch/canny_edges.py`'s
-skeleton graph walk: a busy real photo's color-boundary network has huge numbers of junctions, and
-any graph walk must break a new stroke at every one, fragmenting into thousands of tiny strokes
-(each one a full robot lift/travel/lower cycle); a single region's own boundary is always just one
-or a few closed loops no matter how jagged the pixel boundary is, so per-region tracing sidesteps
-that fragmentation entirely (confirmed against a real photo — see the module's README "Known v1
-limitations" for the accepted trade-off: shared edges between adjacent regions get traced twice,
-not deduplicated). `generate_painting_paths.py::order_and_build_commands()` groups fill strokes by
-color first (physical pen changes cost more than travel distance), greedy-orders each group, then
-draws the black grid lines **last** — same convention mondrian uses, with the side effect that the
-border line (traced along the true, un-eroded boundary) paints over the thin gap `mask_erosion_mm`
-leaves between adjacent fills. Full detail: `Image_Process/image_to_mondrian/README.md`.
-
 ## Config profiles
 
-Core profiles exist in `configs/`; use `demo_v1_a4_pen.json` unless intentionally exercising the
-legacy behavior or one of the photo-input routes:
+Core profiles in `configs/`; use `demo_v1_a4_pen.json` unless exercising a different route or the
+legacy behavior:
 
 | Config | Canvas | Route | Notes |
 | --- | --- | --- | --- |
-| `demo_v1_a4_pen.json` | A4 210x297mm, 10mm margin | mondrian | monochrome (lines only), 1mm pen, 0% overlap |
-| `mondrian_12x12_paint.json` | 12in square, no margin | mondrian | red/yellow/blue accents, 10mm brush, 25% overlap |
-| `sketch_demo_a4.json` | A4 210x297mm, 20mm margin | sketch | traces `Image_Process/assets/apple.png`, 1mm pen |
-| `image_to_mondrian_demo_a4.json` | A4 210x297mm, 10mm margin | image_to_mondrian | quantizes+fills `Image_Process/assets/sample.jpg` to 5 colors, 3mm pen |
-| `gemini_mondrian_demo_a4.json` | A4 210x297mm, 10mm margin | gemini_mondrian | Gemini-restyles `Image_Process/assets/sample.jpg`, own vectorization tuning (no `image_to_mondrian` config involved) |
+| `demo_v1_a4_pen.json` | A4 210×297mm, 10mm margin | mondrian | monochrome (lines only), 1mm pen |
+| `mondrian_12x12_paint.json` | 12in square, no margin | mondrian | red/yellow/blue accents, 10mm brush |
+| `sketch_demo_a4.json` | A4 210×297mm, 20mm margin | sketch | traces `Image_Process/assets/apple.png` |
+| `image_to_mondrian_demo_a4.json` | A4 210×297mm, 10mm margin | image_to_mondrian | quantizes+fills to 5 colors, 3mm pen |
+| `gemini_mondrian_demo_a4.json` | A4 210×297mm, 10mm margin | gemini_mondrian | Gemini restyle + own vectorization |
+| `gemini_mondrian_lenna_a4.json` | A4 210×297mm, 10mm margin | gemini_mondrian | Lenna test image variant |
+| `gemini_mondrian_man_a4.json` | A4 210×297mm, 10mm margin | gemini_mondrian | Man photo variant (was minions) |
+| `image_to_mondrian_lenna_a4.json` | A4 210×297mm, 10mm margin | image_to_mondrian | Lenna tuning config (bilateral, chroma) |
+| `image_to_mondrian_minions_a4.json` | A4 210×297mm, 10mm margin | image_to_mondrian | Minions test variant |
 
-See `Image_Process/mondrian/README.md` / `Image_Process/sketch/README.md` /
-`Image_Process/image_to_mondrian/README.md` ("Important config fields" / "Config fields") for the
-full field reference and `docs/painting-paths-format.md` for the `painting_paths.json`
-command/validation schema (shared by all three routes).
+Config field references live in each route's README.
 
 ## Repo layout
 
@@ -268,65 +171,43 @@ command/validation schema (shared by all three routes).
 - `docs/` — `Rob_Ross_Prototype_v1.md` (current prototype source of truth),
   `painting-paths-format.md` (path JSON schema), `hardware-test-checklist.md`,
   `Rob_Ross_Discuss.md` (early brainstorming, not current requirements).
-- `Image_Process/` — one subfolder per artwork-generation algorithm: `mondrian/` (procedural
-  vector design), `sketch/` (Canny-edge tracing of a source image, lines only),
-  `image_to_mondrian/` (photo quantized to a 5-color palette, fully filled, plus black grid
-  lines), and `gemini_mondrian/` (Gemini image-to-image restyle, then its own simplified
-  quantize/segment/fill/border-trace pipeline — real-photo-tuned parameters from
-  `image_to_mondrian` badly distort Gemini's already-clean output, see that folder's README).
-  New generation approaches get their own sibling subfolder rather than growing inside an
-  existing one.
-- `output/` — generated artifacts (plans, paths, SVG previews), one subfolder per config profile
-  (subfolder name = config filename minus `.json`). Intentionally committed (seed-123 reference
-  samples), not gitignored.
+- `Image_Process/` — one subfolder per artwork-generation algorithm. New generation approaches
+  get their own sibling subfolder rather than growing inside an existing one. See
+  `Image_Process/README.md` for the module index.
+- `Image_Process/assets/` — unified sample images (apple.png, lenna.png, sample.jpg, minions.jpg,
+  images.jpeg). All config `source_image.path` fields point here.
+- `output/` — generated artifacts (plans, paths, SVG previews), one subfolder per config profile.
+  Intentionally committed (seed-123 reference samples), not gitignored.
 - `ros2/` — `robross_painter` ROS 2 package (MoveIt executor) and the vcstool manifest for the
   Aubo driver fork workspace.
+- `webapp/` — optional local Flask control panel: upload a photo, pick a route, click Process.
+  Drives each route's CLI scripts as subprocesses (never imports route modules into the same
+  process — see Key architectural constraints above). Route-specific details live in one dict entry
+  per route in `route_adapters.py`.
+- `generate_output_gallery.py` — repo-root, stdlib-only script that scans `output/*/` and writes
+  `output/index.html`, a static gallery (previews + `debug` stats + validation status per run).
+  Rerun after regenerating any config's output; not wired into the generation scripts themselves
+  since not every run (e.g. CI validation) needs the extra HTML artifact.
 - `CAD/` — SolidWorks 2025 SP5.0 prototype files for hardware (canvas/paint holders).
-- `generate_output_gallery.py` — repo-root, standard-library-only script that scans `output/*/`
-  and writes `output/index.html`, a static gallery (previews + `debug` stats + validation status
-  per run) for browsing every generated config's result at once. Rerun after regenerating any
-  config's output; not wired into the generation scripts themselves, since not every run (e.g. CI
-  validation) needs the extra HTML artifact.
-- `webapp/` — optional local Flask control panel: upload a photo, pick a route, click Process, and
-  browse the result via the same card rendering `generate_output_gallery.py` uses (imported and
-  reused, not duplicated). It drives each route's existing CLI script(s) as subprocesses (never
-  imports more than one route's generation modules into the same process — see the module
-  docstring in `webapp/route_adapters.py` for why: sibling modules like `config_loader`/
-  `path_validation` are same-named top-level imports duplicated per route folder, so importing two
-  routes' modules into one long-lived process would collide in `sys.modules`). Route-specific
-  details (template config, whether it needs an uploaded photo, which script(s) to run) live in
-  one dict entry per route in `route_adapters.py` — adding a future route needs one new entry
-  there, nothing else changes. Uploaded photos and their generated one-off configs live entirely
-  under `output/upload_<timestamp>_<route>/`, never inside `configs/` (reserved for the
-  hand-maintained profile list below) or `Image_Process/assets/` (reserved for the repo's
-  curated sample images).
+- `firmware/` — ESP32 servo gripper firmware (Arduino IDE sketch, continuous-rotation MG996R).
+  See `firmware/gripper_esp32/README.md`.
 
 ## Conventions
 
 - Prefer simple, readable Python using the standard library unless a dependency is clearly
-  justified — `mondrian/` has zero third-party dependencies. `Image_Process/sketch/` (`opencv-python`,
-  `numpy`, `scikit-image`) and `Image_Process/image_to_mondrian/` (`opencv-python`, `numpy` only)
-  are deliberate, folder-scoped exceptions for image loading/quantization/edge-detection — don't
-  let that spread to other folders without similarly clear justification.
-- `webapp/`'s `flask` dependency is scoped the same way: it's the only folder that needs it (a
-  local upload form + routing needs more than stdlib `http.server` can do without hand-rolling
-  multipart parsing), it's optional (the rest of the repo, including
-  `generate_output_gallery.py`'s static-file CLI usage, works with zero knowledge of Flask), and
-  it doesn't affect any generation route's own dependencies — `webapp/` only ever shells out to
-  each route's existing CLI, never imports its generation code.
-- `Image_Process/gemini_mondrian/gemini_client.py`'s `google-genai` dependency is scoped the same
-  way as `flask`/`mediapipe`: only that one module needs it, it's imported lazily inside the single
-  function that calls the Gemini API, and no other route or the rest of the repo needs it
-  installed. The API key comes from the `GEMINI_API_KEY` environment variable only — never a
-  config field or committed anywhere.
-- `Image_Process/image_to_mondrian/face_protection.py`'s `mediapipe` dependency is this repo's
-  first ML model dependency, kept intentionally narrow: optional (`segmentation.protect_face_features`,
-  default off), pretrained/no-training/CPU-only, and imported lazily inside the one function that
-  needs it so the rest of the module has no hard dependency on it. It exists because a purely
-  classical fix was verified not to exist for its specific problem (see the module's README "Why
-  (mostly) non-ML") — don't reach for an ML dependency elsewhere in this repo without similarly
-  confirming the classical approach has a real ceiling, not just "would be easier."
-- Update the relevant Markdown (`README.md`, `Image_Process/mondrian/README.md`,
-  `Image_Process/sketch/README.md`, `Image_Process/image_to_mondrian/README.md`,
-  `docs/painting-paths-format.md`) whenever behavior or project decisions change; these docs are
-  treated as living references, not one-off notes.
+  justified — `mondrian/` has zero third-party dependencies. Route-specific dependencies are
+  deliberate, folder-scoped exceptions (see each route's README). Don't let dependencies spread to
+  other folders without similarly clear justification.
+- `webapp/`'s `flask` dependency is optional, scoped to that folder only. It shells out to each
+  route's existing CLI, never imports generation code.
+- `gemini_mondrian/gemini_client.py`'s `google-genai` dependency is imported lazily inside the
+  single function that calls the Gemini API. The API key comes from the `GEMINI_API_KEY`
+  environment variable only — never a config field or committed anywhere.
+- `image_to_mondrian/face_protection.py`'s `mediapipe` dependency is optional (default off),
+  imported lazily inside the one function that needs it. Don't reach for an ML dependency elsewhere
+  in this repo without confirming the classical approach has a real ceiling.
+- Update the relevant Markdown (`README.md`, route READMEs, `docs/painting-paths-format.md`)
+  whenever behavior or project decisions change; these docs are living references, not one-off notes.
+- Importing in tests: each route's `tests/context.py` adds the parent module directory to
+  `sys.path` (scripts import each other as top-level modules, not a package). Import it first in
+  new test files following the existing pattern.

@@ -1,3 +1,5 @@
+# This file is maintained byte-for-byte identical to the canonical source:
+#   Image_Process/image_to_mondrian/border_tracing.py
 """Classic Mondrian black grid lines: trace each kept region's own outline
 via cv2.findContours, one closed loop per outer boundary and per hole.
 

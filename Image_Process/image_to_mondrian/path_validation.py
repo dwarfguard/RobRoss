@@ -1,3 +1,5 @@
+# CANONICAL SOURCE for path_validation — see file-top comment in the copies at
+# Image_Process/gemini_mondrian/path_validation.py and Image_Process/sketch/path_validation.py.
 """Validation helpers for painting_paths.json-style data.
 
 This module is meant to be imported (e.g. by generate_painting_paths.py),

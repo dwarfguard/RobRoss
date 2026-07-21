@@ -1,3 +1,5 @@
+# This file is maintained byte-for-byte identical to the canonical source:
+#   Image_Process/image_to_mondrian/path_ordering.py
 """Greedy nearest-neighbor stroke ordering, shared by any script in this
 folder that needs to sequence a set of independent strokes into a travel
 order. Ported unchanged from the `raymond` branch's `scripts/path_ordering.py`.

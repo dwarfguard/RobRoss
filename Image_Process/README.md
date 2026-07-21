@@ -6,6 +6,9 @@ its scripts, tests, and documentation.
 | Module | Purpose | Status |
 | --- | --- | --- |
 | [mondrian](mondrian/README.md) | Generate Mondrian-style artwork, robot paths, and SVG previews. | Active Demo v1 pipeline |
+| [sketch](sketch/README.md) | Canny-edge outline tracing of source images → painting paths. | Active |
+| [image_to_mondrian](image_to_mondrian/README.md) | Photo quantized to 5-color palette, region-filled with black grid lines. | Active |
+| [gemini_mondrian](gemini_mondrian/README.md) | Gemini image-to-image Mondrian restyle + standalone vectorization. | Active |
 
 New generation approaches should be added as sibling directories instead of
 being folded into `mondrian/`.
@@ -22,6 +25,9 @@ Image_Process/
   image_to_mondrian/  Photo quantized to a 5-color palette (the robot's actual
                       pens), segmented and fully filled, plus black grid lines
                       (see image_to_mondrian/README.md).
+  gemini_mondrian/    Gemini image-to-image Mondrian-style restyle, then its own
+                      simplified quantize/segment/fill/border-trace pipeline
+                      (see gemini_mondrian/README.md).
 ```
 
 More algorithms are welcome as additional sibling folders here — each new

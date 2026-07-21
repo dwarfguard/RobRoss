@@ -1,3 +1,5 @@
+# This file is maintained byte-for-byte identical to the canonical source:
+#   Image_Process/image_to_mondrian/path_validation.py
 """Validation helpers for painting_paths.json-style data.
 
 This module is meant to be imported (e.g. by generate_painting_paths.py),

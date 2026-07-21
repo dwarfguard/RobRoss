@@ -1,3 +1,5 @@
+# CANONICAL SOURCE for region_fill — see file-top comment in the copy at
+# Image_Process/gemini_mondrian/region_fill.py.
 """Scanline fill for an arbitrary-shape region mask: erode inward (so
 strokes don't bleed into a neighboring color's territory), then fill each
 row with one straight paint_stroke per contiguous on-interval - handling
