@@ -59,6 +59,15 @@ guarantee gap-free fill without the risk of vectorizing an ML model's raster out
 `painting_paths.json` command vocabulary, same executor. See
 `Image_Process/image_to_mondrian/README.md`.
 
+There is a fourth route in `Image_Process/gemini_mondrian/`: uses Gemini's image-to-image
+generation to redraw an arbitrary source photo in a Mondrian-like style, then hands that generated
+image to the **existing** `image_to_mondrian` pipeline (as a subprocess, not an import) for
+vectorization — the quantize/segment/fill/border-trace logic isn't reimplemented, this route only
+adds the Gemini preprocessing step in front of it. Its own config only describes the Gemini step
+(model, prompt) plus which `image_to_mondrian` config to clone as the vectorization template; canvas/
+palette/segmentation settings all come from that cloned template. See
+`Image_Process/gemini_mondrian/README.md`.
+
 ## Commands
 
 Run everything from the repo root (scripts use CWD-relative `configs/`/`output/` paths).
@@ -233,7 +242,7 @@ leaves between adjacent fills. Full detail: `Image_Process/image_to_mondrian/REA
 
 ## Config profiles
 
-Four profiles exist in `configs/`; use `demo_v1_a4_pen.json` unless intentionally exercising the
+Core profiles exist in `configs/`; use `demo_v1_a4_pen.json` unless intentionally exercising the
 legacy behavior or one of the photo-input routes:
 
 | Config | Canvas | Route | Notes |
@@ -242,6 +251,7 @@ legacy behavior or one of the photo-input routes:
 | `mondrian_12x12_paint.json` | 12in square, no margin | mondrian | red/yellow/blue accents, 10mm brush, 25% overlap |
 | `sketch_demo_a4.json` | A4 210x297mm, 20mm margin | sketch | traces `Image_Process/sketch/assets/apple.png`, 1mm pen |
 | `image_to_mondrian_demo_a4.json` | A4 210x297mm, 10mm margin | image_to_mondrian | quantizes+fills `Image_Process/image_to_mondrian/assets/sample.jpg` to 5 colors, 3mm pen |
+| `gemini_mondrian_demo_a4.json` | (inherited from `downstream_template_config`) | gemini_mondrian | Gemini-restyles `Image_Process/image_to_mondrian/assets/sample.jpg`, then clones `image_to_mondrian_demo_a4.json` for vectorization |
 
 See `Image_Process/mondrian/README.md` / `Image_Process/sketch/README.md` /
 `Image_Process/image_to_mondrian/README.md` ("Important config fields" / "Config fields") for the
@@ -255,10 +265,11 @@ command/validation schema (shared by all three routes).
   `painting-paths-format.md` (path JSON schema), `hardware-test-checklist.md`,
   `Rob_Ross_Discuss.md` (early brainstorming, not current requirements).
 - `Image_Process/` — one subfolder per artwork-generation algorithm: `mondrian/` (procedural
-  vector design), `sketch/` (Canny-edge tracing of a source image, lines only), and
+  vector design), `sketch/` (Canny-edge tracing of a source image, lines only),
   `image_to_mondrian/` (photo quantized to a 5-color palette, fully filled, plus black grid
-  lines). New generation approaches get their own sibling subfolder rather than growing inside an
-  existing one.
+  lines), and `gemini_mondrian/` (Gemini image-to-image restyle, then the vectorization step
+  reuses `image_to_mondrian` as a subprocess rather than reimplementing it). New generation
+  approaches get their own sibling subfolder rather than growing inside an existing one.
 - `output/` — generated artifacts (plans, paths, SVG previews), one subfolder per config profile
   (subfolder name = config filename minus `.json`). Intentionally committed (seed-123 reference
   samples), not gitignored.
@@ -297,6 +308,11 @@ command/validation schema (shared by all three routes).
   `generate_output_gallery.py`'s static-file CLI usage, works with zero knowledge of Flask), and
   it doesn't affect any generation route's own dependencies — `webapp/` only ever shells out to
   each route's existing CLI, never imports its generation code.
+- `Image_Process/gemini_mondrian/gemini_client.py`'s `google-genai` dependency is scoped the same
+  way as `flask`/`mediapipe`: only that one module needs it, it's imported lazily inside the single
+  function that calls the Gemini API, and no other route or the rest of the repo needs it
+  installed. The API key comes from the `GEMINI_API_KEY` environment variable only — never a
+  config field or committed anywhere.
 - `Image_Process/image_to_mondrian/face_protection.py`'s `mediapipe` dependency is this repo's
   first ML model dependency, kept intentionally narrow: optional (`segmentation.protect_face_features`,
   default off), pretrained/no-training/CPU-only, and imported lazily inside the one function that

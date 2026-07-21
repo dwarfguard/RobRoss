@@ -48,6 +48,12 @@ ROUTE_ADAPTERS = {
             ("Image_Process/mondrian/generate_painting_paths.py", []),
         ],
     },
+    "gemini_mondrian": {
+        "label": "Photo -> Gemini Mondrian style -> quantized fill",
+        "template_config": "configs/gemini_mondrian_demo_a4.json",
+        "needs_source_image": True,
+        "steps": [("Image_Process/gemini_mondrian/generate_painting_paths.py", [])],
+    },
 }
 
 

@@ -1,0 +1,17 @@
+{
+  "profile_name": "gemini_mondrian_lenna_a4",
+  "project": "R.O.B Ross",
+  "style": "gemini_mondrian",
+  "source_image": {
+    "path": "Image_Process/sketch/assets/lenna.png"
+  },
+  "gemini": {
+    "model": "gemini-2.5-flash-image",
+    "prompt": "Redraw this photo as a Piet Mondrian style portrait: keep the person's face, hair, and body clearly recognizable as a human figure with the same pose and proportions as python3 Image_Process/gemini_mondrian/generate_painting_paths.py --config configs/gemini_mondrian_lenna_a4.jsonthe original photo, but simplify the coloring into flat solid regions using only white, black, and blocks of pure red, blue, and yellow, separated by bold black grid lines, like a Mondrian/De Stijl painting. Do not turn this into abstract non-representational shapes - the subject must still look like a person, just stylized with Mondrian's flat color-block technique. No gradients, no textures, no photographic shading."
+  },
+  "downstream_template_config": "configs/image_to_mondrian_lenna_a4.json",
+  "output": {
+    "directory": "output/gemini_mondrian_lenna_a4",
+    "gemini_output_image_file": "gemini_styled.png"
+  }
+}
