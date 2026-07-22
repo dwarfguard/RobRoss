@@ -39,9 +39,12 @@ painting_executor:
     canvas_backing_size_xy_m: [0.0, 0.0]
     canvas_backing_margin_m: 0.05
 
-    # Pen tip position (and axis, if angled) in ee_link. Measured on the
-    # real claw (2026-07-16 hardware session); re-measure after any pen or
-    # claw change and keep the sim profiles identical.
+    # Pen tip position (and axis, if angled) in ee_link. Calibrate with a sharp
+    # pin via teach_tcp.py (pivot method: docs/hardware-first-run-guide.md
+    # Step 3.5 / package README "Teach The Pen-Tip TCP") — far more accurate
+    # than a ruler. Re-calibrate after any pen or claw change, keep all four
+    # profiles identical, and re-teach the canvas (it is taught in tip
+    # coordinates). Values below are the 2026-07-16 hand-measured seed.
     tool_offset_xyz: [0.0, -0.0595, 0.0514]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     # Spin of the claw about the pen axis, degrees. Pick the value that

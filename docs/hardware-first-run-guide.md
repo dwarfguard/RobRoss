@@ -77,7 +77,42 @@ Sanity check (terminal 3): `ros2 topic echo /joint_states --once` shows live joi
 change when the arm is jogged. (`aubo_client.launch.py` is a separate service demo — not needed
 for this flow.)
 
+## Step 3.5 — (Recommended, once per pen/claw) Calibrate the pen-tip TCP with the pin
+
+The `tool_offset_xyz` / `tool_offset_rpy` in `hardware_a4.yaml` are hand-measured (good to a
+mm or two). For an accurate pen tip, measure them with a sharp calibration pin using the pivot
+method — `teach_tcp.py` — **before teaching the canvas** (the canvas is taught in tip coordinates,
+so it depends on this offset). It needs only live `base_link -> ee_link` TF (Terminal 1); no
+`move_group`, no tool offset. Release the position controller as in Step 4, clamp a sharp pin
+pointing up in reach, then:
+
+```bash
+ros2 run robross_painter teach_tcp.py --ros-args -p output_file:=$HOME/tcp_calibration.yaml
+ros2 launch robross_painter teach_nudge.launch.py aubo_type:=$AUBO_TYPE   # second terminal
+```
+
+Touch the pin tip from ≥4 **widely varied** wrist orientations (freedrive to hover, `~/nudge_in`
+to just-touch), recording each; check the tip scatter and finish:
+
+```bash
+ros2 service call /teach_tcp/record_tip           std_srvs/srv/Trigger   # ×4+, reorient a lot
+ros2 service call /teach_tcp/solve                std_srvs/srv/Trigger   # tip scatter < ~0.7 mm
+ros2 service call /teach_tcp/record_axis_vertical std_srvs/srv/Trigger   # pen plumb, for the axis
+ros2 service call /teach_tcp/save                 std_srvs/srv/Trigger
+```
+
+**Gate:** `solve`/`save` report a tip scatter under ~0.7 mm and no near-degenerate warning (if it
+fires, reorient the wrist far more between touches). Then copy `tool_offset_xyz`/`tool_offset_rpy`
+into **all four** config profiles (keep them identical), re-pick `tool_spin_deg` by eye for
+clearance, and proceed to teach the canvas. Full procedure: `ros2/robross_painter/README.md`
+("Teach The Pen-Tip TCP"). See details of the tool-offset flow in `hardware_a4.yaml` (Step 3
+above). Skip this step only to reuse a previously pin-calibrated offset with the same pen and claw.
+
 ## Step 4 — Teach the canvas (real paper, freedrive + nudge)
+
+Pass the **same** `tool_offset_xyz` the executor will use — the pin-calibrated value from Step 3.5
+if you ran it. The corners are recorded in pen-tip coordinates, so **re-teach the canvas whenever
+the tool offset changes**; a canvas taught against a stale offset is wrong.
 
 Teach each corner at **just-touch** (spring at free length): the recorded point is the
 free-length virtual tip, so any compression at record time pushes the taught plane that far

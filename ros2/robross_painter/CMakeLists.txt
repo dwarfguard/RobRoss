@@ -48,7 +48,7 @@ ament_target_dependencies(teach_nudge
 install(TARGETS painting_executor teach_nudge
   DESTINATION lib/${PROJECT_NAME}
 )
-install(PROGRAMS scripts/teach_canvas.py
+install(PROGRAMS scripts/teach_canvas.py scripts/teach_tcp.py
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch config
@@ -59,6 +59,7 @@ if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_paint_launch test/test_paint_launch.py)
   ament_add_pytest_test(test_teach_canvas_math test/test_teach_canvas_math.py)
+  ament_add_pytest_test(test_teach_tcp_math test/test_teach_tcp_math.py)
 endif()
 
 ament_package()

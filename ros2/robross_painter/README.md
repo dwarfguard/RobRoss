@@ -129,6 +129,68 @@ ros2 launch robross_painter paint.launch.py \
   calibration_file:=$(ros2 pkg prefix robross_painter)/share/robross_painter/config/demo_v1_rviz.yaml
 ```
 
+## Teach The Pen-Tip TCP (Pin Calibration)
+
+The `tool_offset_xyz` / `tool_offset_rpy` in the calibration profiles set where
+the pen tip is relative to `ee_link`. A hand-measured value is only good to a
+millimetre or two; `teach_tcp.py` measures it properly with a **sharp
+calibration pin** using the classic pivot ("N-point") method, and every taught
+canvas and stroke depends on it — so do this **before** teaching the canvas, and
+redo it after any pen or claw change.
+
+Bring up the real stack and release the position controller exactly as in *Teach
+A Real Canvas* below (the node only needs live `base_link -> ee_link` TF; it
+needs no tool offset and no `move_group`). Then, with a sharp pin clamped
+rigidly and pointing up inside the arm's reach:
+
+```bash
+ros2 run robross_painter teach_tcp.py --ros-args \
+  -p output_file:=$HOME/tcp_calibration.yaml
+
+# Second terminal: the same sub-millimeter nudge helper used for the canvas.
+ros2 launch robross_painter teach_nudge.launch.py aubo_type:=$AUBO_TYPE
+```
+
+**Part A — tip position.** Touch the pen tip to the pin tip from **four or more
+widely varied wrist orientations** (freedrive to hover, then `~/nudge_in` to
+just-touch — same doctrine as the canvas). Record each, and reorient the wrist a
+lot between touches (near-identical orientations make the solve ill-conditioned):
+
+```bash
+ros2 service call /teach_tcp/record_tip std_srvs/srv/Trigger
+ros2 service call /teach_tcp/solve std_srvs/srv/Trigger   # check the tip scatter
+```
+
+`~/solve` prints the tip-scatter RMS; keep adding varied touches until it is
+below `residual_warn_mm` (default 0.7 mm).
+
+**Part B — pen axis** (`tool_offset_rpy`), optional but recommended if the pen
+sits angled in the claw. Primary method: with the tip on the pin, hold the pen
+**plumb** (a claw/barrel flat against a small bubble level) and call
+`~/record_axis_vertical` a few times. Higher-accuracy alternative if you have a
+second identifiable point on the pen centerline: run a second pivot on it with
+`~/record_axis_point` (beware touching the side of a bare barrel — that offsets
+by its radius). With neither, the axis stays `[0, 0, 0]` (pen parallel to ee +Z).
+
+```bash
+ros2 service call /teach_tcp/record_axis_vertical std_srvs/srv/Trigger
+ros2 service call /teach_tcp/save std_srvs/srv/Trigger
+```
+
+`~/save` writes a `painting_executor` parameter fragment with the measured
+`tool_offset_xyz` / `tool_offset_rpy` and a report (touch count, scatter, pin
+point, axis tilt). Then:
+
+1. Copy both values into **all four** profiles (`hardware_a4.yaml`,
+   `rviz_wall_a4.yaml`, `rviz_taught_a4.yaml`, `demo_v1_rviz.yaml`) — they must
+   stay identical.
+2. **Re-pick `tool_spin_deg`** by eye for claw/cable clearance (it is a separate
+   clearance choice, not calibrated here).
+3. **Re-teach the canvas** — any existing `canvas_calibration.yaml` was recorded
+   with the old offset and is now stale.
+
+Other services: `~/record_axis_point`, `~/clear` (reset all touches).
+
 ## Teach A Real Canvas
 
 Complete the [hardware preflight](PREFLIGHT.md) in order; this section only
