@@ -45,7 +45,12 @@ collision geometry. It then applies these fail-closed checks:
 - configured elbow-family limits at startup and along every trajectory;
 - bounded goal displacement, total travel, and sample steps for guarded joints;
 - tighter guarded-joint travel while lowering, painting, or lifting;
-- Cartesian jump detection and post-retiming pen-tip path validation;
+- Cartesian jump detection and post-retiming pen-tip path validation, with
+  the canvas-normal deviation checked separately (and much tighter) than the
+  tangential deviation;
+- Cartesian trajectories sent position-only at the controller period
+  (`controller_sample_dt`), so the controller's linear interpolation matches
+  exactly what the validator checked (remediation plan Phase 1);
 - MoveIt bounds and collision checks at interpolated trajectory samples;
 - measured pen-tip endpoint checks after execution.
 

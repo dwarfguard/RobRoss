@@ -14,6 +14,8 @@ find_package(visualization_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(trajectory_msgs REQUIRED)
+find_package(Eigen3 REQUIRED)
 find_package(jsoncpp REQUIRED)
 
 add_compile_options(-Wall -Wextra)
@@ -30,6 +32,7 @@ ament_target_dependencies(painting_executor
   visualization_msgs
   tf2
   tf2_geometry_msgs
+  trajectory_msgs
 )
 target_link_libraries(painting_executor jsoncpp_lib)
 
@@ -58,6 +61,12 @@ install(DIRECTORY launch config
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_cartesian_postprocess
+    test/test_cartesian_postprocess.cpp)
+  target_include_directories(test_cartesian_postprocess PRIVATE src)
+  ament_target_dependencies(test_cartesian_postprocess trajectory_msgs)
+  target_link_libraries(test_cartesian_postprocess Eigen3::Eigen)
   ament_add_pytest_test(test_paint_launch test/test_paint_launch.py)
   ament_add_pytest_test(test_teach_canvas_math test/test_teach_canvas_math.py)
   ament_add_pytest_test(test_teach_tcp_math test/test_teach_tcp_math.py)

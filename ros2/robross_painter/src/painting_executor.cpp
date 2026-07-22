@@ -57,6 +57,8 @@
 #include <tf2/LinearMath/Vector3.h>
 #include <visualization_msgs/msg/marker.hpp>
 
+#include "cartesian_postprocess.hpp"
+
 namespace {
 
 moveit::planning_interface::MoveGroupInterface
@@ -244,6 +246,9 @@ public:
         node_->get_parameter_or("max_cartesian_deviation_mm",
                                 max_cartesian_deviation_mm_,
                                 max_cartesian_deviation_mm_);
+        node_->get_parameter_or("max_cartesian_normal_deviation_mm",
+                                max_cartesian_normal_deviation_mm_,
+                                max_cartesian_normal_deviation_mm_);
         node_->get_parameter_or("max_cartesian_orientation_deviation_deg",
                                 max_cartesian_orientation_deviation_deg_,
                                 max_cartesian_orientation_deviation_deg_);
@@ -255,8 +260,8 @@ public:
                                 max_execution_tip_orientation_error_deg_);
         node_->get_parameter_or("totg_path_tolerance", totg_path_tolerance_,
                                 totg_path_tolerance_);
-        node_->get_parameter_or("totg_resample_dt", totg_resample_dt_,
-                                totg_resample_dt_);
+        node_->get_parameter_or("controller_sample_dt", controller_sample_dt_,
+                                controller_sample_dt_);
         node_->get_parameter_or("joint_states_topic", joint_states_topic_,
                                 joint_states_topic_);
         node_->get_parameter_or("state_validity_service",
@@ -1024,20 +1029,22 @@ private:
             !std::isfinite(max_guarded_joint_paint_travel_deg_) ||
             !std::isfinite(max_guarded_joint_step_deg_) ||
             !std::isfinite(max_cartesian_deviation_mm_) ||
+            !std::isfinite(max_cartesian_normal_deviation_mm_) ||
             !std::isfinite(max_cartesian_orientation_deviation_deg_) ||
             !std::isfinite(max_execution_tip_error_mm_) ||
             !std::isfinite(max_execution_tip_orientation_error_deg_) ||
             !std::isfinite(totg_path_tolerance_) ||
-            !std::isfinite(totg_resample_dt_) ||
+            !std::isfinite(controller_sample_dt_) ||
             max_guarded_joint_goal_delta_deg_ <= 0.0 ||
             max_guarded_joint_travel_deg_ <= 0.0 ||
             max_guarded_joint_paint_travel_deg_ <= 0.0 ||
             max_guarded_joint_step_deg_ <= 0.0 ||
             max_cartesian_deviation_mm_ <= 0.0 ||
+            max_cartesian_normal_deviation_mm_ <= 0.0 ||
             max_cartesian_orientation_deviation_deg_ <= 0.0 ||
             max_execution_tip_error_mm_ <= 0.0 ||
             max_execution_tip_orientation_error_deg_ <= 0.0 ||
-            totg_path_tolerance_ <= 0.0 || totg_resample_dt_ <= 0.0) {
+            totg_path_tolerance_ <= 0.0 || controller_sample_dt_ <= 0.0) {
             RCLCPP_ERROR(node_->get_logger(),
                          "All guarded-joint motion limits must be positive");
             return false;
@@ -1209,18 +1216,9 @@ private:
                                    tip.getOrigin().z());
         }
 
-        const auto point_segment_distance =
-            [](const Eigen::Vector3d &point, const Eigen::Vector3d &start,
-               const Eigen::Vector3d &end) {
-                const Eigen::Vector3d segment = end - start;
-                const double length_sq = segment.squaredNorm();
-                if (length_sq <= std::numeric_limits<double>::epsilon()) {
-                    return (point - start).norm();
-                }
-                const double t = std::clamp(
-                    (point - start).dot(segment) / length_sq, 0.0, 1.0);
-                return (point - (start + t * segment)).norm();
-            };
+        const tf2::Vector3 normal_tf = canvas_.axis(2);
+        const Eigen::Vector3d canvas_normal(normal_tf.x(), normal_tf.y(),
+                                            normal_tf.z());
 
         const tf2::Quaternion desired_tip_q =
             (pose_to_tf(waypoints.front()) * tool_offset_).getRotation();
@@ -1228,7 +1226,10 @@ private:
             desired_tip_q.w(), desired_tip_q.x(), desired_tip_q.y(),
             desired_tip_q.z());
         desired_orientation.normalize();
-        double max_position_error = 0.0;
+        // Signed canvas-normal deviation: positive = into the paper.
+        double max_inward_normal = std::numeric_limits<double>::lowest();
+        double min_outward_normal = std::numeric_limits<double>::max();
+        double max_tangential_error = 0.0;
         double max_orientation_error = 0.0;
         constexpr double kMaxInterpolationStep = M_PI / 180.0;
         for (std::size_t segment = 0; segment < jt.points.size(); ++segment) {
@@ -1256,14 +1257,17 @@ private:
                 const Eigen::Vector3d actual(actual_tip.getOrigin().x(),
                                              actual_tip.getOrigin().y(),
                                              actual_tip.getOrigin().z());
-                double distance = std::numeric_limits<double>::infinity();
-                for (std::size_t i = 1; i < reference.size(); ++i) {
-                    distance = std::min(
-                        distance,
-                        point_segment_distance(actual, reference[i - 1],
-                                               reference[i]));
-                }
-                max_position_error = std::max(max_position_error, distance);
+                const Eigen::Vector3d closest =
+                    robross_painter::closestPointOnPolyline(actual,
+                                                            reference);
+                const auto deviation = robross_painter::deviationComponents(
+                    actual - closest, canvas_normal);
+                max_inward_normal =
+                    std::max(max_inward_normal, deviation.normal_signed);
+                min_outward_normal =
+                    std::min(min_outward_normal, deviation.normal_signed);
+                max_tangential_error =
+                    std::max(max_tangential_error, deviation.tangential);
                 const tf2::Quaternion actual_q = actual_tip.getRotation();
                 const Eigen::Quaterniond actual_orientation(
                     actual_q.w(), actual_q.x(), actual_q.y(), actual_q.z());
@@ -1273,17 +1277,24 @@ private:
             }
         }
 
-        const double position_error_mm = max_position_error * 1000.0;
+        const double inward_mm = max_inward_normal * 1000.0;
+        const double outward_mm = min_outward_normal * 1000.0;
+        const double tangential_mm = max_tangential_error * 1000.0;
         const double orientation_error_deg =
             max_orientation_error * 180.0 / M_PI;
         RCLCPP_INFO(node_->get_logger(),
-                    "Cartesian FK error after retiming: %.3f mm, %.3f deg",
-                    position_error_mm, orientation_error_deg);
-        if (position_error_mm > max_cartesian_deviation_mm_ ||
+                    "Cartesian FK error after retiming: normal %+.3f/%+.3f mm"
+                    " (max into/out of paper), tangential %.3f mm, %.3f deg",
+                    inward_mm, outward_mm, tangential_mm,
+                    orientation_error_deg);
+        if (inward_mm > max_cartesian_normal_deviation_mm_ ||
+            -outward_mm > max_cartesian_normal_deviation_mm_ ||
+            tangential_mm > max_cartesian_deviation_mm_ ||
             orientation_error_deg > max_cartesian_orientation_deviation_deg_) {
             RCLCPP_ERROR(node_->get_logger(),
-                         "Retimed Cartesian path exceeds FK limits (%.3f mm, "
-                         "%.3f deg)",
+                         "Retimed Cartesian path exceeds FK limits (normal "
+                         "%.3f mm, tangential %.3f mm, %.3f deg)",
+                         max_cartesian_normal_deviation_mm_,
                          max_cartesian_deviation_mm_,
                          max_cartesian_orientation_deviation_deg_);
             return false;
@@ -1815,13 +1826,23 @@ private:
         robot_trajectory::RobotTrajectory rt(group_.getRobotModel(),
                                              group_.getName());
         rt.setRobotTrajectoryMsg(start_state, traj);
+        // Resample at the controller period: TOTG's own uniform resampling
+        // emits exact on-profile positions every controller_sample_dt_, so
+        // the linear interpolation the controller falls back to (below) is
+        // validated against samples it will actually execute between.
         trajectory_processing::TimeOptimalTrajectoryGeneration totg(
-            totg_path_tolerance_, totg_resample_dt_);
+            totg_path_tolerance_, controller_sample_dt_);
         if (!totg.computeTimeStamps(rt, vel_scale_, acc_scale_)) {
             RCLCPP_ERROR(node_->get_logger(), "Trajectory retiming failed");
             return false;
         }
         rt.getRobotTrajectoryMsg(traj);
+        // Strip derivatives BEFORE validation and execution so every check
+        // below sees exactly the message the controller receives, and the
+        // Humble spline controller interpolates positions linearly instead
+        // of executing unvalidated quintic splines (remediation plan
+        // Section 2.3). Joint-space travel keeps its derivatives.
+        robross_painter::stripDerivatives(traj.joint_trajectory);
         if (!validateCartesianPath(traj, waypoints)) {
             return false;
         }
@@ -1928,11 +1949,12 @@ private:
     double max_guarded_joint_paint_travel_deg_{ 90.0 };
     double max_guarded_joint_step_deg_{ 45.0 };
     double max_cartesian_deviation_mm_{ 2.0 };
+    double max_cartesian_normal_deviation_mm_{ 0.2 };
     double max_cartesian_orientation_deviation_deg_{ 2.0 };
     double max_execution_tip_error_mm_{ 1.0 };
     double max_execution_tip_orientation_error_deg_{ 1.0 };
     double totg_path_tolerance_{ 0.01 };
-    double totg_resample_dt_{ 0.02 };
+    double controller_sample_dt_{ 0.005 };
     bool dry_run_{ false };
     std::unique_ptr<moveit::core::RobotState> tracked_state_;
 

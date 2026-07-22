@@ -572,7 +572,7 @@ The executor therefore uses MoveIt's Time-Optimal Trajectory Generation at
 ```cpp
 TimeOptimalTrajectoryGeneration(
     totg_path_tolerance_,
-    totg_resample_dt_);
+    controller_sample_dt_);
 ```
 
 It then calls:
@@ -590,11 +590,18 @@ The default RViz profile uses:
 velocity_scaling: 0.3
 acceleration_scaling: 0.3
 totg_path_tolerance: 0.01
-totg_resample_dt: 0.02
+controller_sample_dt: 0.005
 ```
 
-This produces joint positions, velocities, accelerations, and `time_from_start`
-values.
+TOTG emits exact on-profile joint positions every `controller_sample_dt`
+(matched to the joint trajectory controller period). The executor then strips
+the velocity, acceleration, and effort arrays before validating or sending the
+trajectory: with position-only points, the ROS 2 Humble spline controller
+falls back to LINEAR interpolation between samples — the same model the
+post-retiming validator checks. With derivatives present it would execute
+quintic splines the validator never sees (remediation plan Section 2.3 /
+Phase 1). Joint-space travel trajectories are not modified and keep their
+planner-side derivatives.
 
 There is no direct painting speed in mm/s. Travel and painting use the same
 scaling values. Actual tip speed depends on:
@@ -621,17 +628,22 @@ It:
 2. Applies `tool_offset` to recover the physical pen-tip pose.
 3. Interpolates between trajectory points so no validation step exceeds one
    degree of joint movement.
-4. Measures distance from the actual tip to the requested Cartesian polyline.
+4. Decomposes the deviation from the closest point on the requested Cartesian
+   polyline into a signed canvas-normal component (positive = into the paper)
+   and a tangential component, and tracks the extremes of each separately.
 5. Measures tip-orientation error.
 
 The default limits are:
 
 ```yaml
-max_cartesian_deviation_mm: 2.0
+max_cartesian_deviation_mm: 2.0          # tangential
+max_cartesian_normal_deviation_mm: 0.2   # signed, both into and out of paper
 max_cartesian_orientation_deviation_deg: 2.0
 ```
 
-A trajectory exceeding either limit is rejected before execution.
+A trajectory exceeding any limit is rejected before execution. The normal
+limit is far tighter than the tangential one because canvas-normal excursions
+are what rip the paper (inward) or lift the pen (outward).
 
 This test checks that the resulting tip stays close to the requested line
 geometry. It does not strictly prove that every reference segment is visited in

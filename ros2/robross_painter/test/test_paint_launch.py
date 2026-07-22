@@ -102,3 +102,21 @@ def test_shipped_hardware_profile_is_dry_run():
     parameters = yaml.safe_load(path.read_text(encoding="utf-8"))
 
     assert parameters["painting_executor"]["ros__parameters"]["dry_run"] is True
+
+
+def test_shipped_profiles_use_controller_period_interpolation():
+    # Remediation plan Phase 1: Cartesian trajectories are resampled at the
+    # controller period and validated with a dedicated canvas-normal limit;
+    # the old totg_resample_dt no longer exists.
+    for name in (
+        "hardware_a4.yaml",
+        "demo_v1_rviz.yaml",
+        "rviz_taught_a4.yaml",
+        "rviz_wall_a4.yaml",
+    ):
+        path = PACKAGE_ROOT / "config" / name
+        params = yaml.safe_load(path.read_text(encoding="utf-8"))
+        params = params["painting_executor"]["ros__parameters"]
+        assert params["controller_sample_dt"] == 0.005, name
+        assert params["max_cartesian_normal_deviation_mm"] == 0.2, name
+        assert "totg_resample_dt" not in params, name

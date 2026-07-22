@@ -86,13 +86,18 @@ painting_executor:
     max_guarded_joint_paint_travel_deg: 90.0
     max_guarded_joint_step_deg: 45.0
     # Verify the trajectory after time parameterization still follows the
-    # requested pen-tip path and orientation.
+    # requested pen-tip path and orientation. Cartesian trajectories are sent
+    # position-only at controller_sample_dt so the controller interpolates
+    # linearly — exactly what the validator checks (remediation plan Phase 1).
+    # The canvas-normal limit is much tighter than the tangential one: normal
+    # excursions rip or gap the paper.
     max_cartesian_deviation_mm: 2.0
+    max_cartesian_normal_deviation_mm: 0.2
     max_cartesian_orientation_deviation_deg: 2.0
     max_execution_tip_error_mm: 1.0
     max_execution_tip_orientation_error_deg: 1.0
     totg_path_tolerance: 0.01
-    totg_resample_dt: 0.02
+    controller_sample_dt: 0.005
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
     # Keep true for the first run: plans everything, executes nothing.
