@@ -118,3 +118,112 @@ def test_degenerate_corners_raise():
         pass
     else:
         raise AssertionError("expected ValueError for coincident corners")
+
+
+# --- Multi-point plane fit + Z-correction surface -----------------------
+
+# Wall frame axes (see the _WALL_* corners above): canvas x is base -y,
+# canvas y is base -z, and the into-paper normal z is base +x.
+_WALL_XC = np.array([0.0, -1.0, 0.0])
+_WALL_YC = np.array([0.0, 0.0, -1.0])
+_WALL_ZC = np.array([1.0, 0.0, 0.0])
+_WALL_BR = [0.4, -0.105, 0.303]
+
+
+def _wall_point(x_mm, y_mm, warp_mm=0.0):
+    """Base-frame point on the wall canvas at canvas (x_mm, y_mm), pushed
+    warp_mm out of the plane along the into-paper normal."""
+    return (
+        np.array(_WALL_TL)
+        + (x_mm / 1000.0) * _WALL_XC
+        + (y_mm / 1000.0) * _WALL_YC
+        + (warp_mm / 1000.0) * _WALL_ZC
+    )
+
+
+def test_calibration_flat_matches_flat_plane():
+    # Four planar corners, no interior samples: the best-fit plane must equal
+    # the old three-corner plane, with a zero correction surface.
+    origin, quat, width_m, height_m, coeffs, before, after = (
+        teach_canvas.compute_canvas_calibration(
+            _WALL_TL, _WALL_TR, _WALL_BL, _WALL_BR
+        )
+    )
+    ref_origin, ref_quat, ref_w, ref_h, _skew = teach_canvas.compute_canvas_pose(
+        _WALL_TL, _WALL_TR, _WALL_BL
+    )
+    np.testing.assert_allclose(origin, ref_origin, atol=1e-12)
+    np.testing.assert_allclose(np.abs(quat), np.abs(ref_quat), atol=1e-9)
+    np.testing.assert_allclose([width_m, height_m], [ref_w, ref_h], atol=1e-9)
+    np.testing.assert_allclose(coeffs, np.zeros(6), atol=1e-9)
+    assert before < 1e-9 and after < 1e-9
+
+
+def test_calibration_absorbs_pure_tilt_without_correction():
+    # A planar-but-tilted canvas: the plane fit should recover it (residual
+    # ~0), so the correction surface stays ~flat.
+    tilt = np.array([1.0, 0.0, 1.0]) / np.sqrt(2.0)  # normal of a 45-deg tilt
+    tl = np.array([0.4, 0.105, 0.6])
+    # Build tr/bl/br in a genuine plane with that normal.
+    xc = np.array([0.0, -1.0, 0.0])
+    yc = np.cross(tilt, xc)
+    tr = tl + 0.210 * xc
+    bl = tl + 0.297 * yc
+    br = tl + 0.210 * xc + 0.297 * yc
+    _o, _q, _w, _h, coeffs, before, after = (
+        teach_canvas.compute_canvas_calibration(tl, tr, bl, br)
+    )
+    assert before < 1e-9   # already planar
+    assert after < 1e-9
+    np.testing.assert_allclose(coeffs, np.zeros(6), atol=1e-9)
+
+
+def test_calibration_models_quadratic_warp():
+    # Corners + a 3x3 interior grid lying on a warped (non-planar) surface.
+    # The flat model would miss the bulge; the correction surface must absorb
+    # nearly all of it.
+    def warp(x, y):  # quadratic bowl, mm; ~0 at corners, peak mid-sheet
+        return 1.2 * (1.0 - 0.5 * (
+            ((x - 105.0) / 105.0) ** 2 + ((y - 148.5) / 148.5) ** 2
+        ))
+
+    grid = [(x, y) for x in (52.5, 105.0, 157.5)
+            for y in (74.25, 148.5, 222.75)]
+    tl = _wall_point(0, 0, warp(0, 0))
+    tr = _wall_point(210, 0, warp(210, 0))
+    bl = _wall_point(0, 297, warp(0, 297))
+    br = _wall_point(210, 297, warp(210, 297))
+    samples = [_wall_point(x, y, warp(x, y)) for x, y in grid]
+
+    _o, _q, _w, _h, coeffs, before, after = (
+        teach_canvas.compute_canvas_calibration(tl, tr, bl, br, samples)
+    )
+    # The warp is a genuine out-of-plane error the flat plane cannot remove...
+    assert before > 0.3
+    # ...but the quadratic surface reconstructs every touched point.
+    assert after < 0.01
+    assert np.max(np.abs(coeffs)) > 0.0
+
+
+def test_fit_z_correction_roundtrip():
+    coeffs_true = [0.2, -0.001, 0.0008, 5e-6, -3e-6, 2e-6]
+    xs = np.array([x for x in (0.0, 105.0, 210.0) for _ in range(3)])
+    ys = np.array([y for _ in range(3) for y in (0.0, 148.5, 297.0)])
+    resid = teach_canvas._corr_design(xs, ys) @ np.array(coeffs_true)
+    fitted = teach_canvas.fit_z_correction(xs, ys, resid)
+    # The fitted quadratic reproduces the residuals at every point (comparing
+    # coefficients directly is ill-conditioned given the large x^2/y^2 terms).
+    recon = teach_canvas._corr_design(xs, ys) @ np.array(fitted)
+    np.testing.assert_allclose(recon, resid, atol=1e-6)
+    # Two quadratics agreeing at a non-degenerate grid are identical, so it
+    # also matches away from the sampled points.
+    np.testing.assert_allclose(
+        teach_canvas.evaluate_z_correction(fitted, 70.0, 200.0),
+        teach_canvas.evaluate_z_correction(coeffs_true, 70.0, 200.0),
+        atol=1e-5,
+    )
+
+
+def test_fit_z_correction_too_few_points_is_flat():
+    coeffs = teach_canvas.fit_z_correction([0.0, 10.0], [0.0, 5.0], [0.1, 0.2])
+    assert coeffs == [0.0] * 6

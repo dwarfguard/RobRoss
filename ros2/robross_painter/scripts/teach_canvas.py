@@ -44,10 +44,23 @@ Workflow:
      and call the service again. "Top-left" is the top-left of the
      artwork as it should appear on the paper (canvas x runs top-left ->
      top-right, y runs top-left -> bottom-left). Corners can be
-     re-recorded at any time. bottom_right is optional: it is used only
-     to validate the other three corners, and save warns when it sits
-     more than corner_residual_warn_mm from the predicted rectangle
-     corner.
+     re-recorded at any time. All FOUR corners are required: the plane
+     normal is the least-squares best fit through every touched point, so
+     the fourth corner averages out per-corner touch noise instead of
+     just validating the other three.
+  3b. Optionally record interior sample points the same way, at just-touch,
+     spread across the paper (a ~3x3 grid: center, mid-edges, quarter
+     points — ~5-9 points):
+
+       ros2 service call /teach_canvas/record_sample std_srvs/srv/Trigger
+
+     These are fit into a smooth Z-correction surface that the executor
+     adds along the plane normal at draw time. It captures the
+     reach-dependent, NON-planar contact error (the arm drooping when
+     extended, over-driving when retracted) that a single flat plane
+     cannot represent — the cause of one paper edge ripping while the
+     opposite edge gaps/dots. save reports the out-of-plane error before
+     and after this correction and refuses when too much remains.
   4. Save the calibration:
 
        ros2 service call /teach_canvas/save std_srvs/srv/Trigger
@@ -166,10 +179,124 @@ def matrix_to_quat(m):
     return tuple(q)
 
 
+def fit_plane_normal(points, ref_normal):
+    """Unit normal of the least-squares best-fit plane through >=3 points.
+
+    Sign-aligned to ref_normal so it keeps pointing into the paper. Unlike
+    cross(xc, yc) from two corner edges, this uses every touched point, so a
+    single noisy corner no longer tips the whole plane.
+    """
+    pts = np.asarray(points, dtype=float)
+    centroid = pts.mean(axis=0)
+    _u, _s, vh = np.linalg.svd(pts - centroid)
+    normal = vh[-1]
+    if np.dot(normal, ref_normal) < 0.0:
+        normal = -normal
+    return normal / np.linalg.norm(normal)
+
+
+# Correction surface basis: [1, x, y, x*y, x^2, y^2], x/y in millimeters.
+_CORR_TERMS = 6
+
+
+def _corr_design(x_mm, y_mm):
+    x = np.asarray(x_mm, dtype=float)
+    y = np.asarray(y_mm, dtype=float)
+    return np.column_stack([np.ones_like(x), x, y, x * y, x * x, y * y])
+
+
+def fit_z_correction(x_mm, y_mm, resid_mm):
+    """Least-squares coefficients of the correction surface
+    z_corr(x, y) = a + b*x + c*y + d*x*y + e*x^2 + f*y^2 (mm), fit to the
+    per-point out-of-plane residuals.
+
+    Uses as many terms as the point count supports (>=6 quadratic, >=3 linear,
+    else flat) and zero-pads the rest, so a sparse teach still yields a valid,
+    non-overfit surface. Returns the full six coefficients.
+    """
+    n = np.asarray(x_mm, dtype=float).shape[0]
+    if n >= _CORR_TERMS:
+        ncols = _CORR_TERMS
+    elif n >= 3:
+        ncols = 3  # linear residual (tilt) only
+    else:
+        return [0.0] * _CORR_TERMS
+    design = _corr_design(x_mm, y_mm)[:, :ncols]
+    coeffs, *_ = np.linalg.lstsq(
+        design, np.asarray(resid_mm, dtype=float), rcond=None
+    )
+    return [float(v) for v in coeffs] + [0.0] * (_CORR_TERMS - ncols)
+
+
+def evaluate_z_correction(coeffs, x_mm, y_mm):
+    """Evaluate the correction surface (mm) at canvas (x_mm, y_mm)."""
+    return float(_corr_design([x_mm], [y_mm])[0] @ np.asarray(coeffs, float))
+
+
+def compute_canvas_calibration(tl, tr, bl, br, samples=(), plane_bias_mm=0.0):
+    """Full canvas calibration from four touched corners plus interior samples.
+
+    Returns (origin, quat_xyzw, width_m, height_m, corr_coeffs,
+    max_resid_before_mm, max_resid_after_mm).
+
+    The in-plane frame (canvas x right, y down) still comes from the corners,
+    but the plane NORMAL is the least-squares best fit through every touched
+    point (corners + samples). corr_coeffs is a quadratic surface (mm) the
+    executor adds along the normal to cancel the reach-dependent, non-planar
+    contact error a single plane cannot represent. origin is the top-left
+    corner shifted plane_bias_mm along the fitted +z normal (the pen preload).
+    max_resid_before_mm is the worst out-of-plane error the flat model would
+    leave; max_resid_after_mm is what remains once the surface is applied.
+    Raises ValueError when the corners are too close to define a plane.
+    """
+    tl = np.asarray(tl, dtype=float)
+    tr = np.asarray(tr, dtype=float)
+    bl = np.asarray(bl, dtype=float)
+    br = np.asarray(br, dtype=float)
+
+    x_raw = tr - tl
+    y_raw = bl - tl
+    width_m = float(np.linalg.norm(x_raw))
+    if width_m < 0.01 or np.linalg.norm(y_raw) < 0.01:
+        raise ValueError("Corners are too close together, re-record them")
+
+    xc0 = x_raw / width_m
+    y_proj0 = y_raw - np.dot(y_raw, xc0) * xc0
+    yc0 = y_proj0 / np.linalg.norm(y_proj0)
+    n_ref = np.cross(xc0, yc0)  # rough into-paper normal from the corners
+
+    all_pts = np.vstack(
+        [tl, tr, bl, br] + [np.asarray(s, dtype=float) for s in samples]
+    )
+    zc = fit_plane_normal(all_pts, n_ref)
+
+    # Re-orthogonalize the in-plane axes into the fitted plane.
+    xc = xc0 - np.dot(xc0, zc) * zc
+    xc /= np.linalg.norm(xc)
+    yc = np.cross(zc, xc)
+    height_m = float(abs(np.dot(y_raw, yc)))
+
+    # Per-point canvas coords and out-of-plane residual: the component of
+    # (point - tl) along the fitted normal is exactly the offset the flat
+    # model misses at that point.
+    rel = all_pts - tl
+    xs_mm = rel @ xc * 1000.0
+    ys_mm = rel @ yc * 1000.0
+    resid_mm = rel @ zc * 1000.0
+    max_before = float(np.max(np.abs(resid_mm)))
+
+    coeffs = fit_z_correction(xs_mm, ys_mm, resid_mm)
+    fitted = _corr_design(xs_mm, ys_mm) @ np.asarray(coeffs, dtype=float)
+    max_after = float(np.max(np.abs(resid_mm - fitted)))
+
+    origin = tl + zc * (plane_bias_mm / 1000.0)
+    quat = matrix_to_quat(np.column_stack((xc, yc, zc)))
+    return origin, quat, width_m, height_m, coeffs, max_before, max_after
+
+
 class TeachCanvas(Node):
-    CORNERS = ("top_left", "top_right", "bottom_left")
-    # Recorded only to validate the required three; never used for the pose.
-    OPTIONAL_CORNERS = ("bottom_right",)
+    # All four are required and feed the least-squares plane fit.
+    CORNERS = ("top_left", "top_right", "bottom_left", "bottom_right")
     SAMPLE_RATE_HZ = 50.0
 
     def __init__(self):
@@ -189,6 +316,11 @@ class TeachCanvas(Node):
         self.declare_parameter("stillness_tol_mm", 0.5)
         self.declare_parameter("min_record_samples", 10)
         self.declare_parameter("corner_residual_warn_mm", 2.0)
+        # Out-of-plane error left after the Z-correction surface. The pen
+        # spring's preload margin to liftoff is only ~plane_bias_mm, so warn
+        # early and refuse to save a canvas that cannot physically draw evenly.
+        self.declare_parameter("flatness_warn_mm", 0.3)
+        self.declare_parameter("flatness_refuse_mm", 0.6)
         # Pen preload: the saved plane is shifted this far along the canvas
         # normal INTO the wall. Use with the just-touch doctrine (record
         # each corner at first visible spring movement, zero compression);
@@ -206,6 +338,7 @@ class TeachCanvas(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.points = {}
+        self.interior_samples = []
         # (monotonic time, pen-tip position) history, twice the record window.
         self.samples = collections.deque(
             maxlen=max(2, int(2 * self.record_window_s * self.SAMPLE_RATE_HZ))
@@ -213,20 +346,22 @@ class TeachCanvas(Node):
         self._tf_wait_logged = False
         self.create_timer(1.0 / self.SAMPLE_RATE_HZ, self._sample_pen_tip)
 
-        for corner in self.CORNERS + self.OPTIONAL_CORNERS:
+        for corner in self.CORNERS:
             self.create_service(
                 Trigger,
                 f"~/record_{corner}",
                 lambda req, res, c=corner: self.record(c, res),
             )
+        self.create_service(Trigger, "~/record_sample", self.record_sample)
         self.create_service(Trigger, "~/save", self.save)
 
         self.get_logger().info(
             "Teach mode: verify joint_trajectory_controller is inactive, "
             "enable pendant freedrive, touch the pen tip to each paper corner "
             "and call ~/record_top_left, ~/record_top_right, "
-            "~/record_bottom_left (plus optional ~/record_bottom_right for "
-            "validation), then ~/save. Hands off the arm while recording."
+            "~/record_bottom_left, ~/record_bottom_right (all four required), "
+            "optionally ~/record_sample for interior points, then ~/save. "
+            "Hands off the arm while recording."
         )
 
     def _sample_pen_tip(self):
@@ -250,37 +385,64 @@ class TeachCanvas(Node):
         rot = quat_to_matrix(q.x, q.y, q.z, q.w)
         return np.array([t.x, t.y, t.z]) + rot @ self.tool_offset
 
-    def record(self, corner, res):
+    def _capture_point(self):
+        """Average the still pen-tip position over the record window.
+
+        Returns (point, n_samples, spread_mm, error_message); point is None
+        with a populated error_message when there aren't enough samples or the
+        arm moved during the window.
+        """
         cutoff = time.monotonic() - self.record_window_s
         window = [p for t, p in self.samples if t >= cutoff]
         if len(window) < self.min_record_samples:
-            res.success = False
-            res.message = (
+            return None, len(window), 0.0, (
                 f"Only {len(window)} pen-tip samples in the last "
                 f"{self.record_window_s:.1f} s (need "
                 f"{self.min_record_samples}); TF may not be streaming yet — "
                 "wait a moment and re-record"
             )
-            return res
         p, spread_mm = average_still_samples(window, self.stillness_tol_mm)
         if p is None:
-            res.success = False
-            res.message = (
+            return None, len(window), spread_mm, (
                 f"Arm moved {spread_mm:.2f} mm during the last "
                 f"{self.record_window_s:.1f} s (tolerance "
                 f"{self.stillness_tol_mm:.2f} mm). Release the arm, let it "
                 "settle, and re-record"
             )
-            self.get_logger().warn(res.message)
+        return p, len(window), spread_mm, None
+
+    def record(self, corner, res):
+        p, n, spread_mm, err = self._capture_point()
+        if err is not None:
+            res.success = False
+            res.message = err
+            self.get_logger().warn(err)
             return res
         self.points[corner] = p
         missing = [c for c in self.CORNERS if c not in self.points]
         res.success = True
         res.message = (
             f"{corner} = [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}] m "
-            f"(mean of {len(window)} samples, spread {spread_mm:.2f} mm)"
+            f"(mean of {n} samples, spread {spread_mm:.2f} mm)"
             + (f"; still missing: {', '.join(missing)}" if missing else
                "; all corners recorded, call ~/save")
+        )
+        self.get_logger().info(res.message)
+        return res
+
+    def record_sample(self, _req, res):
+        p, n, spread_mm, err = self._capture_point()
+        if err is not None:
+            res.success = False
+            res.message = err
+            self.get_logger().warn(err)
+            return res
+        self.interior_samples.append(p)
+        res.success = True
+        res.message = (
+            f"interior sample #{len(self.interior_samples)} = "
+            f"[{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}] m (mean of {n} samples, "
+            f"spread {spread_mm:.2f} mm)"
         )
         self.get_logger().info(res.message)
         return res
@@ -295,14 +457,34 @@ class TeachCanvas(Node):
         tl = self.points["top_left"]
         tr = self.points["top_right"]
         bl = self.points["bottom_left"]
+        br = self.points["bottom_right"]
         bias_mm = float(self.get_parameter("plane_bias_mm").value)
 
         try:
-            origin, (qx, qy, qz, qw), width_m, height_m, skew_deg = \
-                compute_canvas_pose(tl, tr, bl, bias_mm)
+            (origin, (qx, qy, qz, qw), width_m, height_m, corr_coeffs,
+             resid_before_mm, resid_after_mm) = compute_canvas_calibration(
+                tl, tr, bl, br, self.interior_samples, bias_mm)
         except ValueError as exc:
             res.success = False
             res.message = str(exc)
+            return res
+
+        n_samples = len(self.interior_samples)
+
+        # Hard gate: out-of-plane error the correction can't remove will rip
+        # one paper edge / gap the other, since the spring cannot absorb it.
+        refuse_mm = float(self.get_parameter("flatness_refuse_mm").value)
+        if resid_after_mm > refuse_mm:
+            res.success = False
+            res.message = (
+                f"Canvas too non-flat: {resid_after_mm:.2f} mm out-of-plane "
+                f"error remains after correction (limit {refuse_mm:.2f} mm; "
+                f"{n_samples} interior sample(s), was {resid_before_mm:.2f} mm "
+                "before correction). Record more interior samples "
+                "(~/record_sample) across the paper, or re-teach the corners "
+                "— the pen spring cannot absorb this."
+            )
+            self.get_logger().error(res.message)
             return res
 
         warnings = []
@@ -313,10 +495,18 @@ class TeachCanvas(Node):
                 f"plane_bias_mm {bias_mm:.1f} is outside the pen spring's "
                 "0-3.8 mm travel — check the sign/value"
             )
-        if skew_deg > 2.0:
+        warn_flat_mm = float(self.get_parameter("flatness_warn_mm").value)
+        if resid_after_mm > warn_flat_mm:
             warnings.append(
-                f"corners are {skew_deg:.1f} deg off square, re-teach if "
-                "the paper is not skewed"
+                f"out-of-plane error {resid_after_mm:.2f} mm after correction "
+                f"(warn {warn_flat_mm:.2f} mm); add interior samples across "
+                "the paper for a better fit"
+            )
+        if n_samples < 5:
+            warnings.append(
+                f"only {n_samples} interior sample(s): the correction surface "
+                "is flat/linear. Record ~5-9 with ~/record_sample across the "
+                "paper to model reach-dependent contact error"
             )
         exp_w = self.get_parameter("canvas_width_mm").value
         exp_h = self.get_parameter("canvas_height_mm").value
@@ -330,18 +520,14 @@ class TeachCanvas(Node):
                 f"measured height {height_m * 1000:.1f} mm vs expected "
                 f"{exp_h:.0f} mm"
             )
-        residual_mm = None
-        if "bottom_right" in self.points:
-            residual_mm = rectangle_residual_mm(
-                tl, tr, bl, self.points["bottom_right"]
+        residual_mm = rectangle_residual_mm(tl, tr, bl, br)
+        warn_mm = self.get_parameter("corner_residual_warn_mm").value
+        if residual_mm > warn_mm:
+            warnings.append(
+                f"bottom-right corner is {residual_mm:.1f} mm from the "
+                f"position the other corners predict (tolerance "
+                f"{warn_mm:.1f} mm), re-teach"
             )
-            warn_mm = self.get_parameter("corner_residual_warn_mm").value
-            if residual_mm > warn_mm:
-                warnings.append(
-                    f"bottom-right corner is {residual_mm:.1f} mm from the "
-                    f"position the other corners predict (tolerance "
-                    f"{warn_mm:.1f} mm), re-teach"
-                )
         for w in warnings:
             self.get_logger().warn(w)
 
@@ -353,6 +539,9 @@ class TeachCanvas(Node):
                     "canvas_quat_xyzw": [
                         round(float(v), 6) for v in (qx, qy, qz, qw)
                     ],
+                    "canvas_z_correction_coeffs": [
+                        round(float(v), 8) for v in corr_coeffs
+                    ],
                 }
             }
         }
@@ -361,17 +550,22 @@ class TeachCanvas(Node):
             f"# base frame: {self.base_frame}, ee frame: {self.ee_frame}, "
             f"tool_offset_xyz: {self.tool_offset.tolist()}\n"
             f"# measured paper: {width_m * 1000:.1f} x "
-            f"{height_m * 1000:.1f} mm, corner skew {skew_deg:.2f} deg\n"
+            f"{height_m * 1000:.1f} mm\n"
+            f"# out-of-plane error: {resid_before_mm:.2f} mm before "
+            f"correction, {resid_after_mm:.2f} mm after "
+            f"({n_samples} interior sample(s))\n"
+            "# canvas_z_correction_coeffs [a,b,c,d,e,f]: quadratic surface "
+            "z(x,y)=a+b*x+c*y+d*x*y+e*x^2+f*y^2 (mm, x/y in canvas mm)\n"
             f"# plane_bias_mm: {bias_mm} (origin sits this far behind the "
             "raw top_left, along the canvas normal into the wall)\n"
             f"# top_left:     {tl.tolist()}\n"
             f"# top_right:    {tr.tolist()}\n"
             f"# bottom_left:  {bl.tolist()}\n"
-            + (
-                f"# bottom_right: "
-                f"{self.points['bottom_right'].tolist()} "
-                f"(validation residual {residual_mm:.2f} mm)\n"
-                if residual_mm is not None else ""
+            f"# bottom_right: {br.tolist()} "
+            f"(rectangle residual {residual_mm:.2f} mm)\n"
+            + "".join(
+                f"# sample {i + 1}: {np.asarray(s).tolist()}\n"
+                for i, s in enumerate(self.interior_samples)
             )
             + "# Pass to the executor as: canvas_file:=<this file>\n"
         )
@@ -387,7 +581,8 @@ class TeachCanvas(Node):
         res.success = True
         res.message = (
             f"Saved {out} (paper {width_m * 1000:.1f} x "
-            f"{height_m * 1000:.1f} mm, plane bias {bias_mm:.1f} mm"
+            f"{height_m * 1000:.1f} mm, plane bias {bias_mm:.1f} mm, "
+            f"out-of-plane {resid_after_mm:.2f} mm after correction"
             + (f"; WARNINGS: {'; '.join(warnings)})" if warnings else ")")
         )
         self.get_logger().info(res.message)

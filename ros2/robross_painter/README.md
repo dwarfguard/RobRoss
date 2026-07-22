@@ -297,23 +297,33 @@ paper corners**, not the artwork-margin corners. For each corner:
 5. `~/nudge_out` a few steps to clear the paper, deactivate the controller
    again, and freedrive to the next corner.
 
-Record top-left, top-right, bottom-left, then bottom-right as a validation
-point:
+Record all four corners, then ~5-9 interior sample points (same just-touch
+procedure) spread across the paper — a rough 3×3 (center, mid-edges, quarter
+points):
 
 ```bash
 ros2 service call /teach_canvas/record_top_left std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_top_right std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_bottom_left std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_bottom_right std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_sample std_srvs/srv/Trigger   # repeat x5-9
 ros2 service call /teach_canvas/save std_srvs/srv/Trigger
 ```
 
 `save` writes `canvas_origin_xyz` (the top-left corner pushed `plane_bias_mm`
-behind the paper along the canvas normal) and `canvas_quat_xyzw`. The
-optional bottom-right corner never changes the saved pose; `save` warns when
-it lies more than 2 mm from where the other three corners predict it. Re-teach
-if the reported dimensions differ materially from A4, the corners are not
-square, or the bottom-right residual warning appears.
+behind the paper along the canvas normal), `canvas_quat_xyzw`, and
+`canvas_z_correction_coeffs`. All four corners feed the least-squares plane fit
+(so no single noisy corner tips the plane); the interior samples fit a smooth
+quadratic **Z-correction surface** the executor adds along the plane normal at
+draw time. This cancels the reach-dependent, non-planar contact error a single
+plane cannot represent — the arm droops when extended and over-drives when
+retracted, which otherwise rips one paper edge while the opposite edge
+gaps/dots. `save` reports the out-of-plane error before and after correction,
+warns above `flatness_warn_mm` (0.3 mm), and **refuses** above
+`flatness_refuse_mm` (0.6 mm — add interior samples or re-teach). It still warns
+when bottom-right lies more than 2 mm from where the other three predict it.
+Re-teach if the reported dimensions differ materially from A4 or any warning
+appears.
 
 Disable freedrive on the pendant before returning control to ROS, then
 reactivate the trajectory controller. The driver resumes from the measured

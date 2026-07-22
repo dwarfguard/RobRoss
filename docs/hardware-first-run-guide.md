@@ -136,19 +136,26 @@ step in with `/teach_nudge/nudge_in` (drop to `nudge_step_mm 0.2` for the last m
 pen body first visibly moves relative to the claw — stop there and record. Then `nudge_out`
 clear, controller off, freedrive to the next corner (full loop: package README / PREFLIGHT
 section 2). A record is rejected if the arm moved in the last second — wait, re-record.
-Bottom-right is a validation-only corner; `save` warns if it sits > 2 mm from where the
-other three predict it:
+All four corners are required and feed the least-squares plane fit (`save` still warns if
+bottom-right sits > 2 mm from where the other three predict it). Then record ~5-9 interior
+points the same way — spread across the paper (a rough 3×3: center, mid-edges, quarter
+points). These fit a Z-correction surface that cancels the reach-dependent, non-planar
+contact error (arm drooping when extended, over-driving when retracted) that a flat plane
+cannot represent — the cause of one edge ripping while the opposite edge gaps/dots:
 
 ```bash
 ros2 service call /teach_canvas/record_top_left     std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_top_right    std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_bottom_left  std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_bottom_right std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_sample       std_srvs/srv/Trigger  # x5-9, interior
 ros2 service call /teach_canvas/save                std_srvs/srv/Trigger
 ```
 
-**Gate:** `save` must report ≈210 × 297 mm, no skew warning (< 2°), and no bottom-right
-residual warning. Any warning → re-teach; don't rationalize.
+**Gate:** `save` must report ≈210 × 297 mm, an out-of-plane error after correction under
+`flatness_warn_mm` (default 0.3 mm), and no bottom-right residual warning. `save` refuses
+outright above `flatness_refuse_mm` (default 0.6 mm) — add interior samples or re-teach. Any
+warning → re-teach; don't rationalize.
 
 ## Step 5 — Dry-run everything (`dry_run: true` in `~/hardware_a4.yaml`)
 
