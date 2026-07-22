@@ -314,11 +314,13 @@ ros2 service call /teach_canvas/save std_srvs/srv/Trigger
 behind the paper along the canvas normal), `canvas_quat_xyzw`, and
 `canvas_z_correction_coeffs`. All four corners feed the least-squares plane fit
 (so no single noisy corner tips the plane); the interior samples fit a smooth
-quadratic **Z-correction surface** the executor adds along the plane normal at
-draw time. This cancels the reach-dependent, non-planar contact error a single
-plane cannot represent — the arm droops when extended and over-drives when
-retracted, which otherwise rips one paper edge while the opposite edge
-gaps/dots. `save` reports the out-of-plane error before and after correction,
+quadratic Z-correction surface that is **recorded as a flatness diagnostic
+only — the executor does NOT apply it during motion**
+(`docs/aubo-painting-tracking-remediation-plan.md` Section 4 forbids
+position-dependent Z compensation; the executor always uses the flat taught
+plane). The fit measures the reach-dependent, non-planar contact error a
+single plane cannot represent. `save` reports the out-of-plane error before
+and after the fitted surface,
 warns above `flatness_warn_mm` (0.3 mm), and **refuses** above
 `flatness_refuse_mm` (0.6 mm — add interior samples or re-teach). It still warns
 when bottom-right lies more than 2 mm from where the other three predict it.

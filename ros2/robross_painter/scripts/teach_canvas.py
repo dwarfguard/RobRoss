@@ -54,13 +54,14 @@ Workflow:
 
        ros2 service call /teach_canvas/record_sample std_srvs/srv/Trigger
 
-     These are fit into a smooth Z-correction surface that the executor
-     adds along the plane normal at draw time. It captures the
-     reach-dependent, NON-planar contact error (the arm drooping when
-     extended, over-driving when retracted) that a single flat plane
-     cannot represent — the cause of one paper edge ripping while the
-     opposite edge gaps/dots. save reports the out-of-plane error before
-     and after this correction and refuses when too much remains.
+     These are fit into a smooth Z-correction surface recorded in the
+     saved YAML as a flatness DIAGNOSTIC only — the executor does NOT
+     apply it during motion (the tracking remediation plan,
+     docs/aubo-painting-tracking-remediation-plan.md Section 4, forbids
+     position-dependent Z compensation). The fit measures the
+     reach-dependent, NON-planar contact error that a single flat plane
+     cannot represent. save reports the out-of-plane error before and
+     after the fitted surface and refuses when too much remains.
   4. Save the calibration:
 
        ros2 service call /teach_canvas/save std_srvs/srv/Trigger
@@ -241,12 +242,13 @@ def compute_canvas_calibration(tl, tr, bl, br, samples=(), plane_bias_mm=0.0):
 
     The in-plane frame (canvas x right, y down) still comes from the corners,
     but the plane NORMAL is the least-squares best fit through every touched
-    point (corners + samples). corr_coeffs is a quadratic surface (mm) the
-    executor adds along the normal to cancel the reach-dependent, non-planar
-    contact error a single plane cannot represent. origin is the top-left
+    point (corners + samples). corr_coeffs is a quadratic surface (mm) fitted
+    to the out-of-plane residuals as a flatness diagnostic; the executor does
+    NOT apply it during motion (the remediation plan forbids position-dependent
+    Z compensation). origin is the top-left
     corner shifted plane_bias_mm along the fitted +z normal (the pen preload).
     max_resid_before_mm is the worst out-of-plane error the flat model would
-    leave; max_resid_after_mm is what remains once the surface is applied.
+    leave; max_resid_after_mm is what would remain if the surface were applied.
     Raises ValueError when the corners are too close to define a plane.
     """
     tl = np.asarray(tl, dtype=float)
@@ -555,7 +557,9 @@ class TeachCanvas(Node):
             f"correction, {resid_after_mm:.2f} mm after "
             f"({n_samples} interior sample(s))\n"
             "# canvas_z_correction_coeffs [a,b,c,d,e,f]: quadratic surface "
-            "z(x,y)=a+b*x+c*y+d*x*y+e*x^2+f*y^2 (mm, x/y in canvas mm)\n"
+            "z(x,y)=a+b*x+c*y+d*x*y+e*x^2+f*y^2 (mm, x/y in canvas mm).\n"
+            "# Measured flatness record only — NOT applied by the executor "
+            "(see docs/aubo-painting-tracking-remediation-plan.md Section 4).\n"
             f"# plane_bias_mm: {bias_mm} (origin sits this far behind the "
             "raw top_left, along the canvas normal into the wall)\n"
             f"# top_left:     {tl.tolist()}\n"
@@ -582,7 +586,9 @@ class TeachCanvas(Node):
         res.message = (
             f"Saved {out} (paper {width_m * 1000:.1f} x "
             f"{height_m * 1000:.1f} mm, plane bias {bias_mm:.1f} mm, "
-            f"out-of-plane {resid_after_mm:.2f} mm after correction"
+            f"out-of-plane {resid_after_mm:.2f} mm after fitted surface; "
+            "correction surface recorded as a diagnostic only, not applied "
+            "by the executor"
             + (f"; WARNINGS: {'; '.join(warnings)})" if warnings else ")")
         )
         self.get_logger().info(res.message)

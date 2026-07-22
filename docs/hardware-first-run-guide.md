@@ -139,9 +139,11 @@ section 2). A record is rejected if the arm moved in the last second — wait, r
 All four corners are required and feed the least-squares plane fit (`save` still warns if
 bottom-right sits > 2 mm from where the other three predict it). Then record ~5-9 interior
 points the same way — spread across the paper (a rough 3×3: center, mid-edges, quarter
-points). These fit a Z-correction surface that cancels the reach-dependent, non-planar
-contact error (arm drooping when extended, over-driving when retracted) that a flat plane
-cannot represent — the cause of one edge ripping while the opposite edge gaps/dots:
+points). These fit a Z-correction surface recorded in the saved YAML as a flatness
+diagnostic only — the executor does **not** apply it during motion
+(`docs/aubo-painting-tracking-remediation-plan.md` Section 4 forbids position-dependent Z
+compensation). The fit measures the reach-dependent, non-planar contact error that a flat
+plane cannot represent, so a badly warped setup is caught at teach time:
 
 ```bash
 ros2 service call /teach_canvas/record_top_left     std_srvs/srv/Trigger

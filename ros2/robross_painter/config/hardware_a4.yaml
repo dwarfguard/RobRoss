@@ -10,9 +10,10 @@
 #      near each corner, nudge the pen in to just-touch (first visible
 #      spring movement), record ALL FOUR corners, then optionally
 #      ~/record_sample at ~5-9 interior points spread across the paper
-#      (they feed a Z-correction surface that cancels reach-dependent,
-#      non-planar contact error), then ~/save (full loop: package README /
-#      PREFLIGHT section 2).
+#      (recorded in the saved YAML as a flatness diagnostic — the executor
+#      does NOT apply a correction surface during motion; see
+#      docs/aubo-painting-tracking-remediation-plan.md Section 4), then
+#      ~/save (full loop: package README / PREFLIGHT section 2).
 #   2. Launch with both files:
 #        ros2 launch robross_painter paint.launch.py \
 #          calibration_file:=<this file> \

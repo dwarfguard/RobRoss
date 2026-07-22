@@ -95,24 +95,6 @@ struct CanvasFrame
 {
     tf2::Vector3 origin;  // top-left corner in base_link (m), on the paper
     tf2::Matrix3x3 rot;   // columns: canvas x (right), y (down), z (into paper)
-    // Optional Z-correction surface (taught by teach_canvas.py from interior
-    // sample points): coefficients [a,b,c,d,e,f] of
-    //   z_corr(x,y) = a + b*x + c*y + d*x*y + e*x^2 + f*y^2   [mm, x/y in mm]
-    // added along +z (into the paper) to cancel the reach-dependent, NON-planar
-    // contact error a single flat plane cannot represent. Empty => no
-    // correction (behaves exactly like the flat model).
-    std::vector<double> zcorr;
-
-    // Correction depth (mm) at canvas (x_mm, y_mm); 0 when no surface taught.
-    double zCorrMm(double x_mm, double y_mm) const
-    {
-        if (zcorr.size() != 6) {
-            return 0.0;
-        }
-        return zcorr[0] + zcorr[1] * x_mm + zcorr[2] * y_mm +
-               zcorr[3] * x_mm * y_mm + zcorr[4] * x_mm * x_mm +
-               zcorr[5] * y_mm * y_mm;
-    }
 
     // Legacy horizontal paper: canvas x direction given as a yaw in the base
     // XY plane, y is the horizontal perpendicular chosen so canvas z points
@@ -146,14 +128,10 @@ struct CanvasFrame
     }
 
     // z_off: 0 = pen contact, >0 = hovering off the paper along -normal.
-    // The taught correction pushes the contact point deeper (+z, into the
-    // paper) where the surface really sits farther in, so it survives the
-    // z_off hover offset unchanged (a hover of z_off still clears by z_off).
     tf2::Vector3 toBaseVec(double x_mm, double y_mm, double z_off) const
     {
         return origin + (x_mm / 1000.0) * axis(0) +
-               (y_mm / 1000.0) * axis(1) -
-               (z_off - zCorrMm(x_mm, y_mm) / 1000.0) * axis(2);
+               (y_mm / 1000.0) * axis(1) - z_off * axis(2);
     }
 
     geometry_msgs::msg::Point toBase(double x_mm, double y_mm,
@@ -196,20 +174,6 @@ public:
                             yaw_deg * M_PI / 180.0);
             RCLCPP_INFO(node_->get_logger(),
                         "Canvas pose from canvas_x_yaw_deg (flat paper)");
-        }
-
-        // Optional taught Z-correction surface (flat plane if absent).
-        std::vector<double> zcorr;
-        node_->get_parameter_or("canvas_z_correction_coeffs", zcorr, zcorr);
-        if (zcorr.size() == 6) {
-            canvas_.zcorr = zcorr;
-            RCLCPP_INFO(node_->get_logger(),
-                        "Canvas Z-correction surface active "
-                        "(canvas_z_correction_coeffs)");
-        } else if (!zcorr.empty()) {
-            RCLCPP_WARN(node_->get_logger(),
-                        "canvas_z_correction_coeffs has %zu values (expected "
-                        "6); ignoring, using flat plane", zcorr.size());
         }
 
         node_->get_parameter_or("safe_clearance_m", safe_clearance_,
