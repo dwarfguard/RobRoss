@@ -354,6 +354,45 @@ Only after that succeeds should a reviewed profile set `dry_run: false` and run
 `output/test_line_paths.json` at the preflight speeds. Keep an operator on the
 e-stop.
 
+## Offline Tracking-Bag Analysis
+
+`scripts/analyze_tracking_bag.py` is the Phase 0 tool from
+`docs/aubo-painting-tracking-remediation-plan.md`: it turns a recorded painting
+run into per-command tracking metrics so every timing/interpolation change can
+be compared against the same baseline. It is strictly read-only — it never
+initializes ROS, creates no node, and publishes nothing; it only reads the bag
+files.
+
+```bash
+ros2 run robross_painter analyze_tracking_bag.py <bag_dir> \
+  --canvas-file $HOME/canvas_calibration.yaml \
+  --calibration-file $HOME/hardware_a4.yaml \
+  --plane-bias-mm 1.0 \
+  --csv tracking.csv
+```
+
+Required bag topics: `/joint_trajectory_controller/controller_state` (reference
+and feedback joints), `/rosout` (painting_executor command labels drive the
+segmentation), and `/robot_description` (the runtime URDF used for forward
+kinematics — the same calibrated chain MoveIt used; pass `--urdf` if the bag
+lacks it). For each command segment it reports stroke direction, speed, signed
+canvas-normal error (positive = into the paper), tangential error, estimated
+spring compression (`plane_bias_mm + actual canvas z`), per-joint errors, and
+publication rate/jitter for controller state and joint states. `--csv` exports
+per-sample rows for offline plotting.
+
+Acceptance gate (run on the robot host where the July 22 baseline bags live):
+
+```bash
+ros2 run robross_painter analyze_tracking_bag.py \
+  ~/robross_aubo_ws/rosbag2_2026_07_22-20_32_44 \
+  --canvas-file <the taught canvas yaml used that day> \
+  --calibration-file <the hardware_a4.yaml used that day> --plane-bias-mm 1.0
+```
+
+The reported mean normal errors must match the remediation plan's Section 2
+tables within 0.05 mm and the joint maxima within 0.05 deg.
+
 ## Troubleshooting
 
 - Start from a collision-free, approved elbow-up posture. The executor will not

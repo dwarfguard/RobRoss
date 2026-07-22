@@ -49,6 +49,7 @@ install(TARGETS painting_executor teach_nudge
   DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS scripts/teach_canvas.py scripts/teach_tcp.py
+  scripts/analyze_tracking_bag.py
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch config
@@ -60,6 +61,8 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_paint_launch test/test_paint_launch.py)
   ament_add_pytest_test(test_teach_canvas_math test/test_teach_canvas_math.py)
   ament_add_pytest_test(test_teach_tcp_math test/test_teach_tcp_math.py)
+  ament_add_pytest_test(test_analyze_tracking_bag
+    test/test_analyze_tracking_bag.py)
 endif()
 
 ament_package()
