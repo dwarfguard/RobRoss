@@ -59,6 +59,24 @@ def binarize(image_path, threshold: float):
     return mask, (width, height)
 
 
+def close_mask(mask, kernel_px: int):
+    """Morphological closing (dilate then erode) to bridge small gaps in
+    an antialiased stroke mask before skeletonizing.
+
+    Thresholding an antialiased line at a fixed cutoff can flicker above
+    and below the cutoff along a thin/diagonal stroke, breaking one
+    visual line into several disconnected mask blobs; skeletonizing that
+    directly produces a fork/junction at every break, which then needs
+    aggressive spur pruning to clean up (see prune_spurs). Closing first
+    reconnects those breaks so fewer skeleton junctions are noise in the
+    first place. `kernel_px <= 0` returns the mask unchanged (opt-out)."""
+    if kernel_px <= 0:
+        return mask
+    kernel = np.ones((kernel_px, kernel_px), np.uint8)
+    closed = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
+    return closed.astype(bool)
+
+
 def skeletonize_mask(mask):
     """Thin a boolean stroke mask to single-pixel-wide centerlines."""
     return skeletonize(mask)

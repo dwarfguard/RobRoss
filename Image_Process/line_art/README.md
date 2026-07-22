@@ -43,11 +43,26 @@ junctions and line-cap corners than skeletonizing a thin Canny edge map,
 so this route adds a pruning step (`line_tracing.prune_spurs()`) that
 `sketch/` doesn't need.
 
+**Tune `binary_threshold` higher than it looks like you should.** An
+antialiased raster export spreads a line's "ink" across several pixels of
+increasingly light gray as it fades into the white background — those
+lighter pixels are still part of the line, not noise. A too-low threshold
+(this route originally shipped with 128, which turned out to be much too
+strict for `hinton.png`) only catches each stroke's darkest core pixels,
+which for a thin or diagonal line can be so sparse that the "line" flickers
+above and below the cutoff along its own length — fragmenting one visual
+line into dozens of disconnected mask blobs, which shows up downstream as
+choppy/broken traced lines and, for small text, strokes disappearing
+entirely. Checking `cv2.connectedComponents()` on the raw mask is a quick
+sanity check: a clean diagram should have on the order of tens to low
+hundreds of components, not thousands.
+
 ## Pipeline
 
 ```
 Config profile (configs/*.json)
   -> line_tracing.binarize()          threshold grayscale -> boolean stroke mask
+  -> line_tracing.close_mask()        morphological closing -> bridge antialiasing gaps
   -> line_tracing.skeletonize_mask()  mask -> single-pixel-wide skeleton
   -> line_tracing.extract_strokes()   skeleton -> traced centerline chains
   -> line_tracing.prune_spurs()       drop short skeletonization spurs
@@ -76,8 +91,9 @@ config are CWD-relative), same as the other routes' scripts.
 | --- | --- |
 | `canvas.width_mm` / `height_mm` / `margin_mm` / `origin` | Same meaning as the other routes' config schema — `origin` must be `"top-left"`, `margin_mm` keeps the traced drawing inside the paper edge. |
 | `source_image.path` | Path to the source line-art bitmap. RGBA is composited onto white using its alpha channel before thresholding, so both opaque exports and transparent-background art work the same way. |
-| `source_image.binary_threshold` | Grayscale cutoff (0-255, default 128): pixels darker than this are treated as part of a drawn line. |
-| `source_image.min_spur_length_px` | Drop open (non-loop) traced branches shorter than this many pixels — skeletonization spurs at junctions/corners, not real strokes. Default 5.0. |
+| `source_image.binary_threshold` | Grayscale cutoff (0-255, default 200): pixels darker than this are treated as part of a drawn line. See "Why not Canny?" above for why this needs to be higher than it looks like it should for antialiased raster art. |
+| `source_image.morph_close_kernel_px` | Morphological closing kernel size (pixels, default 2; 0 disables) applied to the mask before skeletonizing, to bridge small antialiasing-induced gaps. |
+| `source_image.min_spur_length_px` | Drop open (non-loop) traced branches shorter than this many pixels — skeletonization spurs at junctions/corners, not real strokes. Default 4.0. |
 | `source_image.min_stroke_length_mm` | After mapping to canvas millimeters, drop any stroke shorter than this — filters sub-pixel noise that survives spur pruning. Default 1.0. |
 | `source_image.simplify_epsilon_ratio` | Douglas-Peucker simplification strength as a fraction of each stroke's arc length — larger = fewer points/straighter lines. Default 0.002. |
 | `path_generation.tool_width_mm` | Pen stroke width (preview rendering + `path_settings.tool_width_mm` in the output). |
@@ -88,9 +104,11 @@ config are CWD-relative), same as the other routes' scripts.
 
 `load_grayscale(image_path)` / `binarize(image_path, threshold)`: reads the
 image (compositing RGBA onto white via its alpha channel first, if
-present), thresholds it into a boolean stroke mask. `skeletonize_mask()`
-thins that mask to single-pixel centerlines via
-`skimage.morphology.skeletonize`.
+present), thresholds it into a boolean stroke mask. `close_mask(mask,
+kernel_px)`: morphological closing to bridge small gaps left by
+antialiasing before skeletonizing (`kernel_px <= 0` is a no-op).
+`skeletonize_mask()` thins the (closed) mask to single-pixel centerlines
+via `skimage.morphology.skeletonize`.
 
 `extract_strokes(skeleton)`: walks the skeleton's pixel graph (endpoints =
 degree 1, junctions = degree ≥ 3, treated as graph nodes; runs of degree-2
@@ -149,3 +167,16 @@ antialiased strokes, pure white background — the profile this route is
 tuned for. To trace a different image, point `source_image.path` at it and
 adjust `binary_threshold` if the new image's line/background contrast
 differs.
+
+## Known limitations
+
+Very small text (letterforms only 1-2px stroke-wide at the source image's
+resolution, e.g. `hinton.png`'s circular "HintonAI" badge) can still come
+out with adjacent letters partially fused into a squiggle after
+skeletonizing, even with a well-tuned threshold and closing kernel — the
+individual strokes are close enough together that there just aren't enough
+pixels between them to keep them topologically separate. This is a raster
+resolution limit, not a parameter to tune away; if legible text tracing
+matters, increase the source image's resolution (re-export the diagram
+larger) rather than fighting it with `binary_threshold`/
+`morph_close_kernel_px`.

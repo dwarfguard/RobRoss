@@ -19,8 +19,9 @@ def make_valid_config() -> dict:
         },
         "source_image": {
             "path": "Image_Process/assets/hinton.png",
-            "binary_threshold": 128,
-            "min_spur_length_px": 5.0,
+            "binary_threshold": 200,
+            "morph_close_kernel_px": 2,
+            "min_spur_length_px": 4.0,
             "min_stroke_length_mm": 1.0,
             "simplify_epsilon_ratio": 0.002,
         },
@@ -84,6 +85,23 @@ class TestValidateConfig(unittest.TestCase):
         config["source_image"]["binary_threshold"] = -1
         errors = validate_config(config)
         self.assertTrue(any("binary_threshold" in error for error in errors))
+
+    def test_morph_close_kernel_px_is_optional(self):
+        config = make_valid_config()
+        del config["source_image"]["morph_close_kernel_px"]
+        self.assertEqual(validate_config(config), [])
+
+    def test_negative_morph_close_kernel_px_is_an_error(self):
+        config = make_valid_config()
+        config["source_image"]["morph_close_kernel_px"] = -1
+        errors = validate_config(config)
+        self.assertTrue(any("morph_close_kernel_px" in error for error in errors))
+
+    def test_non_integer_morph_close_kernel_px_is_an_error(self):
+        config = make_valid_config()
+        config["source_image"]["morph_close_kernel_px"] = 2.5
+        errors = validate_config(config)
+        self.assertTrue(any("morph_close_kernel_px" in error for error in errors))
 
     def test_min_spur_length_px_is_optional(self):
         config = make_valid_config()

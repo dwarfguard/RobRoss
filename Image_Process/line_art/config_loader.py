@@ -17,8 +17,9 @@ REQUIRED_SECTIONS = ["canvas", "source_image", "path_generation", "output"]
 
 # Defaults for optional fields, applied by load_config() rather than
 # required in every config file.
-DEFAULT_BINARY_THRESHOLD = 128
-DEFAULT_MIN_SPUR_LENGTH_PX = 5.0
+DEFAULT_BINARY_THRESHOLD = 200
+DEFAULT_MORPH_CLOSE_KERNEL_PX = 2
+DEFAULT_MIN_SPUR_LENGTH_PX = 4.0
 DEFAULT_MIN_STROKE_LENGTH_MM = 1.0
 DEFAULT_SIMPLIFY_EPSILON_RATIO = 0.002
 
@@ -72,6 +73,12 @@ def validate_config(config: dict) -> list:
     if not _is_number(binary_threshold) or not (0 <= binary_threshold <= 255):
         errors.append(
             f"source_image.binary_threshold must be a number in [0, 255], got {binary_threshold!r}."
+        )
+
+    morph_close_kernel_px = source_image.get("morph_close_kernel_px", DEFAULT_MORPH_CLOSE_KERNEL_PX)
+    if not isinstance(morph_close_kernel_px, int) or isinstance(morph_close_kernel_px, bool) or morph_close_kernel_px < 0:
+        errors.append(
+            f"source_image.morph_close_kernel_px must be an integer >= 0, got {morph_close_kernel_px!r}."
         )
 
     min_spur_length_px = source_image.get("min_spur_length_px", DEFAULT_MIN_SPUR_LENGTH_PX)

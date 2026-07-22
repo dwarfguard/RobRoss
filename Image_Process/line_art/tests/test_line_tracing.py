@@ -6,7 +6,7 @@ import context  # noqa: F401
 import cv2
 import numpy as np
 
-from line_tracing import binarize, extract_strokes, prune_spurs, simplify, skeletonize_mask
+from line_tracing import binarize, close_mask, extract_strokes, prune_spurs, simplify, skeletonize_mask
 
 
 class TestBinarize(unittest.TestCase):
@@ -41,6 +41,27 @@ class TestBinarize(unittest.TestCase):
             mask, _ = binarize(path, threshold=128)
 
         self.assertFalse(mask[1, 1])
+
+
+class TestCloseMask(unittest.TestCase):
+    def test_zero_kernel_returns_mask_unchanged(self):
+        mask = np.zeros((5, 5), dtype=bool)
+        mask[2, 1] = True
+        mask[2, 3] = True  # a 1px gap at (2, 2)
+
+        result = close_mask(mask, kernel_px=0)
+
+        self.assertIs(result, mask)
+
+    def test_positive_kernel_bridges_a_small_gap(self):
+        mask = np.zeros((5, 7), dtype=bool)
+        mask[2, 1:3] = True
+        mask[2, 4:6] = True  # a 1px gap at column 3
+
+        result = close_mask(mask, kernel_px=3)
+
+        self.assertTrue(result[2, 3])
+        self.assertEqual(result.dtype, bool)
 
 
 class TestSkeletonizeMask(unittest.TestCase):

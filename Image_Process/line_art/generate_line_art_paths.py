@@ -4,8 +4,8 @@ painting_paths.json-format file, directly - no intermediate
 painting_plan.json, like the sketch route.
 
     Config profile (configs/*.json)
-      -> line_tracing.binarize() + skeletonize_mask() + extract_strokes()
-         (threshold -> skeleton -> traced centerlines, no Canny)
+      -> line_tracing.binarize() + close_mask() + skeletonize_mask() + extract_strokes()
+         (threshold -> bridge antialiasing gaps -> skeleton -> traced centerlines, no Canny)
       -> line_tracing.prune_spurs() + simplify()
       -> path_ordering.order_strokes()  (greedy nearest-neighbor travel order)
       -> generate_line_art_paths.py     -> output/<painting_paths_file> (+ preview SVG)
@@ -29,10 +29,11 @@ from config_loader import (
     DEFAULT_BINARY_THRESHOLD,
     DEFAULT_MIN_SPUR_LENGTH_PX,
     DEFAULT_MIN_STROKE_LENGTH_MM,
+    DEFAULT_MORPH_CLOSE_KERNEL_PX,
     DEFAULT_SIMPLIFY_EPSILON_RATIO,
     load_config,
 )
-from line_tracing import binarize, extract_strokes, prune_spurs, simplify, skeletonize_mask
+from line_tracing import binarize, close_mask, extract_strokes, prune_spurs, simplify, skeletonize_mask
 from path_ordering import order_strokes, total_travel_distance
 from path_validation import validate_painting_paths
 
@@ -102,11 +103,13 @@ def build_canvas_strokes(config: dict) -> tuple:
 
     image_path = Path(source_image["path"])
     threshold = source_image.get("binary_threshold", DEFAULT_BINARY_THRESHOLD)
+    morph_close_kernel_px = source_image.get("morph_close_kernel_px", DEFAULT_MORPH_CLOSE_KERNEL_PX)
     min_spur_length_px = source_image.get("min_spur_length_px", DEFAULT_MIN_SPUR_LENGTH_PX)
     min_stroke_length_mm = source_image.get("min_stroke_length_mm", DEFAULT_MIN_STROKE_LENGTH_MM)
     epsilon_ratio = source_image.get("simplify_epsilon_ratio", DEFAULT_SIMPLIFY_EPSILON_RATIO)
 
     mask, image_size = binarize(image_path, threshold)
+    mask = close_mask(mask, morph_close_kernel_px)
     skeleton = skeletonize_mask(mask)
     raw_strokes = extract_strokes(skeleton)
     pruned_strokes = prune_spurs(raw_strokes, min_spur_length_px)
