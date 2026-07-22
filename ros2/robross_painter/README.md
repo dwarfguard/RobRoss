@@ -114,9 +114,10 @@ ros2 launch robross_painter paint.launch.py \
   paths_file:=$ROBROSS_REPO/output/painting_paths.json
 ```
 
-Use `output/test_line_paths.json` instead for the 50 mm line. Add an RViz
-`Marker` display on `robross_markers` to see the paper outline and completed
-strokes.
+Use `output/test_line_paths.json` instead for the 50 mm line, or
+`output/curve_test_paths.json` for the post-contact curves and corners test.
+Add an RViz `Marker` display on `robross_markers` to see the paper outline and
+completed strokes.
 
 For the horizontal-paper simulation, pass the legacy profile as an extra
 argument to the Terminal 3 launch:

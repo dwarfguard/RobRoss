@@ -150,6 +150,10 @@ if touching this package:
   file format/robot adapter as real generated artwork. Fixed output filenames
   (`test_line_paths.json`/`test_line_preview.svg`) so it can never overwrite real artwork outputs.
 
+- **`generate_curve_test.py`** — generates a deterministic post-contact hardware test card with
+  an S-curve, closed circle, sine squiggle, and sharp corners as four separate `paint_path`
+  commands. Fixed outputs are `curve_test_paths.json` and `curve_test_preview.svg`.
+
 - **`tests/`** — `context.py` adds `Image_Process/mondrian/` to `sys.path` (scripts there import
   each other as top-level modules, not a package), matching how the scripts are run from the repo
   root. Import it first in new test files the same way the existing `test_*.py` files do.

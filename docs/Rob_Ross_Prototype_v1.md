@@ -354,9 +354,18 @@ Check:
 - Was the pressure too high or too low?
 - Did the robot move safely?
 
-### Step 6: Small path subset
+### Step 6: Curves and corners test
 
-Run only a small number of generated strokes.
+After the single line passes, generate and run the deterministic curve test:
+
+```bash
+python3 Image_Process/mondrian/generate_curve_test.py
+```
+
+Compare the executed S-curve, circle, sine squiggle, and sharp-corner path
+against `output/curve_test_preview.svg`. The executable commands are stored in
+`output/curve_test_paths.json` using the same `paint_path` format as traced
+artwork.
 
 Do not run the full path until the team confirms orientation, scale, contact height, and safety.
 

@@ -229,22 +229,33 @@ If this fails, do not run generated artwork paths yet.
 
 ---
 
-## 10. Small Generated-Path Test
+## 10. Curve Test Card
 
-After the 50 mm test line succeeds, run only a small subset of generated strokes.
+After the 50 mm test line succeeds, generate the fixed curve test card:
+
+```bash
+python3 Image_Process/mondrian/generate_curve_test.py
+```
+
+This writes `output/curve_test_paths.json` and
+`output/curve_test_preview.svg`. It tests a smooth S-curve, a closed circle, a
+sine squiggle, and sharp right-angle and acute corners as four separate
+continuous paths.
 
 Checklist:
 
-- [ ] Select a small number of path commands.
-- [ ] Confirm selected commands stay inside A4 bounds.
+- [ ] `curve_test_paths.json` validation passes without warnings.
+- [ ] Compare the paths against `curve_test_preview.svg`.
+- [ ] Confirm all commands stay inside A4 bounds.
 - [ ] Run dry above paper first.
 - [ ] Run with pen contact only after dry run passes.
-- [ ] Confirm orientation.
-- [ ] Confirm scale.
-- [ ] Confirm line quality.
-- [ ] Confirm lift/lower behavior.
+- [ ] Confirm the S-curve and squiggle are smooth.
+- [ ] Confirm the circle closes without a visible gap or overshoot.
+- [ ] Confirm right-angle and acute corners remain distinct.
+- [ ] Confirm the tool lifts between all four shapes.
+- [ ] Confirm line quality and pen pressure remain uniform.
 
-Do not run the full generated path until the subset test succeeds.
+Do not run the full generated path until the curve test card succeeds.
 
 ---
 
@@ -258,7 +269,7 @@ Run the full path only after:
 - [ ] Z heights are correct.
 - [ ] Dry run passed.
 - [ ] 50 mm line test passed.
-- [ ] Small generated-path subset passed.
+- [ ] Curve test card passed.
 - [ ] Operator and emergency stop are ready.
 
 During the full run:
@@ -296,8 +307,8 @@ contact_z:
 - Pen pressure:
 - Issues:
 
-Small path subset result:
-- Commands tested:
+Curve test card result:
+- Shapes completed:
 - Issues:
 
 Full path result:

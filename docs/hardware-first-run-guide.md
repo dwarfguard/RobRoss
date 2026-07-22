@@ -10,8 +10,9 @@ full A4 artwork. Companion to `docs/hardware-test-checklist.md` (what to verify)
 **Ready:**
 - Workspace built: `install/` contains all packages (`aubo_ros2_driver`, `aubo_moveit_config`,
   `robross_painter`, …).
-- Path files generated in `output/`: `painting_paths.json` (46 commands, validated) and
-  `test_line_paths.json` (the 50 mm first-contact line) + previews.
+- Path files generated in `output/`: `painting_paths.json` (38 commands, validated),
+  `test_line_paths.json` (the 50 mm first-contact line), and `curve_test_paths.json`
+  (the post-contact curves and corners card) + previews.
 - `~/hardware_a4.yaml` exists (copy of `ros2/robross_painter/config/hardware_a4.yaml`);
   `tool_offset_xyz: [0.0, -0.0595, 0.0514]` matches the value used during teaching.
 - Claw collision box measured on the real claw (2026-07-16 session):
@@ -116,7 +117,7 @@ residual warning. Any warning → re-teach; don't rationalize.
 
 ## Step 5 — Dry-run everything (`dry_run: true` in `~/hardware_a4.yaml`)
 
-Full artwork, then the test line:
+Full artwork, the test line, then the curve test card:
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
@@ -125,6 +126,7 @@ ros2 launch robross_painter paint.launch.py \
   canvas_file:=$HOME/canvas_calibration.yaml \
   paths_file:=$ROBROSS_REPO/output/painting_paths.json
 # then again with paths_file:=$ROBROSS_REPO/output/test_line_paths.json
+# then again with paths_file:=$ROBROSS_REPO/output/curve_test_paths.json
 ```
 
 **Gate:** all commands plan cleanly, arm never moves. Repeated
@@ -149,7 +151,24 @@ ros2 launch robross_painter paint.launch.py \
 means the taught plane is tilted → re-teach), pen never bottoms out audibly, paper undamaged.
 Compare against `output/test_line_preview.svg`.
 
-## Step 7 — Full artwork
+## Step 7 — Curves and corners
+
+Keep `dry_run: false` and scaling at 0.1. Run this only after the 50 mm line passes:
+
+```bash
+ros2 launch robross_painter paint.launch.py \
+  aubo_type:=$AUBO_TYPE \
+  calibration_file:=$HOME/hardware_a4.yaml \
+  canvas_file:=$HOME/canvas_calibration.yaml \
+  paths_file:=$ROBROSS_REPO/output/curve_test_paths.json
+```
+
+**Gate:** four separate shapes are drawn with a lift between them; the circle closes, the S-curve
+and squiggle are smooth, and the right-angle and acute corners remain distinct. Compare against
+`output/curve_test_preview.svg`. Stop if the pen leaves the paper bounds, chatters, digs in, or
+takes an unexpected shortcut between shapes.
+
+## Step 8 — Full artwork
 
 Same command with `paths_file:=$ROBROSS_REPO/output/painting_paths.json`; compare the result
 against `output/path_preview.svg`. Raise `velocity_scaling` only after motion is trusted.
