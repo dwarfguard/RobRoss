@@ -4,8 +4,8 @@ orchestration that turns "route + optional uploaded photo" into a real
 
 Each route's generator scripts import their own sibling modules
 (`config_loader`, `path_validation`, `path_ordering`, ...) as bare top-level
-names, not a proper package - three different folders each have their own
-same-named copy (see CLAUDE.md's "Architecture within" sections). Importing
+names, not a proper package - every route folder has its own same-named
+copy (see CLAUDE.md's "Key architectural constraints" section). Importing
 more than one route's modules into this single long-running process would
 collide in sys.modules, so every route is invoked as a subprocess running its
 existing CLI exactly the way the docs already describe
@@ -53,6 +53,12 @@ ROUTE_ADAPTERS = {
         "template_config": "configs/gemini_mondrian_demo_a4.json",
         "needs_source_image": True,
         "steps": [("Image_Process/gemini_mondrian/generate_painting_paths.py", [])],
+    },
+    "line_art": {
+        "label": "Clean line art / technical illustration -> traced outline",
+        "template_config": "configs/line_art_demo_a4.json",
+        "needs_source_image": True,
+        "steps": [("Image_Process/line_art/generate_line_art_paths.py", [])],
     },
 }
 

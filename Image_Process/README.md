@@ -9,6 +9,7 @@ its scripts, tests, and documentation.
 | [sketch](sketch/README.md) | Canny-edge outline tracing of source images → painting paths. | Active |
 | [image_to_mondrian](image_to_mondrian/README.md) | Photo quantized to 5-color palette, region-filled with black grid lines. | Active |
 | [gemini_mondrian](gemini_mondrian/README.md) | Gemini image-to-image Mondrian restyle + standalone vectorization. | Active |
+| [line_art](line_art/README.md) | Clean line-art/illustration tracing via threshold + skeletonize (not Canny). | Active |
 
 New generation approaches should be added as sibling directories instead of
 being folded into `mondrian/`.
@@ -28,20 +29,23 @@ Image_Process/
   gemini_mondrian/    Gemini image-to-image Mondrian-style restyle, then its own
                       simplified quantize/segment/fill/border-trace pipeline
                       (see gemini_mondrian/README.md).
+  line_art/           Already-clean line-art/technical-illustration tracing via
+                      threshold + skeletonize (not Canny - avoids double-edge
+                      artifacts on strokes with real width; see line_art/README.md).
 ```
 
 More algorithms are welcome as additional sibling folders here — each new
 approach gets its own subfolder rather than growing inside an existing one.
 
-`sketch/` and `image_to_mondrian/` are the subfolders with third-party
-dependencies for image loading/quantization/edge-detection — `opencv-python`
-+ `numpy` for both, plus `scikit-image` for `sketch/` only (its
-skeletonization-based line tracer; `image_to_mondrian/` traces outlines via
-`cv2.findContours` instead, so it doesn't need it). `mondrian/` stays pure
-standard library. See `sketch/README.md` / `image_to_mondrian/README.md` for
-the install command.
+`sketch/`, `image_to_mondrian/`, and `line_art/` are the subfolders with
+third-party dependencies for image loading/quantization/edge-detection —
+`opencv-python` + `numpy` for all three, plus `scikit-image` for `sketch/`
+and `line_art/` (both use a skeletonization-based line tracer;
+`image_to_mondrian/` traces outlines via `cv2.findContours` instead, so it
+doesn't need it). `mondrian/` stays pure standard library. See each folder's
+README.md for the install command.
 
-`mondrian/`, `sketch/`, and `image_to_mondrian/` all read their config
-profiles from the repo-root `configs/` directory and write to the repo-root
-`output/` directory (all CWD-relative paths in the scripts, so they're run
-from the repo root — see each folder's README.md).
+Every route reads its config profiles from the repo-root `configs/`
+directory and writes to the repo-root `output/` directory (all
+CWD-relative paths in the scripts, so they're run from the repo root — see
+each folder's README.md).

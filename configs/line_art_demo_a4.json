@@ -1,0 +1,32 @@
+{
+  "profile_name": "line_art_demo_a4",
+  "project": "R.O.B Ross",
+  "style": "line_art",
+
+  "canvas": {
+    "name": "A4 portrait",
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "margin_mm": 10.0,
+    "origin": "top-left"
+  },
+
+  "source_image": {
+    "path": "Image_Process/assets/hinton.png",
+    "binary_threshold": 128,
+    "min_spur_length_px": 5.0,
+    "min_stroke_length_mm": 1.0,
+    "simplify_epsilon_ratio": 0.002
+  },
+
+  "path_generation": {
+    "tool_width_mm": 1.0,
+    "home_position_mm": [10.0, 10.0]
+  },
+
+  "output": {
+    "directory": "output/line_art_demo_a4",
+    "painting_paths_file": "line_art_painting_paths.json",
+    "preview_svg_file": "line_art_path_preview.svg"
+  }
+}
