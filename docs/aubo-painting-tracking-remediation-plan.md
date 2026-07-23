@@ -149,6 +149,52 @@ checks the first fresh joint-state sample after MoveIt reports completion. The
 controller has no effective per-joint trajectory or goal tolerances, so action
 success does not imply that the arm has physically settled.
 
+### 2.6 July 23 above-paper validation and observed wrist motion
+
+Phase 1 was tested above the paper using these additional bags:
+
+```text
+/home/robross/robross_aubo_ws/rosbag2_2026_07_23-10_36_13
+/home/robross/robross_aubo_ws/rosbag2_2026_07_23-10_40_37
+/home/robross/robross_aubo_ws/rosbag2_2026_07_23-10_41_35
+/home/robross/robross_aubo_ws/rosbag2_2026_07_23-10_47_24
+```
+
+The direction, reversal, compact curve, sine, and sharp-corner fixtures were
+run without paper contact. The controller-reference path was nearly planar for
+the direction, reversal, and sine fixtures. The alternating curve remained a
+Phase 1 exception: two attempts were rejected at `-0.255 mm` and `-0.220 mm`
+canvas-normal deviation, while two other attempts produced `-0.194 mm` and
+`-0.049 mm`. The curve must meet the `+/-0.20 mm` gate on every attempt rather
+than relying on a successful retry.
+
+During the sine fixture, the operator observed visible up-and-down wrist motion
+while the arm was moving. The arm appeared stable while stationary. Bag
+analysis supports treating this as movement-synchronized canvas-normal
+oscillation rather than stationary motor chatter:
+
+- Sine controller-reference normal deviation stayed within approximately
+  `-0.15/+0.001 mm`.
+- Measured actual-minus-reference normal motion reached approximately
+  `-1.17/+1.26 mm`, or about `2.4 mm` peak to peak.
+- `wrist1_joint` tracking error was approximately `0.64-0.65 deg` RMS and up to
+  `0.97 deg` peak.
+- `foreArm_joint` tracking error was approximately `1.14-1.17 deg` RMS and up
+  to `1.80 deg` peak.
+- The July 22 sine bags contain nearly identical wrist and forearm errors, so
+  the observation is not evidence of a regression from Phase 1 position-only
+  interpolation.
+
+The repeated sine reversals make delayed forearm and wrist coordination visible
+as physical motion toward and away from the paper. This strengthens the need to
+measure ServoJ timing and command-to-feedback phase delay before contact. It
+does not justify additional plane bias or direction-dependent Z compensation.
+
+The July 23 runs also recorded seven endpoint failures between `1.009 mm` and
+`1.330 mm`. Mean `/joint_states` publication rate remained approximately
+`144-157 Hz`; the bags did not include high-rate ServoJ call or queue
+diagnostics, so they cannot satisfy the Phase 2 timing gate.
+
 ## 3. Working Diagnosis
 
 The causes are ranked as follows:
@@ -200,7 +246,12 @@ The script should:
 - Use `/joint_trajectory_controller/controller_state` for reference and actual joint states.
 - Compute reference and actual TCP positions with the same calibrated kinematic chain used by MoveIt.
 - Project reference, actual, and actual-minus-reference positions onto canvas X, Y, and Z.
-- Report per-joint error, Cartesian error, direction, canvas position, speed, and estimated spring compression.
+- Split reversal and curved commands by instantaneous canvas direction instead
+  of classifying only their net command displacement.
+- Report per-joint error, Cartesian error, direction, canvas position, speed,
+  estimated spring compression, and command-to-feedback phase delay.
+- Report per-cycle canvas-normal peak-to-peak motion for periodic fixtures such
+  as the sine path.
 - Report controller-state and joint-state publication rates and timing jitter.
 - Export machine-readable CSV plus a concise Markdown or terminal summary.
 
@@ -289,11 +340,21 @@ Make the ros2_control command period, actual ServoJ call interval, and ServoJ
 Instrument the Aubo hardware interface to record or publish:
 
 - Measured ros2_control period.
+- Timestamped commanded joint positions for every ServoJ call, before ROS topic
+  publication can downsample the data.
+- Actual interval between successive ServoJ calls and the `t` value supplied to
+  each call.
 - ServoJ RPC call duration.
 - ServoJ return code.
 - Queue-full retry count.
 - Consecutive missed or late update count.
 - Minimum, mean, maximum, and percentile loop periods.
+
+The recorded timestamps must be sufficient to correlate each joint command
+with measured feedback and calculate phase delay through each sine cycle. Report
+per-joint RMS and peak following error and preserve the raw data needed to
+distinguish low-frequency path-synchronized motion from higher-frequency
+chatter.
 
 Logging must be throttled so diagnostics do not create additional timing load.
 Unexpected return codes must no longer be silently discarded.
@@ -314,6 +375,18 @@ the SDK's 5 ms example.
 Do not test the two rates in one run. Restart the driver between trials and
 record a separate bag for each. Keep path geometry, velocity scaling,
 acceleration scaling, tool pose, and canvas pose unchanged.
+
+Run the direction fixture first and the sine fixture second for each timing
+pair. Compare the sine controller reference, measured canvas-normal
+peak-to-peak motion, `wrist1_joint` and `foreArm_joint` phase delay, and the
+operator's observation of wrist motion. Record synchronized high-frame-rate
+video when available. Do not change timing and velocity scaling in the same
+trial.
+
+After selecting a timing pair, perform a separate above-paper velocity-scaling
+sweep if movement-synchronized oscillation remains. Use that sweep to determine
+whether the residual is speed-dependent; do not use reduced speed as a
+substitute for satisfying the timing and normal-tracking gates.
 
 The implementation should expose the ServoJ period as reviewed configuration
 or derive it from one authoritative controller period. It must reject an
@@ -337,6 +410,8 @@ shows how often it occurs. The selected policy must:
 - No unexplained ServoJ error code occurs.
 - Median common joint delay is below `30 ms` and the 95th percentile is below `50 ms`.
 - Actual canvas-normal tracking remains within the provisional hover limit of `+/-0.25 mm`.
+- No visible movement-synchronized wrist oscillation remains when the measured
+  canvas-normal and per-joint tracking metrics meet their limits.
 
 If neither timing pair meets the gate, stop contact testing and investigate the
 RPC streaming architecture before tuning lookahead or gain.
@@ -474,6 +549,9 @@ output/sine_test_paths.json
 - Execute the same paths on a plane offset safely above the physical paper.
 - Record controller state, joint state, executor logs, and ServoJ diagnostics.
 - Compare rate, delay, joint error, and canvas-normal error against the July 22 baseline.
+- For sine paths, compare per-cycle normal peak-to-peak motion and forearm/wrist
+  phase delay, and record whether motion toward and away from the paper is
+  visibly synchronized with each reversal.
 - Repeat each candidate ServoJ timing configuration with no other changes.
 
 ### Stage 3: Paper contact
