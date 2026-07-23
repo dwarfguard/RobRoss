@@ -111,10 +111,10 @@ Terminal 3, run the full artwork with the default virtual wall
 ```bash
 ros2 launch robross_painter paint.launch.py \
   aubo_type:=aubo_i5 \
-  paths_file:=$ROBROSS_REPO/output/painting_paths.json
+  paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json
 ```
 
-Use `output/test_line_paths.json` instead for the 50 mm line. Add an RViz
+Use `output/demo_v1_a4_pen/test_line_paths.json` instead for the 50 mm line. Add an RViz
 `Marker` display on `robross_markers` to see the paper outline and completed
 strokes.
 
@@ -124,7 +124,7 @@ argument to the Terminal 3 launch:
 ```bash
 ros2 launch robross_painter paint.launch.py \
   aubo_type:=aubo_i5 \
-  paths_file:=$ROBROSS_REPO/output/painting_paths.json \
+  paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json \
   calibration_file:=$(ros2 pkg prefix robross_painter)/share/robross_painter/config/demo_v1_rviz.yaml
 ```
 
@@ -171,11 +171,11 @@ taught canvas:
 ros2 launch robross_painter paint.launch.py \
   calibration_file:=$HOME/hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
-  paths_file:=$ROBROSS_REPO/output/painting_paths.json
+  paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json
 ```
 
 Only after that succeeds should a reviewed profile set `dry_run: false` and run
-`output/test_line_paths.json` at the preflight speeds. Keep an operator on the
+`output/demo_v1_a4_pen/test_line_paths.json` at the preflight speeds. Keep an operator on the
 e-stop.
 
 ## Troubleshooting

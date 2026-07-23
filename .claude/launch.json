@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "output-gallery",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8347", "--directory", "output"],
+      "port": 8347
+    },
+    {
+      "name": "webapp",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["webapp/app.py"],
+      "port": 5050
+    }
+  ]
+}

@@ -12,7 +12,7 @@
   },
 
   "source_image": {
-    "path": "Image_Process/sketch/assets/apple.png",
+    "path": "Image_Process/assets/apple.png",
     "canny_threshold1": 100,
     "canny_threshold2": 200,
     "simplify_epsilon_ratio": 0.002
@@ -24,7 +24,7 @@
   },
 
   "output": {
-    "directory": "output",
+    "directory": "output/sketch_demo_a4",
     "painting_paths_file": "sketch_painting_paths.json",
     "preview_svg_file": "sketch_path_preview.svg"
   }

@@ -140,11 +140,11 @@ Config profile
   ↓
 Image_Process/mondrian/mondrian_generator.py
   ↓
-output/painting_plan.json
+output/<config-name>/painting_plan.json
   ↓
 Image_Process/mondrian/generate_painting_paths.py
   ↓
-output/painting_paths.json
+output/<config-name>/painting_paths.json
   ↓
 ros2/robross_painter
   ↓
@@ -192,14 +192,15 @@ Then run:
 python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_v1_a4_pen.json
 ```
 
-Expected outputs:
+Expected outputs (each config writes into its own `output/<config-name>/`
+subfolder, so `demo_v1_a4_pen.json` lands under `output/demo_v1_a4_pen/`):
 
 ```text
-output/mondrian_preview.svg
-output/painting_plan.json
-output/path_preview.svg
-output/path_animation.svg
-output/painting_paths.json
+output/demo_v1_a4_pen/mondrian_preview.svg
+output/demo_v1_a4_pen/painting_plan.json
+output/demo_v1_a4_pen/path_preview.svg
+output/demo_v1_a4_pen/path_animation.svg
+output/demo_v1_a4_pen/painting_paths.json
 ```
 
 `path_animation.svg` animates the stroke order (open in a web browser,
@@ -214,25 +215,25 @@ Always use the same config for both scripts. Do not generate the plan with one c
 
 ## 9. Meaning of Generated Files / 输出文件含义
 
-### `output/mondrian_preview.svg`
+### `output/demo_v1_a4_pen/mondrian_preview.svg`
 
 Human-readable visual preview of the generated artwork.
 
 Use this to check whether the artwork looks reasonable before generating or testing paths.
 
-### `output/painting_plan.json`
+### `output/demo_v1_a4_pen/painting_plan.json`
 
 Intermediate artwork plan.
 
 This file describes the artwork in higher-level operations such as lines and, in color modes, rectangles. It is not robot motor code.
 
-### `output/path_preview.svg`
+### `output/demo_v1_a4_pen/path_preview.svg`
 
 Human-readable preview of the actual generated stroke paths.
 
 Use this to check stroke order, direction, and whether the robot-style paths match the intended drawing.
 
-### `output/painting_paths.json`
+### `output/demo_v1_a4_pen/painting_paths.json`
 
 Intermediate robot-style path command file.
 
@@ -291,9 +292,11 @@ The first hardware test should be gradual. Do not begin with a full drawing.
 ### Step 1: Software-only review
 
 - Generate Demo v1 files.
-- Open `output/mondrian_preview.svg`.
-- Open `output/path_preview.svg`.
+- Open `output/demo_v1_a4_pen/mondrian_preview.svg`.
+- Open `output/demo_v1_a4_pen/path_preview.svg`.
 - Check that `painting_paths.json` validation passes.
+- Or run `python3 generate_output_gallery.py` and open `output/index.html` to review the
+  preview + validation status for every generated config at once.
 - Confirm all coordinates fit inside A4 bounds.
 
 ### Step 2: Robot workspace setup
@@ -344,7 +347,8 @@ python3 Image_Process/mondrian/generate_test_line.py
 
 so the first stroke uses the same `painting_paths.json` format (and
 future robot adapter) as the full artwork. Output:
-`output/test_line_paths.json` and `output/test_line_preview.svg`.
+`output/demo_v1_a4_pen/test_line_paths.json` and
+`output/demo_v1_a4_pen/test_line_preview.svg`.
 
 Check:
 

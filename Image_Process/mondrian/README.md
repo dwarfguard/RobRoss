@@ -16,18 +16,22 @@ python3 Image_Process/mondrian/generate_painting_paths.py \
   --config configs/demo_v1_a4_pen.json
 ```
 
-Review these files before robot execution:
+Review these files before robot execution (each config writes into its own
+`output/<config-name>/` subfolder, so `demo_v1_a4_pen.json` lands under
+`output/demo_v1_a4_pen/`):
 
 ```text
-output/mondrian_preview.svg    Artwork preview
-output/path_preview.svg        Static execution-path preview
-output/path_animation.svg      Animated execution order
-output/painting_paths.json     Validated path commands
+output/demo_v1_a4_pen/mondrian_preview.svg    Artwork preview
+output/demo_v1_a4_pen/path_preview.svg        Static execution-path preview
+output/demo_v1_a4_pen/path_animation.svg      Animated execution order
+output/demo_v1_a4_pen/painting_paths.json     Validated path commands
 ```
 
 Open `path_animation.svg` in a browser and reload it to replay. Always use the
 same config for both generation commands; the path generator reads the plan
-created by the artwork generator.
+created by the artwork generator. To review every generated config at once,
+run `python3 generate_output_gallery.py` from the repo root and open the
+resulting `output/index.html` in a browser.
 
 Run the tests with:
 
@@ -117,9 +121,10 @@ python3 Image_Process/mondrian/generate_test_line.py \
   --end 130 140
 ```
 
-This writes `output/test_line_paths.json` and
-`output/test_line_preview.svg` without replacing the full artwork outputs.
-Endpoints are in canvas millimeters.
+This writes `output/<config-name>/test_line_paths.json` and
+`output/<config-name>/test_line_preview.svg` (using `--config`'s output
+directory, defaulting to `output/demo_v1_a4_pen/`) without replacing the full
+artwork outputs. Endpoints are in canvas millimeters.
 
 ## Validation
 

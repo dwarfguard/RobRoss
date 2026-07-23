@@ -12,7 +12,7 @@
   },
 
   "source_image": {
-    "path": "Image_Process/image_to_mondrian/assets/minions.jpg",
+    "path": "Image_Process/assets/minions.jpg",
     "downscale_max_dimension_px": 400,
     "bilateral_d": 15,
     "bilateral_sigma_color": 80,
@@ -53,7 +53,7 @@
   },
 
   "output": {
-    "directory": "output",
+    "directory": "output/image_to_mondrian_minions_a4",
     "painting_paths_file": "image_to_mondrian_minions_painting_paths.json",
     "preview_svg_file": "image_to_mondrian_minions_path_preview.svg",
     "quantized_preview_png_file": "image_to_mondrian_minions_quantized_preview.png"

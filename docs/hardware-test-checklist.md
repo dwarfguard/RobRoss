@@ -21,14 +21,15 @@ Only after that succeeds should the team test a small subset of generated paths,
 
 ## 2. Required Files
 
-Before hardware testing, generate and review:
+Before hardware testing, generate and review (Demo v1's config writes into
+`output/demo_v1_a4_pen/`):
 
 ```text
-output/mondrian_preview.svg
-output/painting_plan.json
-output/path_preview.svg
-output/path_animation.svg
-output/painting_paths.json
+output/demo_v1_a4_pen/mondrian_preview.svg
+output/demo_v1_a4_pen/painting_plan.json
+output/demo_v1_a4_pen/path_preview.svg
+output/demo_v1_a4_pen/path_animation.svg
+output/demo_v1_a4_pen/painting_paths.json
 ```
 
 `path_animation.svg` shows the strokes drawing in execution order (open
@@ -54,9 +55,9 @@ python3 Image_Process/mondrian/generate_painting_paths.py --config configs/demo_
 
 Before moving the robot, confirm:
 
-- [ ] `output/mondrian_preview.svg` looks correct.
-- [ ] `output/path_preview.svg` looks correct.
-- [ ] `output/painting_paths.json` exists.
+- [ ] `output/demo_v1_a4_pen/mondrian_preview.svg` looks correct.
+- [ ] `output/demo_v1_a4_pen/path_preview.svg` looks correct.
+- [ ] `output/demo_v1_a4_pen/painting_paths.json` exists.
 - [ ] `painting_paths.json` validation passes.
 - [ ] Canvas is A4 portrait:
   - [ ] width = `210 mm`
@@ -209,8 +210,8 @@ so the robot adapter is exercised the same way):
 python3 Image_Process/mondrian/generate_test_line.py
 ```
 
-This writes `output/test_line_paths.json` and
-`output/test_line_preview.svg`, validated like any other path file.
+This writes `output/demo_v1_a4_pen/test_line_paths.json` and
+`output/demo_v1_a4_pen/test_line_preview.svg`, validated like any other path file.
 
 Checklist:
 

@@ -19,7 +19,7 @@ Config profile (configs/*.json)
   -> region_fill.region_to_pixel_strokes()   erode + scanline fill, per region
   -> border_tracing.trace_region_contours()  black grid lines between color blocks
   -> path_ordering.order_strokes()           greedy nearest-neighbor travel order, per color group
-  -> generate_painting_paths.py              -> output/<painting_paths_file> (+ preview SVG + quantized preview PNG)
+  -> generate_painting_paths.py              -> output/<config-name>/<painting_paths_file> (+ preview SVG + quantized preview PNG)
 ```
 
 There is no intermediate `painting_plan.json` step (like `sketch/`, not like
@@ -68,7 +68,9 @@ python3 Image_Process/image_to_mondrian/generate_painting_paths.py --config conf
 the repo root — `source_image.path`, `output.directory`, etc. are all
 CWD-relative.
 
-Outputs (all under `output/` per the config):
+Outputs (under `output/<config-name>/` — e.g. `output/image_to_mondrian_demo_a4/`
+for the config above; each config gets its own subfolder so different
+profiles' outputs never overwrite each other):
 
 - `image_to_mondrian_painting_paths.json` — the command list a robot adapter consumes.
 - `image_to_mondrian_path_preview.svg` — static visual preview of the strokes.
@@ -76,6 +78,11 @@ Outputs (all under `output/` per the config):
   its quantized palette color (before segmentation/small-region filtering),
   useful for tuning `min_region_area_mm2`/`palette`/blur settings without a
   full run.
+
+After generating one or more configs, run `python3 generate_output_gallery.py`
+from the repo root and open `output/index.html` to browse every run's
+preview/stats/validation status side by side instead of opening these files
+individually.
 
 ## Dependencies
 

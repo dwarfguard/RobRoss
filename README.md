@@ -20,15 +20,15 @@ configs/*.json
     v
 Mondrian artwork generator
     |
-    +-- output/painting_plan.json
-    +-- output/mondrian_preview.svg
+    +-- output/<config-name>/painting_plan.json
+    +-- output/<config-name>/mondrian_preview.svg
     |
     v
 Path generator and validator
     |
-    +-- output/painting_paths.json
-    +-- output/path_preview.svg
-    +-- output/path_animation.svg
+    +-- output/<config-name>/painting_paths.json
+    +-- output/<config-name>/path_preview.svg
+    +-- output/<config-name>/path_animation.svg
     |
     v
 robross_painter -> MoveIt -> Aubo i5
@@ -39,11 +39,23 @@ Generated coordinates use millimeters with the origin at the paper's top-left,
 intermediate command format, not motor-control output. See the
 [path format reference](docs/painting-paths-format.md).
 
+Each config profile writes into its own `output/<config-name>/` subfolder (the
+name matches the config's filename, minus `.json`) so different profiles never
+clobber each other's output. After generating one or more configs, run
+`python3 generate_output_gallery.py` and open the resulting `output/index.html`
+in a browser for a quick side-by-side preview of every generated run (previews,
+validation status, path/stroke counts) instead of opening files one by one.
+
 ## Start Here
 
 | Goal | Guide |
 | --- | --- |
 | Generate artwork and paths | [Mondrian pipeline](Image_Process/mondrian/README.md) |
+| Trace edges of a source image | [Sketch route](Image_Process/sketch/README.md) |
+| Turn a photo into Mondrian-style fill art | [Image-to-Mondrian route](Image_Process/image_to_mondrian/README.md) |
+| Turn a photo into Mondrian-style art (AI restyle) | [Gemini Mondrian route](Image_Process/gemini_mondrian/README.md) |
+| Trace a clean line-art/technical illustration | [line_art route](Image_Process/line_art/README.md) |
+| Browse all generated runs | Run `python3 generate_output_gallery.py` → `output/index.html` |
 | Understand the path schema | [Path format](docs/painting-paths-format.md) |
 | Build and run in RViz | [ROS 2 painter](ros2/robross_painter/README.md) |
 | Prepare a real-arm session | [Hardware preflight](ros2/robross_painter/PREFLIGHT.md) |
@@ -92,8 +104,14 @@ Image_Process/mondrian/          Artwork, path, preview, and test-line tools
 ros2/robross_painter/            MoveIt path executor and canvas teaching tool
 docs/                            Requirements and path-format references
 CAD/                             Tool, canvas, and paint-holder models
-output/                          Generated plans, paths, and previews
+output/                          Generated plans, paths, and previews (one subfolder per config)
+generate_output_gallery.py       Builds output/index.html, a static preview of every generated run
+webapp/                          Optional local control panel: upload a photo, run a route, browse the result
 ```
+
+`webapp/` is an optional add-on (needs `pip install flask`) — see
+[webapp/README.md](webapp/README.md). It's a thin wrapper around the same
+CLI scripts described above, not a separate implementation.
 
 ## Current Scope
 
