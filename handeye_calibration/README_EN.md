@@ -55,15 +55,20 @@ R20 R21 R22 tz
 
 | Argument | Description |
 |----------|-------------|
+| `--camera-id ID` | Camera device ID (default 0, use `--list-cameras` to find available IDs) |
 | `--robot-ip IP` | Robot controller IP address |
 | `--marker-size M` | Actual marker side length in meters (default 0.035) |
 | `--aruco-dict NAME` | ArUco dictionary (default 4X4_50) |
 | `--camera-calib PATH` | Camera calibration file |
 | `--handeye-calib PATH` | Hand-eye calibration file |
+| `--list-cameras` | List all available camera devices |
 | `--dry-run` | Detection only, no robot connection |
 | `--image PATH` | Process a single image file |
 | `--generate-markers` | Generate marker images for printing |
 | `--test-comm` | Test robot communication only |
+| `--start-from ID` | Starting corner: 0\|1\|2\|3 or "center" (default 0) |
+| `--robross` | Output RobRoss canvas calibration YAML instead of direct robot control |
+| `--robross-output PATH` | Output path for RobRoss canvas calibration (default canvas_calibration.yaml) |
 | `--start-from ID` | Starting corner: 0\|1\|2\|3 or "center" (default 0) |
 | `--robross` | Output RobRoss canvas calibration YAML instead of direct robot control |
 | `--robross-output PATH` | Output path for RobRoss canvas calibration (default canvas_calibration.yaml) |

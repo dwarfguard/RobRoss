@@ -55,15 +55,20 @@ R20 R21 R22 tz
 
 | 参数 | 说明 |
 |------|------|
+| `--camera-id ID` | 摄像头 ID（默认 0，用 `--list-cameras` 查看可用 ID） |
 | `--robot-ip IP` | 机械臂控制器 IP |
 | `--marker-size M` | 标记实际边长/米（默认 0.035） |
 | `--aruco-dict NAME` | ArUco 字典（默认 4X4_50） |
 | `--camera-calib PATH` | 相机标定文件 |
 | `--handeye-calib PATH` | 手眼标定文件 |
+| `--list-cameras` | 列出所有可用摄像头设备 |
 | `--dry-run` | 仅检测，不连机械臂 |
 | `--image PATH` | 从图片检测 |
 | `--generate-markers` | 生成标记图片 |
 | `--test-comm` | 通信测试 |
+| `--start-from ID` | 起始绘制点：0\|1\|2\|3 或 "center"（默认 0） |
+| `--robross` | 输出 RobRoss 画布标定 YAML 而非直接控制机械臂 |
+| `--robross-output PATH` | RobRoss 画布标定输出路径（默认 canvas_calibration.yaml） |
 
 ## 机械臂通信 (JSON-RPC)
 
