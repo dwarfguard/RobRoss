@@ -18,6 +18,7 @@ KNOWN_COMMANDS = {
     "move_to",
     "lower_tool",
     "paint_stroke",
+    "paint_path",
     "lift_tool",
 }
 
@@ -143,6 +144,44 @@ def validate_command(command: dict, index: int, canvas: dict) -> tuple:
 
                 if stroke_distance(from_point, to_point) == 0:
                     errors.append(f"{desc} (paint_stroke) has zero distance (from_mm equals to_mm).")
+
+    elif command_type == "paint_path":
+        if not command.get("color"):
+            warnings.append(f"{desc} (paint_path) is missing a color field.")
+
+        points = command.get("points_mm")
+        if not isinstance(points, (list, tuple)) or len(points) < 2:
+            errors.append(f"{desc} (paint_path) must have a points_mm list of at least 2 points.")
+        else:
+            valid_points = True
+            for point_index, point in enumerate(points):
+                if (
+                    not isinstance(point, (list, tuple))
+                    or len(point) != 2
+                    or not all(is_number(v) for v in point)
+                ):
+                    errors.append(
+                        f"{desc} (paint_path) point #{point_index} must be a two-number list."
+                    )
+                    valid_points = False
+                elif not point_inside_canvas(point, canvas):
+                    errors.append(
+                        f"{desc} (paint_path) point #{point_index} {list(point)} is outside canvas bounds."
+                    )
+                    valid_points = False
+
+            if valid_points:
+                total = sum(
+                    stroke_distance(a, b) for a, b in zip(points, points[1:])
+                )
+                if total == 0:
+                    errors.append(f"{desc} (paint_path) has zero total length.")
+                for seg_index, (a, b) in enumerate(zip(points, points[1:])):
+                    if stroke_distance(a, b) == 0:
+                        warnings.append(
+                            f"{desc} (paint_path) segment #{seg_index} has zero length "
+                            f"(duplicate consecutive point)."
+                        )
 
     # lower_tool and lift_tool need no coordinates or extra fields.
 
