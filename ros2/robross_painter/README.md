@@ -373,7 +373,8 @@ ros2 run robross_painter analyze_tracking_bag.py <bag_dir> \
   --canvas-file $HOME/canvas_calibration.yaml \
   --calibration-file $HOME/hardware_a4.yaml \
   --plane-bias-mm 1.0 \
-  --csv tracking.csv
+  --csv tracking.csv \
+  --servoj-csv servoj.csv   # optional; only meaningful for Phase 2 driver bags
 ```
 
 Required bag topics: `/joint_trajectory_controller/controller_state` (reference
@@ -385,6 +386,24 @@ canvas-normal error (positive = into the paper), tangential error, estimated
 spring compression (`plane_bias_mm + actual canvas z`), per-joint errors, and
 publication rate/jitter for controller state and joint states. `--csv` exports
 per-sample rows for offline plotting.
+
+### ServoJ timing (Phase 2)
+
+When the bag also carries the Aubo driver's ServoJ diagnostics — the
+`aubo_servoj_diag` `/rosout` lines emitted by the Phase 2A instrumentation
+(`servoj_config` once at activation, one `servoj_stats` line per report window)
+— the summary automatically gains a **ServoJ timing** section: the effective
+control-loop rate (and its percentage of the configured rate), `servoJoint`
+RPC and whole-`Servoj` durations, late-cycle runs, queue-full events/retries,
+and the servoJoint return-code breakdown, aggregated across the whole bag. It
+ends with a **Phase 2B timing gate** line summarizing the plan's Section 7
+checks (loop rate ≥ 95% of configured, no queue-full, no non-OK return
+codes/exceptions, no latched timing fault). The joint-delay portion of that
+gate (median < 30 ms / p95 < 50 ms) is assessed separately from the tracking
+cross-correlation. `--servoj-csv` writes the per-window timing series, which is
+the easiest way to compare two candidate timing trials (e.g. 125 Hz / t=0.008
+vs 200 Hz / t=0.005). Bags recorded before Phase 2A, or on fake hardware, carry
+no such lines and the section is simply omitted.
 
 Acceptance gate (run on the robot host where the July 22 baseline bags live):
 
