@@ -66,10 +66,36 @@ REVOLUTE_URDF = """
 
 S = 1_000_000_000  # ns per second
 
+# ServoJ diagnostics lines as the driver's aubo_servoj_diag node emits them.
+SERVOJ_CONFIG_LINE = ("servoj_config t=0.0050 a=0.200 v=0.200 "
+                      "lookahead=0.100 gain=200 window=400")
+SERVOJ_STATS_1 = ("servoj_stats cycles=100 "
+                  "period_ms=min:4.50,mean:5.00,max:8.00,p95:6.00,p99:7.00 "
+                  "rpc_ms=min:0.40,mean:1.00,max:3.00,p95:2.00 "
+                  "total_ms=mean:1.50,max:4.00 late=2,late_run_max=1 "
+                  "qf_events=0,qf_retries=0,qf_blocked_ms=0.00 "
+                  "rc=ok:100,busy:0,bad:0,inval:0,ign:0,other:0 "
+                  "last_other_rc=0 exc=0")
+SERVOJ_STATS_2 = ("servoj_stats cycles=100 "
+                  "period_ms=min:4.80,mean:6.00,max:12.00,p95:9.00,p99:11.00 "
+                  "rpc_ms=min:0.50,mean:2.00,max:9.00,p95:5.00 "
+                  "total_ms=mean:2.50,max:10.00 late=10,late_run_max=4 "
+                  "qf_events=1,qf_retries=3,qf_blocked_ms=15.00 "
+                  "rc=ok:99,busy:1,bad:0,inval:0,ign:0,other:0 "
+                  "last_other_rc=0 exc=0")
+SERVOJ_MISMATCH = "servoj_mismatch ratio=1.280 measured_ms=6.40 t_ms=5.00"
+
 
 def _log(text):
     m = Log()
     m.name = "painting_executor"
+    m.msg = text
+    return m
+
+
+def _diag_log(text):
+    m = Log()
+    m.name = "aubo_servoj_diag"
     m.msg = text
     return m
 
@@ -111,6 +137,16 @@ def _synthetic_bag(bag_dir):
                  _log("[2/2] paint_stroke (row_b)")))
     msgs.append((3 * S, "/rosout", "rcl_interfaces/msg/Log",
                  _log("Painting finished (2 commands)")))
+    # ServoJ diagnostics from the driver's diag node (ignored by segmentation,
+    # which only reads painting_executor lines).
+    msgs.append((1 * S, "/rosout", "rcl_interfaces/msg/Log",
+                 _diag_log(SERVOJ_CONFIG_LINE)))
+    msgs.append((1 * S + int(0.4 * S), "/rosout", "rcl_interfaces/msg/Log",
+                 _diag_log(SERVOJ_MISMATCH)))
+    msgs.append((2 * S, "/rosout", "rcl_interfaces/msg/Log",
+                 _diag_log(SERVOJ_STATS_1)))
+    msgs.append((2 * S + int(0.5 * S), "/rosout", "rcl_interfaces/msg/Log",
+                 _diag_log(SERVOJ_STATS_2)))
     n = 51
     for i in range(n):
         # Segment 1: +Y 0 -> 30 mm over 0.5 s, actual 0.5 mm INTO the paper.
@@ -205,7 +241,7 @@ def test_direction_classification():
 
 def test_segmentation_and_metrics_on_synthetic_bag(tmp_path):
     bag_dir, canvas, calib = _fixture_files(tmp_path)
-    metrics, rates = analyze_tracking_bag.analyze(
+    metrics, rates, _servoj = analyze_tracking_bag.analyze(
         bag_dir, canvas, calib, plane_bias_mm=1.0)
     assert [m["segment"].label for m in metrics] == ["row_a", "row_b"]
     assert [m["segment"].type for m in metrics] == ["paint_stroke"] * 2
@@ -229,7 +265,7 @@ def test_segmentation_and_metrics_on_synthetic_bag(tmp_path):
 
 def test_csv_export(tmp_path):
     bag_dir, canvas, calib = _fixture_files(tmp_path)
-    metrics, _rates = analyze_tracking_bag.analyze(
+    metrics, _rates, _servoj = analyze_tracking_bag.analyze(
         bag_dir, canvas, calib, plane_bias_mm=1.0)
     out = tmp_path / "out.csv"
     analyze_tracking_bag.write_csv(out, metrics)
@@ -266,3 +302,89 @@ def test_analysis_never_touches_the_ros_graph(tmp_path):
     for forbidden in ("rclpy.init", "create_publisher", "create_node",
                       "rclpy.spin"):
         assert forbidden not in source
+
+
+# --- ServoJ timing diagnostics (Phase 2A instrumentation) ------------------
+
+def test_parse_kv_line_flattens_groups():
+    d = analyze_tracking_bag._parse_kv_line(
+        "servoj_stats cycles=100 period_ms=min:4.50,mean:5.00 rc=ok:99,busy:1")
+    assert d["cycles"] == 100
+    assert d["period_ms.min"] == 4.5
+    assert d["period_ms.mean"] == 5.0
+    assert d["rc.ok"] == 99 and d["rc.busy"] == 1
+    assert "servoj_stats" not in d  # bare leading tag is skipped
+
+
+def test_parse_servoj_diag_none_without_diag_lines():
+    msgs = [(1 * S, _log("[1/1] paint_stroke (x)")),
+            (2 * S, _log("Painting finished (1 commands)"))]
+    assert analyze_tracking_bag.parse_servoj_diag(msgs) is None
+
+
+def test_parse_servoj_diag_aggregates_and_gate_fails():
+    msgs = [
+        (1 * S, _diag_log(SERVOJ_CONFIG_LINE)),
+        (1 * S, _diag_log(SERVOJ_MISMATCH)),
+        (2 * S, _diag_log(SERVOJ_STATS_1)),
+        (3 * S, _diag_log(SERVOJ_STATS_2)),
+    ]
+    servoj = analyze_tracking_bag.parse_servoj_diag(msgs)
+    assert servoj is not None
+    agg = servoj["aggregate"]
+    assert agg["total_cycles"] == 200
+    np.testing.assert_allclose(agg["period_mean_ms"], 5.5)          # weighted
+    np.testing.assert_allclose(agg["effective_rate_hz"], 1000.0 / 5.5)
+    np.testing.assert_allclose(agg["configured_rate_hz"], 200.0)
+    np.testing.assert_allclose(agg["rate_pct_of_configured"],
+                               100.0 * (1000.0 / 5.5) * 0.005)
+    assert agg["period_min_ms"] == 4.5
+    assert agg["period_max_ms"] == 12.0
+    assert agg["period_p95_ms_worst"] == 9.0   # worst window, not merged
+    assert agg["qf_events"] == 1 and agg["qf_retries"] == 3
+    np.testing.assert_allclose(agg["qf_blocked_ms"], 15.0)
+    assert agg["rc_ok"] == 199 and agg["rc_busy"] == 1
+    assert agg["non_ok_rc"] == 1
+    assert agg["late_cycles"] == 12 and agg["late_run_max"] == 4
+    assert servoj["warnings"]["mismatch"] == 1
+    assert servoj["warnings"]["fault_latched"] is False
+    summary = analyze_tracking_bag.render_summary([], {}, servoj)
+    assert "ServoJ timing (aubo_servoj_diag)" in summary
+    # rate < 95%, a queue-full event, and a busy return code each fail the gate.
+    assert "Phase 2B timing gate: FAIL" in summary
+
+
+def test_servoj_gate_passes_on_clean_window():
+    clean = ("servoj_stats cycles=100 "
+             "period_ms=min:4.90,mean:5.00,max:5.20,p95:5.10,p99:5.15 "
+             "rpc_ms=min:0.40,mean:1.00,max:1.50,p95:1.20 "
+             "total_ms=mean:1.10,max:1.60 late=0,late_run_max=0 "
+             "qf_events=0,qf_retries=0,qf_blocked_ms=0.00 "
+             "rc=ok:100,busy:0,bad:0,inval:0,ign:0,other:0 "
+             "last_other_rc=0 exc=0")
+    msgs = [(1 * S, _diag_log(SERVOJ_CONFIG_LINE)),
+            (2 * S, _diag_log(clean))]
+    servoj = analyze_tracking_bag.parse_servoj_diag(msgs)
+    summary = analyze_tracking_bag.render_summary([], {}, servoj)
+    assert "Phase 2B timing gate: PASS" in summary
+
+
+def test_servoj_csv_export(tmp_path):
+    msgs = [(1 * S, _diag_log(SERVOJ_CONFIG_LINE)),
+            (2 * S, _diag_log(SERVOJ_STATS_1)),
+            (3 * S, _diag_log(SERVOJ_STATS_2))]
+    servoj = analyze_tracking_bag.parse_servoj_diag(msgs)
+    out = tmp_path / "servoj.csv"
+    analyze_tracking_bag.write_servoj_csv(out, servoj)
+    lines = out.read_text().strip().splitlines()
+    assert lines[0].startswith("t_ns,cycles,period_ms.min")
+    assert len(lines) == 1 + 2  # header + one row per window
+
+
+def test_analyze_surfaces_servoj_end_to_end(tmp_path):
+    bag_dir, canvas, calib = _fixture_files(tmp_path)
+    _metrics, _rates, servoj = analyze_tracking_bag.analyze(
+        bag_dir, canvas, calib, plane_bias_mm=1.0)
+    assert servoj is not None
+    assert servoj["aggregate"]["total_cycles"] == 200
+    assert servoj["warnings"]["mismatch"] == 1

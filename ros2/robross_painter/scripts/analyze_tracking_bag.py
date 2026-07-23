@@ -13,7 +13,7 @@ Usage:
       --canvas-file <teach_canvas output yaml> \
       --calibration-file <hardware_a4.yaml> \
       [--urdf <urdf file, else read from the bag's /robot_description>] \
-      [--plane-bias-mm 1.0] [--csv out.csv] \
+      [--plane-bias-mm 1.0] [--csv out.csv] [--servoj-csv servoj.csv] \
       [--base-frame base_link] [--ee-frame ee_link]
 
 Conventions (must match painting_executor.cpp):
@@ -21,6 +21,11 @@ Conventions (must match painting_executor.cpp):
     reports positive canvas z.
   - Estimated spring compression = plane_bias_mm + actual_canvas_z_mm
     (the taught origin already sits plane_bias_mm behind the raw touch).
+
+When the bag also carries the Aubo driver's ServoJ diagnostics (Phase 2A:
+aubo_servoj_diag /rosout lines), the summary gains a ServoJ timing section
+with the effective loop rate, RPC/queue-full/return-code stats, and a
+Phase 2B timing-gate check; --servoj-csv writes the per-window series.
 """
 
 import argparse
@@ -41,6 +46,14 @@ ROSOUT_NODE = "painting_executor"
 COMMAND_START_RE = re.compile(r"^\[(\d+)/(\d+)\] (\S+) \((.*)\)$")
 COMMAND_FAIL_RE = re.compile(r"^Command (\d+) \(.*\) failed, aborting$")
 PAINTING_FINISHED_RE = re.compile(r"^Painting finished \((\d+) commands\)$")
+
+# ServoJ timing diagnostics emitted by the Aubo hardware interface's diag node
+# (Phase 2A instrumentation). The driver logs one "servoj_config" line at
+# activation and one "servoj_stats" key=value line per report window, plus
+# throttled "servoj_mismatch"/"servoj_rc"/queue-full warnings.
+SERVOJ_NODE = "aubo_servoj_diag"
+SERVOJ_CONFIG_PREFIX = "servoj_config"
+SERVOJ_STATS_PREFIX = "servoj_stats"
 
 Joint = namedtuple("Joint", "name type xyz rpy axis")
 Segment = namedtuple("Segment", "index total type label t_start t_end")
@@ -260,6 +273,154 @@ def segment_rosout(rosout_msgs, end_t_ns=None):
 
 
 # ---------------------------------------------------------------------------
+# ServoJ timing diagnostics (from the driver's aubo_servoj_diag /rosout lines)
+# ---------------------------------------------------------------------------
+
+def _num(s):
+    """Parse a diagnostics token value to int/float, leaving non-numbers as-is."""
+    try:
+        f = float(s)
+    except ValueError:
+        return s
+    return int(f) if f.is_integer() else f
+
+
+def _parse_kv_line(text):
+    """Flatten a diagnostics line into a dict, matching the mixed comma grammar
+    emitted by ServoTimingStats::formatReport.
+
+    Within one whitespace token, comma-joined pieces are either a colon
+    sub-value of the current group key ('period_ms=min:4.5,mean:5.0' ->
+    'period_ms.min'/'period_ms.mean') or an independent 'key=value' pair
+    ('late=2,late_run_max=1' -> 'late'/'late_run_max'). Scalars parse
+    numerically; the leading tag token (e.g. 'servoj_stats') is skipped.
+    """
+    out = {}
+    for tok in text.split():
+        group_key = None
+        for piece in tok.split(","):
+            if "=" in piece:
+                key, val = piece.split("=", 1)
+                group_key = key
+                if ":" in val:
+                    sub, sv = val.split(":", 1)
+                    out[f"{key}.{sub}"] = _num(sv)
+                else:
+                    out[key] = _num(val)
+            elif ":" in piece and group_key is not None:
+                sub, sv = piece.split(":", 1)
+                out[f"{group_key}.{sub}"] = _num(sv)
+            # a piece with neither '=' nor ':' (e.g. the leading tag) is ignored
+    return out
+
+
+def parse_servoj_diag(rosout_msgs):
+    """Structured ServoJ timing data from aubo_servoj_diag /rosout lines.
+
+    Returns None when the bag has no such lines (e.g. a pre-Phase-2A bag or a
+    fake-hardware run). Otherwise: {"config", "reports", "warnings",
+    "aggregate"}, where reports is one dict per "servoj_stats" window.
+    """
+    config = None
+    reports = []
+    warn = {"mismatch": 0, "rc": 0, "queue_full": 0, "fault_latched": False}
+    seen = False
+    for t_ns, msg in rosout_msgs:
+        if getattr(msg, "name", None) != SERVOJ_NODE:
+            continue
+        text = msg.msg
+        if text.startswith(SERVOJ_CONFIG_PREFIX):
+            seen = True
+            config = _parse_kv_line(text)
+        elif text.startswith(SERVOJ_STATS_PREFIX):
+            seen = True
+            rep = _parse_kv_line(text)
+            rep["t_ns"] = t_ns
+            reports.append(rep)
+        elif text.startswith("servoj_mismatch"):
+            seen = True
+            warn["mismatch"] += 1
+        elif text.startswith("servoj_rc"):
+            seen = True
+            warn["rc"] += 1
+        elif "queue-full" in text:
+            seen = True
+            warn["queue_full"] += 1
+        elif "fault latched" in text or "latching fault" in text:
+            seen = True
+            warn["fault_latched"] = True
+    if not seen:
+        return None
+    return {
+        "config": config,
+        "reports": reports,
+        "warnings": warn,
+        "aggregate": _aggregate_servoj(config, reports),
+    }
+
+
+def _aggregate_servoj(config, reports):
+    """Roll per-window reports into one bag-level summary + Phase 2B gate."""
+    if not reports:
+        return None
+    total_cycles = sum(r.get("cycles", 0) for r in reports)
+
+    def wmean(key):  # cycle-weighted mean across windows
+        if not total_cycles:
+            return 0.0
+        return sum(r.get(key, 0.0) * r.get("cycles", 0)
+                   for r in reports) / total_cycles
+
+    def cmax(key):
+        return max((r.get(key, 0.0) for r in reports), default=0.0)
+
+    def csum(key):
+        return sum(r.get(key, 0) for r in reports)
+
+    period_mean_ms = wmean("period_ms.mean")
+    agg = {
+        "n_reports": len(reports),
+        "total_cycles": total_cycles,
+        "period_mean_ms": period_mean_ms,
+        "period_min_ms": min((r.get("period_ms.min", 0.0) for r in reports),
+                             default=0.0),
+        "period_max_ms": cmax("period_ms.max"),
+        # Percentiles can't be exactly merged across windows; report the worst
+        # window's value as a conservative bound.
+        "period_p95_ms_worst": cmax("period_ms.p95"),
+        "period_p99_ms_worst": cmax("period_ms.p99"),
+        "rpc_mean_ms": wmean("rpc_ms.mean"),
+        "rpc_max_ms": cmax("rpc_ms.max"),
+        "total_mean_ms": wmean("total_ms.mean"),
+        "total_max_ms": cmax("total_ms.max"),
+        "late_cycles": csum("late"),
+        "late_run_max": cmax("late_run_max"),
+        "qf_events": csum("qf_events"),
+        "qf_retries": csum("qf_retries"),
+        "qf_blocked_ms": sum(r.get("qf_blocked_ms", 0.0) for r in reports),
+        "rc_ok": csum("rc.ok"),
+        "rc_busy": csum("rc.busy"),
+        "rc_bad": csum("rc.bad"),
+        "rc_inval": csum("rc.inval"),
+        "rc_ign": csum("rc.ign"),
+        "rc_other": csum("rc.other"),
+        "exc": csum("exc"),
+    }
+    agg["non_ok_rc"] = (agg["rc_busy"] + agg["rc_bad"] + agg["rc_inval"]
+                        + agg["rc_ign"] + agg["rc_other"])
+    agg["effective_rate_hz"] = (1000.0 / period_mean_ms
+                                if period_mean_ms > 0 else 0.0)
+    t_s = config.get("t") if config else None
+    if t_s:
+        agg["configured_rate_hz"] = 1.0 / t_s
+        agg["rate_pct_of_configured"] = 100.0 * agg["effective_rate_hz"] * t_s
+    else:
+        agg["configured_rate_hz"] = None
+        agg["rate_pct_of_configured"] = None
+    return agg
+
+
+# ---------------------------------------------------------------------------
 # Metrics
 # ---------------------------------------------------------------------------
 
@@ -398,7 +559,24 @@ def write_csv(path, metrics_list):
                 ])
 
 
-def render_summary(metrics_list, rates):
+def write_servoj_csv(path, servoj):
+    """One row per servoj_stats window: the per-window timing series (for
+    plotting/comparing A/B ServoJ timing trials)."""
+    cols = [
+        "t_ns", "cycles", "period_ms.min", "period_ms.mean", "period_ms.max",
+        "period_ms.p95", "period_ms.p99", "rpc_ms.mean", "rpc_ms.max",
+        "total_ms.mean", "total_ms.max", "late", "late_run_max",
+        "qf_events", "qf_retries", "qf_blocked_ms",
+        "rc.ok", "rc.busy", "rc.bad", "rc.inval", "rc.ign", "rc.other", "exc",
+    ]
+    with open(path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        for r in servoj["reports"]:
+            w.writerow([r.get(c, "") for c in cols])
+
+
+def render_summary(metrics_list, rates, servoj=None):
     lines = []
     lines.append("# Tracking bag analysis")
     lines.append("")
@@ -436,7 +614,65 @@ def render_summary(metrics_list, rates):
             f"{n}: {v:.2f}" for n, v in sorted(
                 m["joint_err_max_deg"].items(), key=lambda kv: -kv[1])[:3])
         lines.append(f"  [{seg.index}] {seg.label}: {worst}")
+
+    if servoj and servoj.get("reports"):
+        lines.append("")
+        lines.extend(_render_servoj(servoj))
     return "\n".join(lines)
+
+
+def _render_servoj(servoj):
+    agg = servoj["aggregate"]
+    cfg = servoj["config"] or {}
+    warn = servoj["warnings"]
+    lines = ["## ServoJ timing (aubo_servoj_diag)"]
+    if cfg:
+        lines.append(
+            f"config: t={cfg.get('t')} s, gain={cfg.get('gain')}, "
+            f"window={cfg.get('window')} cycles")
+    rate_txt = f"{agg['effective_rate_hz']:.1f} Hz effective loop"
+    if agg["configured_rate_hz"]:
+        rate_txt += (f" ({agg['rate_pct_of_configured']:.1f}% of "
+                     f"{agg['configured_rate_hz']:.0f} Hz configured)")
+    lines.append(
+        f"{agg['n_reports']} reports over {agg['total_cycles']} cycles; "
+        + rate_txt)
+    lines.append(
+        f"period ms: mean {agg['period_mean_ms']:.2f}, "
+        f"min {agg['period_min_ms']:.2f}, max {agg['period_max_ms']:.2f}, "
+        f"p95 {agg['period_p95_ms_worst']:.2f} / p99 "
+        f"{agg['period_p99_ms_worst']:.2f} (worst window)")
+    lines.append(
+        f"servoJoint RPC ms: mean {agg['rpc_mean_ms']:.2f}, "
+        f"max {agg['rpc_max_ms']:.2f}; whole Servoj ms: mean "
+        f"{agg['total_mean_ms']:.2f}, max {agg['total_max_ms']:.2f}")
+    lines.append(
+        f"late cycles: {agg['late_cycles']} (worst run {agg['late_run_max']}); "
+        f"queue-full: {agg['qf_events']} events, {agg['qf_retries']} retries, "
+        f"{agg['qf_blocked_ms']:.1f} ms blocked")
+    lines.append(
+        f"return codes: ok {agg['rc_ok']}, busy {agg['rc_busy']}, "
+        f"bad {agg['rc_bad']}, inval {agg['rc_inval']}, ign {agg['rc_ign']}, "
+        f"other {agg['rc_other']}; exceptions {agg['exc']}")
+    lines.append(
+        f"log warnings: mismatch {warn['mismatch']}, rc {warn['rc']}, "
+        f"queue-full {warn['queue_full']}; fault latched: "
+        f"{'YES' if warn['fault_latched'] else 'no'}")
+    checks = []
+    if agg["rate_pct_of_configured"] is not None:
+        checks.append(("rate >= 95%", agg["rate_pct_of_configured"] >= 95.0))
+    checks.append(("no queue-full", agg["qf_events"] == 0))
+    checks.append(("no non-OK rc/exc",
+                   agg["non_ok_rc"] == 0 and agg["exc"] == 0))
+    checks.append(("no timing fault", not warn["fault_latched"]))
+    passed = all(v for _, v in checks)
+    detail = ", ".join(f"{name}: {'ok' if v else 'FAIL'}" for name, v in checks)
+    lines.append(
+        f"Phase 2B timing gate: {'PASS' if passed else 'FAIL'} ({detail})")
+    lines.append(
+        "  (joint-delay gate <30 ms median / <50 ms p95 is assessed separately "
+        "from controller_state cross-correlation.)")
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +698,8 @@ def analyze(bag_dir, canvas_file, calibration_file, urdf=None,
     tool_T = tool_transform_from_yaml(calibration_file)
     origin, R = canvas_frame_from_yaml(canvas_file)
 
-    segments = segment_rosout(bag.get("/rosout", []))
+    rosout = bag.get("/rosout", [])
+    segments = segment_rosout(rosout)
     ctrl = bag.get("/joint_trajectory_controller/controller_state", [])
     metrics_list = []
     for seg in segments:
@@ -476,7 +713,8 @@ def analyze(bag_dir, canvas_file, calibration_file, urdf=None,
         "/joint_states":
             rate_stats([t for t, _ in bag.get("/joint_states", [])]),
     }
-    return metrics_list, rates
+    servoj = parse_servoj_diag(rosout)
+    return metrics_list, rates, servoj
 
 
 def main(argv=None):
@@ -491,6 +729,8 @@ def main(argv=None):
     ap.add_argument("--plane-bias-mm", type=float, default=1.0,
                     help="taught plane bias for compression estimate")
     ap.add_argument("--csv", help="write per-sample CSV here")
+    ap.add_argument("--servoj-csv",
+                    help="write per-window ServoJ timing CSV here")
     ap.add_argument("--base-frame", default="base_link")
     ap.add_argument("--ee-frame", default="ee_link")
     args = ap.parse_args(argv)
@@ -499,14 +739,16 @@ def main(argv=None):
     if args.urdf:
         with open(args.urdf) as f:
             urdf = f.read()
-    metrics_list, rates = analyze(
+    metrics_list, rates, servoj = analyze(
         args.bag_dir, args.canvas_file, args.calibration_file, urdf=urdf,
         plane_bias_mm=args.plane_bias_mm, base_frame=args.base_frame,
         ee_frame=args.ee_frame)
     if args.csv:
         write_csv(args.csv, metrics_list)
-    print(render_summary(metrics_list, rates))
-    return 0 if metrics_list else 1
+    if args.servoj_csv and servoj and servoj.get("reports"):
+        write_servoj_csv(args.servoj_csv, servoj)
+    print(render_summary(metrics_list, rates, servoj))
+    return 0 if (metrics_list or (servoj and servoj.get("reports"))) else 1
 
 
 if __name__ == "__main__":
