@@ -1,0 +1,5 @@
+opencv-python>=4.7.0
+opencv-contrib-python>=4.7.0
+numpy>=1.24.0
+PyYAML>=6.0
+# pyaubo-sdk  # 可选: 机械臂控制器(Linux/Windows)安装。macOS 自动降级 JSON-RPC
