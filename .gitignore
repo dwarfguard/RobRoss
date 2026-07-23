@@ -12,6 +12,7 @@ output/upload_*
 # Editor/IDE temp files
 ~$*
 .idea/
+.vscode/
 
 # ROS 2 workspace outputs
 build/

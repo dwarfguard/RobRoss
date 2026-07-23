@@ -79,5 +79,128 @@ R20 R21 R22 tz
 ## 实时操作
 
 启动摄像头实时检测后：
-- **Enter** → 发送当前坐标到机械臂
+- **Enter / Space** → 发送当前坐标到机械臂 / 保存画布标定
 - **q** → 退出
+
+## 一键启动 (ArUco → ROS 2 画画)
+
+把纸张随便放在桌上，摄像头检测 4 个 ArUco 标记 → 自动生成画布标定 → ROS 2 开始画画。
+
+### 前提（两个终端保持运行）
+
+```bash
+# 终端 1: 机器人驱动
+ros2 launch aubo_ros2_driver aubo_control.launch.py aubo_type:=aubo_i5
+
+# 终端 2: MoveIt 规划器
+ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=aubo_i5
+```
+
+### 用法
+
+```bash
+# 终端 3: 一键启动
+cd handeye_calibration/
+
+./start_painting.sh \
+  --camera-id 2 \
+  --paths-file /path/to/painting_paths.json \
+  --calibration-file /path/to/hardware_a4.yaml
+```
+
+脚本做了两件事：
+
+```
+① ArUco 检测纸张
+   python3 aruco_drawing_area.py --camera-id 2 --robross
+       ↓
+   生成 /tmp/robross_canvas_calibration.yaml
+       ↓
+② ROS 2 画画
+   ros2 launch robross_painter paint.launch.py \
+     canvas_file:=/tmp/robross_canvas_calibration.yaml
+```
+
+### 参数说明
+
+| 参数 | 说明 |
+|------|------|
+| `--camera-id` | **必选** 摄像头设备号 |
+| `--paths-file` | **必选** 绘画路径文件 (painting_paths.json) |
+| `--camera-calib` | 相机内参文件 (默认 camera_calib.json) |
+| `--handeye-calib` | 手眼标定矩阵 (默认 handeye_calib.txt) |
+| `--marker-size` | ArUco 标记边长/米 (默认 0.035) |
+| `--robross-output` | 画布标定 YAML 输出路径 (默认 /tmp/...) |
+| `--calibration-file` | ROS 2 硬件参数 YAML (默认仅仿真用) |
+| `--ros-workspace` | ROS 2 colcon 工作空间 (也支持 \$COLCON_WS) |
+
+### 完整三步流程
+
+```
+终端 1 ─── ros2 launch aubo_ros2_driver aubo_control.launch.py
+              ↓ 机器人就绪
+终端 2 ─── ros2 launch aubo_moveit_config aubo_moveit.launch.py
+              ↓ MoveIt 就绪
+放好纸 ─── 任何位置、任何角度
+              ↓
+终端 3 ─── ./start_painting.sh --camera-id 2 --paths-file ...
+              │
+              ├─ ArUco 检测 4 个标记 → canvas_calibration.yaml
+              │   (纸斜着放也自动校正)
+              │
+              └─ ros2 launch 画画 → 机械臂开始画
+```
+
+## 手动分步运行（不用脚本）
+
+如果不想用一键脚本，也可以分两步手动执行：
+
+### Step 1: ArUco 检测纸张 → 生成画布标定
+
+```bash
+cd handeye_calibration/
+
+python3 aruco_drawing_area.py \
+  --camera-id 2 \
+  --robross \
+  --robross-output /tmp/canvas_calibration.yaml
+```
+
+按 **Enter** 确认检测到 4 个标记后保存。终端输出类似：
+
+```
+[✓] RobRoss 画布标定已保存: /tmp/canvas_calibration.yaml
+    canvas_origin_xyz: [0.5985, 0.105, 0.15]
+    canvas_quat_xyzw:  [0.0, 0.0, 0.0, 1.0]
+    画布尺寸: 210.0 x 297.0 mm
+```
+
+### Step 2: 启动 ROS 2 画画
+
+```bash
+# 先 source ROS 2 工作空间（如果还没做）
+source ~/colcon_ws/install/setup.bash
+
+# 启动画画
+ros2 launch robross_painter paint.launch.py \
+  aubo_type:=aubo_i5 \
+  calibration_file:=/path/to/hardware_a4.yaml \
+  paths_file:=/path/to/painting_paths.json \
+  canvas_file:=/tmp/canvas_calibration.yaml
+```
+
+### 预览检测（不生成文件）
+
+只打开摄像头预览，确认 ArUco 标记能被正确识别：
+
+```bash
+python3 aruco_drawing_area.py --camera-id 2 --dry-run
+```
+
+按 **q** 退出预览。画面中 4 个标记都显示绿色外框和 "✓ 4/4" 即可。
+
+如果不用 ROS 2、只通过 JSON-RPC 直接控制机械臂：
+
+```bash
+python3 aruco_drawing_area.py --camera-id 2 --robot-ip 192.168.1.100
+```

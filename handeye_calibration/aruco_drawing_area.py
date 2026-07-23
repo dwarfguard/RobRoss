@@ -47,6 +47,7 @@ import sys
 from typing import List, Tuple, Optional, Dict, Any
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
+import yaml
 
 # ── 尝试导入 pyaubo_sdk ──────────────────────────────────────────
 try:
@@ -489,8 +490,7 @@ def rotmat_to_quat(R: np.ndarray) -> tuple:
                 (R[1, 0] - R[0, 1]) / s)
 
 
-def save_robross_canvas(area: DrawingArea, output_path: str,
-                         tool_offset_xyz=(0.0595, 0.0, 0.0514)):
+def save_robross_canvas(area: DrawingArea, output_path: str):
     """
     把 ArUco 检测到的绘图区域保存为 RobRoss 画布标定文件。
 
@@ -548,8 +548,7 @@ def save_robross_canvas(area: DrawingArea, output_path: str,
     }
     with open(output_path, "w") as f:
         f.write(header)
-        import yaml as _yaml
-        _yaml.dump(data, f, default_flow_style=None, sort_keys=False)
+        yaml.dump(data, f, default_flow_style=None, sort_keys=False)
 
     print(f"\n[✓] RobRoss 画布标定已保存: {output_path}")
     print(f"    canvas_origin_xyz: {[round(float(v), 6) for v in top_left]}")
@@ -558,8 +557,10 @@ def save_robross_canvas(area: DrawingArea, output_path: str,
     print(f"\n  RobRoss 中使用:")
     print(f"    ros2 launch robross_painter paint.launch.py \\")
     print(f"      aubo_type:=aubo_i5 \\")
+    print(f"      calibration_file:=<your_calibration.yaml> \\")
     print(f"      paths_file:=<your_paths.json> \\")
     print(f"      canvas_file:={output_path}")
+    print(f"\n  calibration_file 示例: ros2/robross_painter/config/hardware_a4.yaml")
 
 
 # ══════════════════════════════════════════════════════════════════════

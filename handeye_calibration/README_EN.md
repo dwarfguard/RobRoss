@@ -82,18 +82,128 @@ R20 R21 R22 tz
 ## Live Operation
 
 After starting the camera live-feed:
-- **Enter / Space** → Send current coordinates to the robot
-- **q** → Quit
+- **Enter / Space** — Save canvas calibration / Send coordinates to robot
+- **q** — Quit
 
-## Integration with RobRoss ROS 2
+## One-Click Startup (ArUco → ROS 2 Painting)
+
+Place the paper anywhere on the table. The camera detects 4 ArUco markers, generates canvas calibration, and ROS 2 starts painting — all in one command.
+
+### Prerequisites (keep both terminals running)
 
 ```bash
-# Generate canvas calibration YAML (for ROS 2 painting_executor)
-python3 aruco_drawing_area.py --camera-id 2 --robross --robross-output canvas_calibration.yaml
+# Terminal 1: Robot driver
+ros2 launch aubo_ros2_driver aubo_control.launch.py aubo_type:=aubo_i5
 
-# Then use with RobRoss paint launch:
+# Terminal 2: MoveIt planner
+ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=aubo_i5
+```
+
+### Usage
+
+```bash
+# Terminal 3: One-click start
+cd handeye_calibration/
+
+./start_painting.sh \
+  --camera-id 2 \
+  --paths-file /path/to/painting_paths.json \
+  --calibration-file /path/to/hardware_a4.yaml
+```
+
+The script does two things:
+
+```
+① ArUco paper detection
+   python3 aruco_drawing_area.py --camera-id 2 --robross
+       ↓
+   Generates /tmp/robross_canvas_calibration.yaml
+       ↓
+② ROS 2 painting
+   ros2 launch robross_painter paint.launch.py \
+     canvas_file:=/tmp/robross_canvas_calibration.yaml
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `--camera-id` | **Required** Camera device ID |
+| `--paths-file` | **Required** Path to painting_paths.json |
+| `--camera-calib` | Camera intrinsics (default camera_calib.json) |
+| `--handeye-calib` | Hand-eye calibration (default handeye_calib.txt) |
+| `--marker-size` | ArUco marker side length in meters (default 0.035) |
+| `--robross-output` | Canvas YAML output path (default /tmp/...) |
+| `--calibration-file` | ROS 2 hardware parameters YAML |
+| `--ros-workspace` | ROS 2 colcon workspace (also reads \$COLCON_WS) |
+
+### Full Workflow
+
+```
+Terminal 1 ─── ros2 launch aubo_ros2_driver aubo_control.launch.py
+                   ↓ robot ready
+Terminal 2 ─── ros2 launch aubo_moveit_config aubo_moveit.launch.py
+                   ↓ MoveIt ready
+Place paper ─── Any position, any angle
+                   ↓
+Terminal 3 ─── ./start_painting.sh --camera-id 2 --paths-file ...
+                   │
+                   ├─ ArUco detects 4 markers → canvas_calibration.yaml
+                   │   (automatically corrects for paper rotation)
+                   │
+                   └─ ros2 launch → robot starts painting
+```
+
+## Manual Step-by-Step (without the script)
+
+If you prefer to run each step separately instead of using `start_painting.sh`:
+
+### Step 1: ArUco detection → canvas calibration YAML
+
+```bash
+cd handeye_calibration/
+
+python3 aruco_drawing_area.py \
+  --camera-id 2 \
+  --robross \
+  --robross-output /tmp/canvas_calibration.yaml
+```
+
+Press **Enter** to confirm the detection and save. Output looks like:
+
+```
+[✓] RobRoss canvas calibration saved: /tmp/canvas_calibration.yaml
+    canvas_origin_xyz: [0.5985, 0.105, 0.15]
+    canvas_quat_xyzw:  [0.0, 0.0, 0.0, 1.0]
+    Canvas size: 210.0 x 297.0 mm
+```
+
+### Step 2: Start ROS 2 painting
+
+```bash
+# Source ROS 2 workspace first (if not already done)
+source ~/colcon_ws/install/setup.bash
+
+# Start painting
 ros2 launch robross_painter paint.launch.py \
   aubo_type:=aubo_i5 \
-  paths_file:=<your_paths.json> \
-  canvas_file:=canvas_calibration.yaml
+  calibration_file:=/path/to/hardware_a4.yaml \
+  paths_file:=/path/to/painting_paths.json \
+  canvas_file:=/tmp/canvas_calibration.yaml
+```
+
+### Preview detection (no file output)
+
+Open the camera preview to verify ArUco markers are detected correctly:
+
+```bash
+python3 aruco_drawing_area.py --camera-id 2 --dry-run
+```
+
+Press **q** to exit. All 4 markers should show green outlines and "✓ 4/4" in the corner.
+
+For direct robot control via JSON-RPC (without ROS 2):
+
+```bash
+python3 aruco_drawing_area.py --camera-id 2 --robot-ip 192.168.1.100
 ```
