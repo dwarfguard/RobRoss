@@ -383,9 +383,33 @@ segmentation), and `/robot_description` (the runtime URDF used for forward
 kinematics — the same calibrated chain MoveIt used; pass `--urdf` if the bag
 lacks it). For each command segment it reports stroke direction, speed, signed
 canvas-normal error (positive = into the paper), tangential error, estimated
-spring compression (`plane_bias_mm + actual canvas z`), per-joint errors, and
-publication rate/jitter for controller state and joint states. `--csv` exports
-per-sample rows for offline plotting.
+spring compression (`plane_bias_mm + actual canvas z`), per-joint errors
+(max/mean/RMS), and publication rate/jitter for controller state and joint
+states. `--csv` exports per-sample rows for offline plotting.
+
+### Phase delay & normal oscillation (Phase 2)
+
+Motivated by the July 23 above-paper finding (§2.6 of the remediation plan:
+movement-synchronized wrist oscillation reaching ~2.4 mm peak-to-peak while the
+controller reference stayed planar), the summary also reports a **Phase delay &
+normal oscillation** section computed from the bagged controller state:
+
+- **Instantaneous-direction normal error** — each command's normal error split
+  by the direction of motion *at each sample*, so a reversal or curve is
+  resolved into its `+Y`/`-Y` (etc.) portions instead of being reduced to its
+  net-displacement direction.
+- **Command-to-feedback phase delay** — per moving joint, the lag by which
+  feedback trails the reference, found by best-correlation search on the
+  resampled joint signals. It is reported only for oscillatory/curved
+  references (e.g. the sine fixture); a monotonic stroke's delay is
+  mathematically undefined and shows as `n/a`.
+- **Per-cycle canvas-normal peak-to-peak** plus segment peak-to-peak and RMS,
+  the objective proxy for the operator's "visible wrist oscillation" check.
+
+It ends with a **Phase 2B tracking gate** (delay median < 30 ms / p95 < 50 ms,
+actual `|normal|` ≤ 0.25 mm), the tracking half of the Section 7 gate; the
+ServoJ-timing half is below. This section renders from any bag with tracking
+segments, including ones without driver ServoJ diagnostics.
 
 ### ServoJ timing (Phase 2)
 
@@ -398,9 +422,9 @@ RPC and whole-`Servoj` durations, late-cycle runs, queue-full events/retries,
 and the servoJoint return-code breakdown, aggregated across the whole bag. It
 ends with a **Phase 2B timing gate** line summarizing the plan's Section 7
 checks (loop rate ≥ 95% of configured, no queue-full, no non-OK return
-codes/exceptions, no latched timing fault). The joint-delay portion of that
-gate (median < 30 ms / p95 < 50 ms) is assessed separately from the tracking
-cross-correlation. `--servoj-csv` writes the per-window timing series, which is
+codes/exceptions, no latched timing fault). The joint-delay half of the Section
+7 gate lives in the Phase delay section above; both halves must pass.
+`--servoj-csv` writes the per-window timing series, which is
 the easiest way to compare two candidate timing trials (e.g. 125 Hz / t=0.008
 vs 200 Hz / t=0.005). Bags recorded before Phase 2A, or on fake hardware, carry
 no such lines and the section is simply omitted.

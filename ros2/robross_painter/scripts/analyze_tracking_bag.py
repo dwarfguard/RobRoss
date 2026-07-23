@@ -447,6 +447,148 @@ def classify_direction(xy_mm, min_travel_mm=1.0, dominance=3.0):
     return "mixed"
 
 
+def _instantaneous_direction(vx, vy, min_speed_mm_s, dominance=3.0):
+    """Direction label from a velocity vector (classify_direction's dominance
+    rule applied per-sample rather than to net displacement)."""
+    ax, ay = abs(vx), abs(vy)
+    if max(ax, ay) < min_speed_mm_s:
+        return "static"
+    if ax >= dominance * ay:
+        return "+X" if vx > 0 else "-X"
+    if ay >= dominance * ax:
+        return "+Y" if vy > 0 else "-Y"
+    return "mixed"
+
+
+def sample_velocities_mm_s(xy_mm, t_s):
+    """Central-difference canvas velocity (mm/s) per sample; handles the
+    controller-state timestamp jitter via np.gradient over the actual times."""
+    xy = np.asarray(xy_mm, dtype=float)
+    t = np.asarray(t_s, dtype=float)
+    if len(xy) < 2:
+        return np.zeros((len(xy), 2))
+    return np.gradient(xy, t, axis=0)
+
+
+def direction_resolved_normal_err(xy_mm, normal_err_mm, t_s,
+                                  min_speed_mm_s=2.0, dominance=3.0):
+    """Normal-error stats grouped by INSTANTANEOUS canvas direction.
+
+    Splits a reversal/curve command by the direction of motion at each sample
+    (returns the +X/-X/+Y/-Y buckets that have samples) instead of reducing the
+    whole command to its net-displacement direction.
+    """
+    v = sample_velocities_mm_s(xy_mm, t_s)
+    ne = np.asarray(normal_err_mm, dtype=float)
+    buckets = {}
+    for i in range(len(ne)):
+        d = _instantaneous_direction(v[i, 0], v[i, 1], min_speed_mm_s, dominance)
+        if d in ("static", "mixed"):
+            continue
+        buckets.setdefault(d, []).append(ne[i])
+    out = {}
+    for d, vals in buckets.items():
+        a = np.asarray(vals, dtype=float)
+        out[d] = {"n": int(a.size), "mean_mm": float(a.mean()),
+                  "min_mm": float(a.min()), "max_mm": float(a.max())}
+    return out
+
+
+def estimate_phase_delay_s(t_s, ref, act, max_lag_s=0.3, min_std=1e-4):
+    """Delay (s) by which `act` lags `ref`, via a best-correlation integer-lag
+    search on a uniform resample. Returns None when the signal is too short or
+    too quiet to yield a meaningful lag (e.g. a joint that barely moves)."""
+    t = np.asarray(t_s, dtype=float)
+    ref = np.asarray(ref, dtype=float)
+    act = np.asarray(act, dtype=float)
+    if len(t) < 8:
+        return None
+    dt = float(np.median(np.diff(t)))
+    if not np.isfinite(dt) or dt <= 0:
+        return None
+    grid = np.arange(t[0], t[-1], dt)
+    if len(grid) < 8:
+        return None
+    r = np.interp(grid, t, ref)
+    a = np.interp(grid, t, act)
+    if r.std() < min_std or a.std() < min_std:
+        return None
+    # A near-straight-line reference (a monotonic stroke) correlates equally
+    # well at every lag, so its command-to-feedback delay is undefined. Only
+    # oscillatory/curved references (e.g. the sine fixture) yield a meaningful
+    # lag; reject signals whose nonlinear component is negligible.
+    resid = r - np.polyval(np.polyfit(grid, r, 1), grid)
+    if resid.std() < 0.05 * r.std():
+        return None
+    max_lag = int(min(max_lag_s / dt, len(grid) - 4))
+    if max_lag < 1:
+        return None
+    best_lag, best_corr = 0, -2.0
+    for lag in range(max_lag + 1):
+        aa = a[lag:]
+        rr = r[:len(a) - lag]
+        aa = aa - aa.mean()
+        rr = rr - rr.mean()
+        denom = math.sqrt(float((aa * aa).sum()) * float((rr * rr).sum()))
+        if denom <= 0.0:
+            continue
+        corr = float((aa * rr).sum()) / denom
+        if corr > best_corr:
+            best_corr, best_lag = corr, lag
+    return best_lag * dt
+
+
+def per_joint_phase_delay_ms(t_s, ref_by_name, act_by_name, max_lag_s=0.3):
+    """Per-joint command-to-feedback delay (ms) for joints that actually move
+    (quiet joints are omitted rather than reported as a spurious 0)."""
+    out = {}
+    for n in ref_by_name:
+        d = estimate_phase_delay_s(t_s, ref_by_name[n], act_by_name.get(n, []),
+                                   max_lag_s=max_lag_s)
+        if d is not None:
+            out[n] = d * 1000.0
+    return out
+
+
+def _reversal_indices(pos, min_step):
+    """Indices where the dominant-axis motion reverses, ignoring sub-min_step
+    jitter so controller-state noise does not fabricate cycles."""
+    revs = []
+    last_sign = 0.0
+    for i in range(1, len(pos)):
+        d = pos[i] - pos[i - 1]
+        if abs(d) < min_step:
+            continue
+        s = 1.0 if d > 0 else -1.0
+        if last_sign != 0.0 and s != last_sign:
+            revs.append(i)
+        last_sign = s
+    return revs
+
+
+def normal_pp_per_cycle(tangential_xy_mm, normal_err_mm, min_step_mm=0.05):
+    """Per-cycle peak-to-peak of the canvas-normal error for an oscillating
+    fixture (e.g. the sine path). A cycle spans two reversals of the dominant
+    tangential axis; falls back to the whole segment under one full cycle."""
+    xy = np.asarray(tangential_xy_mm, dtype=float)
+    ne = np.asarray(normal_err_mm, dtype=float)
+    n = len(ne)
+    whole = float(ne.max() - ne.min()) if n else 0.0
+    if n < 3:
+        return {"n_cycles": 0, "pp_mean_mm": whole, "pp_max_mm": whole}
+    rng = xy.max(axis=0) - xy.min(axis=0)
+    pos = xy[:, int(np.argmax(rng))]
+    bounds = [0] + _reversal_indices(pos, min_step_mm) + [n - 1]
+    windows = [(bounds[k], bounds[k + 2])
+               for k in range(0, len(bounds) - 2, 2)]
+    pps = [float(ne[a:b + 1].max() - ne[a:b + 1].min())
+           for a, b in windows if b > a]
+    if not pps:
+        return {"n_cycles": 0, "pp_mean_mm": whole, "pp_max_mm": whole}
+    return {"n_cycles": len(pps), "pp_mean_mm": float(np.mean(pps)),
+            "pp_max_mm": float(np.max(pps))}
+
+
 def compute_segment_metrics(segment, ctrl_msgs, chain, tool_T, origin, R,
                             plane_bias_mm):
     """Tracking metrics for one command segment.
@@ -457,6 +599,8 @@ def compute_segment_metrics(segment, ctrl_msgs, chain, tool_T, origin, R,
     """
     rows = []
     joint_err_by_name = {}
+    ref_by_name = {}
+    act_by_name = {}
     for t_ns, msg in ctrl_msgs:
         # Half-open window: a sample on the boundary belongs to the segment
         # that starts there, not the one that just ended.
@@ -470,6 +614,8 @@ def compute_segment_metrics(segment, ctrl_msgs, chain, tool_T, origin, R,
         for n in names:
             joint_err_by_name.setdefault(n, []).append(
                 act_map[n] - ref_map[n])
+            ref_by_name.setdefault(n, []).append(ref_map[n])
+            act_by_name.setdefault(n, []).append(act_map[n])
         ref_c = project_to_canvas(origin, R, tip_position(chain, tool_T,
                                                           ref_map))
         act_c = project_to_canvas(origin, R, tip_position(chain, tool_T,
@@ -497,6 +643,8 @@ def compute_segment_metrics(segment, ctrl_msgs, chain, tool_T, origin, R,
         "normal_err_mean_mm": float(np.mean(normal_err)),
         "normal_err_min_mm": float(np.min(normal_err)),
         "normal_err_max_mm": float(np.max(normal_err)),
+        "normal_err_rms_mm": float(np.sqrt(np.mean(np.square(normal_err)))),
+        "normal_err_pp_mm": float(np.max(normal_err) - np.min(normal_err)),
         "tangential_err_max_mm": float(np.max(tangential_err)),
         "compression_mean_mm": float(np.mean(compression)),
         "compression_min_mm": float(np.min(compression)),
@@ -509,6 +657,18 @@ def compute_segment_metrics(segment, ctrl_msgs, chain, tool_T, origin, R,
             n: math.degrees(float(np.mean(np.abs(e))))
             for n, e in joint_err_by_name.items()
         },
+        "joint_err_rms_deg": {
+            n: math.degrees(float(np.sqrt(np.mean(np.square(e)))))
+            for n, e in joint_err_by_name.items()
+        },
+        # Command-to-feedback delay per moving joint (§2.2 phase lag).
+        "joint_delay_ms": per_joint_phase_delay_ms(t_arr, ref_by_name,
+                                                   act_by_name),
+        # Normal error resolved by instantaneous direction (reversals/curves).
+        "direction_resolved": direction_resolved_normal_err(
+            ref_arr[:, :2], normal_err, t_arr),
+        # Per-cycle canvas-normal peak-to-peak (sine/oscillation, §2.6).
+        "normal_pp_per_cycle": normal_pp_per_cycle(ref_arr[:, :2], normal_err),
         "rows": rows,
     }
 
@@ -615,10 +775,84 @@ def render_summary(metrics_list, rates, servoj=None):
                 m["joint_err_max_deg"].items(), key=lambda kv: -kv[1])[:3])
         lines.append(f"  [{seg.index}] {seg.label}: {worst}")
 
+    if metrics_list:
+        lines.append("")
+        lines.extend(_render_tracking(metrics_list))
     if servoj and servoj.get("reports"):
         lines.append("")
         lines.extend(_render_servoj(servoj))
     return "\n".join(lines)
+
+
+def _tracking_gate(metrics_list):
+    """Global command-to-feedback delay + canvas-normal summary (Phase 2B
+    tracking portion of the §7 gate)."""
+    delays = []
+    for m in metrics_list:
+        delays.extend(m.get("joint_delay_ms", {}).values())
+    worst_normal_abs = max(
+        (max(abs(m["normal_err_min_mm"]), abs(m["normal_err_max_mm"]))
+         for m in metrics_list), default=0.0)
+    worst_pp = max((m["normal_pp_per_cycle"]["pp_max_mm"] for m in metrics_list),
+                   default=0.0)
+    return {
+        "delay_median_ms": float(np.median(delays)) if delays else None,
+        "delay_p95_ms": float(np.percentile(delays, 95)) if delays else None,
+        "worst_normal_abs_mm": worst_normal_abs,
+        "worst_normal_pp_mm": worst_pp,
+    }
+
+
+def _render_tracking(metrics_list):
+    lines = ["## Phase delay & normal oscillation"]
+    lines.append("Instantaneous-direction normal error mean/min/max mm (n):")
+    for m in metrics_list:
+        seg = m["segment"]
+        dr = m["direction_resolved"]
+        if not dr:
+            lines.append(f"  [{seg.index}] {seg.label}: (no directed motion)")
+            continue
+        parts = "; ".join(
+            f"{d} {s['mean_mm']:+.3f}/{s['min_mm']:+.3f}/{s['max_mm']:+.3f} "
+            f"(n={s['n']})" for d, s in sorted(dr.items()))
+        lines.append(f"  [{seg.index}] {seg.label}: {parts}")
+    lines.append("")
+    lines.append("Per-segment delay and canvas-normal oscillation:")
+    for m in metrics_list:
+        seg = m["segment"]
+        delays = m["joint_delay_ms"]
+        cyc = m["normal_pp_per_cycle"]
+        if delays:
+            dmed = float(np.median(list(delays.values())))
+            worst = ", ".join(
+                f"{n}:{v:.0f}" for n, v in sorted(
+                    delays.items(), key=lambda kv: -kv[1])[:2])
+            dtxt = f"delay median {dmed:.0f} ms ({worst})"
+        else:
+            dtxt = "delay n/a"
+        lines.append(
+            f"  [{seg.index}] {seg.label}: {dtxt}; normal pp seg "
+            f"{m['normal_err_pp_mm']:.2f} mm, per-cycle mean/max "
+            f"{cyc['pp_mean_mm']:.2f}/{cyc['pp_max_mm']:.2f} mm "
+            f"({cyc['n_cycles']} cyc), rms {m['normal_err_rms_mm']:.3f} mm")
+    g = _tracking_gate(metrics_list)
+    checks = []
+    if g["delay_median_ms"] is not None:
+        checks.append(("delay median <30 ms", g["delay_median_ms"] < 30.0))
+        checks.append(("delay p95 <50 ms", g["delay_p95_ms"] < 50.0))
+    checks.append(("|normal| <=0.25 mm", g["worst_normal_abs_mm"] <= 0.25))
+    passed = all(v for _, v in checks) if checks else False
+    detail = ", ".join(f"{name}: {'ok' if v else 'FAIL'}" for name, v in checks)
+    lines.append(
+        f"Phase 2B tracking gate: {'PASS' if passed else 'FAIL'} ({detail})")
+    dmed = ("n/a" if g["delay_median_ms"] is None
+            else f"{g['delay_median_ms']:.0f}/{g['delay_p95_ms']:.0f} ms")
+    lines.append(
+        f"  delay median/p95 {dmed}; worst |normal| "
+        f"{g['worst_normal_abs_mm']:.2f} mm; worst per-cycle pp "
+        f"{g['worst_normal_pp_mm']:.2f} mm (the per-cycle pp is the objective "
+        "proxy for the operator's 'visible wrist oscillation' check).")
+    return lines
 
 
 def _render_servoj(servoj):

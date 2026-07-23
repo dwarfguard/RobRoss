@@ -388,3 +388,71 @@ def test_analyze_surfaces_servoj_end_to_end(tmp_path):
     assert servoj is not None
     assert servoj["aggregate"]["total_cycles"] == 200
     assert servoj["warnings"]["mismatch"] == 1
+
+
+# --- Phase delay / oscillation / instantaneous direction (Phase 2 §2.6) ----
+
+def test_direction_resolved_splits_reversal():
+    # +Y for the first half, -Y for the second, with opposite normal errors.
+    t = [i * 0.01 for i in range(20)]
+    ys = list(range(10)) + list(range(10, 0, -1))  # up then down (mm)
+    xy = [[0.0, float(y)] for y in ys]
+    ne = [0.5] * 10 + [-0.5] * 10
+    dr = analyze_tracking_bag.direction_resolved_normal_err(
+        xy, ne, t, min_speed_mm_s=1.0)
+    assert set(dr) == {"+Y", "-Y"}   # net displacement here is ~0 ("static")
+    np.testing.assert_allclose(dr["+Y"]["mean_mm"], 0.5, atol=1e-9)
+    np.testing.assert_allclose(dr["-Y"]["mean_mm"], -0.5, atol=1e-9)
+
+
+def test_estimate_phase_delay_recovers_known_lag():
+    dt = 0.005
+    t = np.arange(0.0, 3.0, dt)
+    ref = np.sin(2 * np.pi * 1.0 * t)
+    delay = 0.1
+    act = np.sin(2 * np.pi * 1.0 * (t - delay))
+    est = analyze_tracking_bag.estimate_phase_delay_s(t, ref, act,
+                                                      max_lag_s=0.3)
+    assert est is not None
+    np.testing.assert_allclose(est, delay, atol=0.01)
+
+
+def test_estimate_phase_delay_none_for_quiet_signal():
+    t = np.arange(0.0, 1.0, 0.005)
+    flat = np.zeros_like(t)
+    assert analyze_tracking_bag.estimate_phase_delay_s(t, flat, flat) is None
+
+
+def test_estimate_phase_delay_none_for_linear_ramp():
+    # A monotonic ramp correlates at every lag -> delay is undefined, not 0.
+    t = np.arange(0.0, 1.0, 0.005)
+    ramp = 2.0 * t
+    assert analyze_tracking_bag.estimate_phase_delay_s(t, ramp, ramp) is None
+
+
+def test_normal_pp_per_cycle_detects_cycles():
+    n = 200
+    i = np.arange(n)
+    y = 10.0 * np.sin(2 * np.pi * 2 * i / n)     # two tangential cycles
+    xy = np.column_stack([np.zeros(n), y])
+    ne = 1.0 * np.sin(2 * np.pi * 2 * i / n)     # normal error pp = 2.0
+    res = analyze_tracking_bag.normal_pp_per_cycle(xy, ne)
+    assert res["n_cycles"] == 2
+    np.testing.assert_allclose(res["pp_max_mm"], 2.0, atol=0.15)
+
+
+def test_segment_metrics_includes_phase_and_oscillation_keys(tmp_path):
+    bag_dir, canvas, calib = _fixture_files(tmp_path)
+    metrics, _rates, _servoj = analyze_tracking_bag.analyze(
+        bag_dir, canvas, calib, plane_bias_mm=1.0)
+    row_a = metrics[0]
+    for k in ("joint_err_rms_deg", "joint_delay_ms", "direction_resolved",
+              "normal_pp_per_cycle", "normal_err_rms_mm", "normal_err_pp_mm"):
+        assert k in row_a
+    # The +Y stroke's instantaneous direction is +Y, carrying the +0.5 mm error.
+    assert "+Y" in row_a["direction_resolved"]
+    np.testing.assert_allclose(
+        row_a["direction_resolved"]["+Y"]["mean_mm"], 0.5, atol=1e-6)
+    summary = analyze_tracking_bag.render_summary(metrics, {}, None)
+    assert "Phase delay & normal oscillation" in summary
+    assert "Phase 2B tracking gate" in summary
