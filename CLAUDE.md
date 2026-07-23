@@ -16,7 +16,7 @@ compatibility only (`configs/mondrian_12x12_paint.json`).
 
 ## Software pipeline
 
-Five independent artwork-generation routes, all producing the same `painting_paths.json` command
+Four independent artwork-generation routes, all producing the same `painting_paths.json` command
 vocabulary consumed by `ros2/robross_painter`:
 
 ```
@@ -27,7 +27,6 @@ sketch/                    source photo   Canny → skeletonize → trace → pa
 image_to_mondrian/         source photo   quantize → segment → fill → border → paths  painting_paths.json
 gemini_mondrian/           source photo   Gemini API → quantize → segment → fill →    painting_paths.json
                                            border → paths
-line_art/                  clean line art threshold → skeletonize → trace → paths     painting_paths.json
 ```
 
 Every config's `output.directory` points at its own `output/<config-name>/` subfolder (named after
@@ -69,12 +68,6 @@ separation between artwork generation, path generation, validation, and robot ex
   `region_fill.py`/`border_tracing.py`/`path_ordering.py`/`path_validation.py` are copied
   byte-for-byte from image_to_mondrian (pure geometry, no real-photo assumptions). Full
   architecture at `Image_Process/gemini_mondrian/README.md`.
-- **line_art/**: For already-clean line-art/technical-illustration input (not a photo) — fixed
-  luminance threshold → `skimage.morphology.skeletonize` → pixel-graph walk to centerlines → spur
-  pruning → simplify. Deliberately **not** Canny (`sketch/`'s approach): a stroke with real width
-  gives Canny two edges, one per side, which skeletonize into two parallel duplicate lines instead
-  of one true centerline. Emits one `paint_path` (continuous polyline) per traced line, unlike
-  `sketch/`'s per-segment `paint_stroke`. Full architecture at `Image_Process/line_art/README.md`.
 
 ### Byte-for-byte copied modules
 
@@ -84,8 +77,8 @@ shares them — each route folder is a standalone pipeline that doesn't import f
 
 | Module | Canonical source | Copies in |
 |--------|-----------------|-----------|
-| `path_validation.py` | `image_to_mondrian/` | `gemini_mondrian/`, `sketch/`, `line_art/` |
-| `path_ordering.py` | `image_to_mondrian/` | `gemini_mondrian/`, `sketch/`, `line_art/` |
+| `path_validation.py` | `image_to_mondrian/` | `gemini_mondrian/`, `sketch/` |
+| `path_ordering.py` | `image_to_mondrian/` | `gemini_mondrian/`, `sketch/` |
 | `border_tracing.py` | `image_to_mondrian/` | `gemini_mondrian/` |
 | `region_fill.py` | `image_to_mondrian/` | `gemini_mondrian/` |
 
@@ -121,9 +114,6 @@ python3 Image_Process/image_to_mondrian/generate_painting_paths.py --config conf
 # gemini_mondrian route — Gemini restyle + vectorize (needs GEMINI_API_KEY env var)
 python3 Image_Process/gemini_mondrian/generate_painting_paths.py --config configs/gemini_mondrian_demo_a4.json
 
-# line_art route — trace an already-clean line-art/illustration image
-python3 Image_Process/line_art/generate_line_art_paths.py --config configs/line_art_demo_a4.json
-
 # Test line — single 50mm first-contact stroke (docs/hardware-test-checklist.md section 9)
 python3 Image_Process/mondrian/generate_test_line.py
 
@@ -131,7 +121,6 @@ python3 Image_Process/mondrian/generate_test_line.py
 python3 -m unittest discover Image_Process/mondrian/tests
 python3 -m unittest discover Image_Process/image_to_mondrian/tests
 python3 -m unittest discover Image_Process/gemini_mondrian/tests
-python3 -m unittest discover Image_Process/line_art/tests
 
 # Regenerate the static output gallery
 python3 generate_output_gallery.py
@@ -140,10 +129,10 @@ python3 generate_output_gallery.py
 Same `--seed` + config produces deterministic output. Omit `--seed` for a random one (printed after
 generation, so it can be copied back in to reproduce that exact layout).
 
-The mondrian route is pure standard library. The sketch and line_art routes need `opencv-python` +
-`numpy` + `scikit-image`. The image_to_mondrian route needs `opencv-python` + `numpy`. The
-gemini_mondrian route needs `google-genai` (lazily imported, only in `gemini_client.py`). See each
-route's README for install commands.
+The mondrian route is pure standard library. The sketch route needs `opencv-python` + `numpy` +
+`scikit-image`. The image_to_mondrian route needs `opencv-python` + `numpy`. The gemini_mondrian
+route needs `google-genai` (lazily imported, only in `gemini_client.py`). See each route's README
+for install commands.
 
 ### ROS 2 side (`ros2/robross_painter`)
 
@@ -173,7 +162,6 @@ legacy behavior:
 | `gemini_mondrian_man_a4.json` | A4 210×297mm, 10mm margin | gemini_mondrian | Man photo variant (was minions) |
 | `image_to_mondrian_lenna_a4.json` | A4 210×297mm, 10mm margin | image_to_mondrian | Lenna tuning config (bilateral, chroma) |
 | `image_to_mondrian_minions_a4.json` | A4 210×297mm, 10mm margin | image_to_mondrian | Minions test variant |
-| `line_art_demo_a4.json` | A4 210×297mm, 10mm margin | line_art | traces `Image_Process/assets/hinton.png`, 1mm pen |
 
 Config field references live in each route's README.
 
@@ -187,7 +175,7 @@ Config field references live in each route's README.
   get their own sibling subfolder rather than growing inside an existing one. See
   `Image_Process/README.md` for the module index.
 - `Image_Process/assets/` — unified sample images (apple.png, lenna.png, sample.jpg, minions.jpg,
-  images.jpeg, hinton.png). All config `source_image.path` fields point here.
+  images.jpeg). All config `source_image.path` fields point here.
 - `output/` — generated artifacts (plans, paths, SVG previews), one subfolder per config profile.
   Intentionally committed (seed-123 reference samples), not gitignored.
 - `ros2/` — `robross_painter` ROS 2 package (MoveIt executor) and the vcstool manifest for the

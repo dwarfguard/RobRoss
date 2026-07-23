@@ -27,11 +27,11 @@ jobs and read anything under `output/`.
 ## What happens when you click Process
 
 1. A new `output/upload_<timestamp>_<route>/` directory is created.
-2. If the route needs a source image (every route except `mondrian`), the
-   upload is saved into that same directory as `upload_<original-filename>`
-   - uploads never get mixed into `Image_Process/assets/`, which is reserved
-   for the repo's own curated sample images (documented in the root
-   `CLAUDE.md` config profile table).
+2. If the route needs a photo (`image_to_mondrian`, `sketch`), the upload is
+   saved into that same directory as `upload_<original-filename>` - uploads
+   never get mixed into `Image_Process/*/assets/`, which is reserved for the
+   repo's own curated sample images (documented in the root `CLAUDE.md`
+   config profile table).
 3. A one-off config is cloned from that route's existing template config
    (e.g. `configs/image_to_mondrian_demo_a4.json`) with `output.directory`
    (and `source_image.path`, if applicable) pointed at the new run folder,
@@ -53,7 +53,7 @@ dict - one route generation approach (see the root `CLAUDE.md`'s "one
 subfolder per artwork-generation algorithm" convention) maps to one entry:
 a display label, which existing config to clone as a template, whether it
 needs an uploaded photo, and the ordered list of scripts to run. Adding a
-future route needs one new dict entry here - nothing in `app.py` or
+future fourth route needs one new dict entry here - nothing in `app.py` or
 `generate_output_gallery.py` needs to change.
 
 ## Not in scope here

@@ -54,7 +54,6 @@ validation status, path/stroke counts) instead of opening files one by one.
 | Trace edges of a source image | [Sketch route](Image_Process/sketch/README.md) |
 | Turn a photo into Mondrian-style fill art | [Image-to-Mondrian route](Image_Process/image_to_mondrian/README.md) |
 | Turn a photo into Mondrian-style art (AI restyle) | [Gemini Mondrian route](Image_Process/gemini_mondrian/README.md) |
-| Trace a clean line-art/technical illustration | [line_art route](Image_Process/line_art/README.md) |
 | Browse all generated runs | Run `python3 generate_output_gallery.py` → `output/index.html` |
 | Understand the path schema | [Path format](docs/painting-paths-format.md) |
 | Build and run in RViz | [ROS 2 painter](ros2/robross_painter/README.md) |

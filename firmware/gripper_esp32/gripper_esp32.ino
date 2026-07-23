@@ -50,20 +50,6 @@
 // dropped serial connection (or a human walking away) never leaves the
 // gripper spinning unattended.
 //
-// RS485: the same protocol above is also accepted over a second, hardware
-// UART (Serial2) wired through a TTL-to-RS485 transceiver, so the robot's
-// controller can issue commands over the RS485 bus instead of (or as well
-// as) USB. USB stays live as a debug/manual-control port; RS485 is the
-// intended production control path. Both feed the same HandleByte()
-// parser and share the same watchdog, so a command from either source
-// behaves identically. RS485 is half-duplex: kRs485DePin drives the
-// transceiver's DE+RE (tied together) - HIGH to transmit, LOW to receive
-// - and the line is only driven HIGH briefly, via Rs485Reply(), to send a
-// one-line ack after a complete command arrives over Serial2. Wiring:
-// transceiver TXD -> kRs485RxPin, transceiver RXD -> kRs485TxPin (cross-
-// connected, as with any UART peripheral), transceiver DE+RE ->
-// kRs485DePin. See ../gripper_esp32/README.md for the full wiring table.
-//
 // Arduino IDE setup: Boards Manager -> install "esp32" (Espressif Systems),
 // Library Manager -> install "ESP32Servo" (by Kevin Harrington / madhephaestus).
 
@@ -83,40 +69,12 @@ const unsigned long kWatchdogTimeoutMs = 2000;
 // the switch statement below) rather than using it unscaled.
 const unsigned long kTimedMoveDurationMs = 470;
 
-// RS485 (Serial2/UART2) pins - all currently-free GPIOs, no conflict with
-// kServoPin. Must match whatever baud the robot controller's RS485 port
-// is configured for; change kRs485Baud if it isn't 115200.
-const int kRs485RxPin = 16;
-const int kRs485TxPin = 17;
-const int kRs485DePin = 21;
-const unsigned long kRs485Baud = 115200;
-
 Servo gripper;
 
 bool reading_angle = false;
 String angle_buffer;
 int current_value = kStopValue;
 unsigned long last_command_ms = 0;
-
-// Drives the RS485 transceiver's DE+RE pin: HIGH puts it in transmit
-// mode (driver enabled, receiver disabled), LOW puts it back in receive
-// mode. The short delay lets the transceiver chip actually switch before
-// bytes start moving either direction.
-void Rs485SetTransmit(bool enable) {
-  digitalWrite(kRs485DePin, enable ? HIGH : LOW);
-  delayMicroseconds(10);
-}
-
-// Sends msg out over RS485. Half-duplex, so the bus must be released back
-// to receive mode as soon as the bytes are actually sent - Serial2.flush()
-// blocks until they've physically finished shifting out, so switching
-// back to receive mode right after doesn't clip the last byte.
-void Rs485Reply(const char *msg) {
-  Rs485SetTransmit(true);
-  Serial2.print(msg);
-  Serial2.flush();
-  Rs485SetTransmit(false);
-}
 
 void SetSpeed(int value) {
   value = constrain(value, 0, 180);
@@ -188,37 +146,18 @@ void HandleByte(char c) {
 
 void setup() {
   Serial.begin(115200);
-
-  Serial2.begin(kRs485Baud, SERIAL_8N1, kRs485RxPin, kRs485TxPin);
-  pinMode(kRs485DePin, OUTPUT);
-  Rs485SetTransmit(false);  // default to receive mode
-
   gripper.attach(kServoPin);  // no custom pulse-width range - library defaults
 
   // Claw starts physically closed. Home it fully open before accepting
   // commands so 'G' always has a known, consistent starting position.
   TimedMove(kOpenSpeedValue, kTimedMoveDurationMs, "homing...", "homed");
 
-  Serial.println("gripper ready: send 'S' (stop), 'O', 'G', 'R', 'C', or 'A<0-180>\\n' over USB or RS485");
+  Serial.println("gripper ready: send 'S' (stop), 'O', 'G', 'R', 'C', or 'A<0-180>\\n'");
 }
 
 void loop() {
   while (Serial.available() > 0) {
     HandleByte((char)Serial.read());
-  }
-
-  // Same parser, fed from the RS485 UART. After a complete command (not
-  // still mid-digit-entry for 'A') reply once with the resulting speed
-  // value, so the robot controller can confirm the command took effect.
-  bool rs485_had_data = false;
-  while (Serial2.available() > 0) {
-    HandleByte((char)Serial2.read());
-    rs485_had_data = true;
-  }
-  if (rs485_had_data && !reading_angle) {
-    char reply[16];
-    snprintf(reply, sizeof(reply), "value=%d\n", current_value);
-    Rs485Reply(reply);
   }
 
   if (current_value != kStopValue &&
