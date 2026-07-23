@@ -82,13 +82,50 @@ def skeletonize_mask(mask):
     return skeletonize(mask)
 
 
+def _cluster_nodes(degree, neighbors):
+    """Group 8-adjacent junction pixels (degree >= 3) into single logical
+    vertices. A sharp or rounded corner often rasterizes into 2-3 junction
+    pixels sitting right next to each other rather than one - without
+    clustering, each of those pixels independently spawns its own walk,
+    producing near-duplicate paths and near-zero-length "edges" between
+    them that fragment what should be one continuous stroke (see
+    extract_strokes' docstring).
+
+    Deliberately excludes degree-1 endpoints: two unrelated dead-end tips
+    that happen to sit next to each other are still two separate open
+    branches, not one vertex, so only true junctions (degree >= 3) get
+    merged. Returns {pixel: cluster_id}, one entry per junction pixel only
+    - callers should treat any pixel missing from this dict as its own
+    singleton cluster (identified by the pixel itself)."""
+    junctions = {p for p, d in degree.items() if d >= 3}
+    cluster_of = {}
+    next_id = 0
+    for start in junctions:
+        if start in cluster_of:
+            continue
+        stack = [start]
+        cluster_of[start] = next_id
+        while stack:
+            current = stack.pop()
+            for nbr in neighbors(current):
+                if nbr in junctions and nbr not in cluster_of:
+                    cluster_of[nbr] = next_id
+                    stack.append(nbr)
+        next_id += 1
+    return cluster_of
+
+
 def extract_strokes(skeleton):
     """Walk a boolean skeleton's pixel graph into centerline chains.
 
     Returns a list of (points_xy, closed) - one entry per independent
     stroke, points as (x, y) pixel coordinates. Endpoints (degree 1) and
     junctions (degree >= 3) are graph nodes; runs of degree-2 pixels
-    between them are edges, walked once each via `visited_edges`.
+    between them are edges, walked once each via `visited_edges`. Node
+    pixels that are 8-adjacent to each other are clustered into a single
+    logical vertex (see _cluster_nodes) - intra-cluster edges are skipped,
+    and a stroke whose two ends land in the same cluster counts as closed,
+    not just a stroke that returns to its exact starting pixel.
     """
     all_pixels = set(map(tuple, np.argwhere(skeleton)))
 
@@ -98,6 +135,12 @@ def extract_strokes(skeleton):
 
     degree = {p: len(neighbors(p)) for p in all_pixels}
     nodes = {p for p, d in degree.items() if d != 2}
+    cluster_of = _cluster_nodes(degree, neighbors)
+
+    def logical_id(pixel):
+        """The pixel's cluster id if it's part of a merged junction
+        cluster, otherwise the pixel itself (a singleton identity)."""
+        return cluster_of.get(pixel, pixel)
 
     visited_edges = set()
     strokes_yx = []
@@ -118,8 +161,16 @@ def extract_strokes(skeleton):
     # Open branches: walk from every junction/endpoint out to the next node.
     for node in nodes:
         for nbr in neighbors(node):
-            if frozenset((node, nbr)) not in visited_edges:
-                strokes_yx.append((walk(node, nbr), False))
+            if frozenset((node, nbr)) in visited_edges:
+                continue
+            if nbr in nodes and logical_id(nbr) == logical_id(node):
+                # Trivial hop within the same logical vertex - not a real edge.
+                visited_edges.add(frozenset((node, nbr)))
+                continue
+            path = walk(node, nbr)
+            end = path[-1]
+            closed = end in nodes and logical_id(end) == logical_id(node)
+            strokes_yx.append((path, closed))
 
     # Closed loops made entirely of degree-2 pixels (no junctions/endpoints at all).
     for pixel in all_pixels - nodes:
@@ -130,19 +181,78 @@ def extract_strokes(skeleton):
     return [([(x, y) for y, x in points_yx], closed) for points_yx, closed in strokes_yx]
 
 
+def prune_skeleton_spurs(skeleton, min_length_px: float):
+    """Remove short dead-end branches directly from the skeleton's pixel
+    set, before extract_strokes() builds the pixel graph - not after.
+
+    A sharp corner (e.g. two strokes meeting at a point) makes
+    skeletonize() grow a short "whisker" off that point. If that whisker
+    is only cleaned up afterwards, by filtering the strokes extract_strokes()
+    already produced (see prune_spurs below), the damage is done: the
+    corner pixel was already counted as a degree>=3 junction, so a closed
+    loop that should pass straight through that corner gets cut into
+    separate open fragments there instead. Removing the whisker pixels
+    first lets that corner pixel's degree fall back to 2, so the walk
+    treats it as an ordinary pass-through pixel and the loop stays whole.
+
+    Runs to a fixed point: removing one spur can drop a neighboring
+    junction's degree to 1, exposing a new spur to remove next round.
+    """
+    pixels = set(map(tuple, np.argwhere(skeleton)))
+
+    def neighbors(pixel, pixel_set):
+        y, x = pixel
+        return [(y + dy, x + dx) for dy, dx in NEIGHBORS_8 if (y + dy, x + dx) in pixel_set]
+
+    changed = True
+    while changed:
+        changed = False
+        degree = {p: len(neighbors(p, pixels)) for p in pixels}
+        endpoints = [p for p, d in degree.items() if d == 1]
+        to_remove = set()
+        for endpoint in endpoints:
+            if endpoint in to_remove:
+                continue
+            branch = [endpoint]
+            prev, current = None, endpoint
+            while True:
+                candidates = [p for p in neighbors(current, pixels) if p != prev]
+                if current != endpoint and degree[current] != 2:
+                    break
+                if not candidates:
+                    break
+                prev, current = current, candidates[0]
+                branch.append(current)
+                if degree.get(current, 0) != 2:
+                    break
+            if _polyline_length(branch) < min_length_px:
+                to_remove.update(branch[:-1])  # keep the junction pixel itself
+        if to_remove:
+            pixels -= to_remove
+            changed = True
+
+    out = np.zeros_like(skeleton)
+    for y, x in pixels:
+        out[y, x] = True
+    return out
+
+
 def _polyline_length(points_xy) -> float:
     return sum(math.dist(a, b) for a, b in zip(points_xy, points_xy[1:]))
 
 
 def prune_spurs(strokes, min_length_px: float):
-    """Drop short open branches - skeletonization spurs at junctions and
+    """Drop short branches - skeletonization spurs at junctions and
     line-cap corners, which threshold+skeletonize is more prone to than
-    skeletonizing a thin Canny edge map. Closed loops are kept regardless
-    of length; only open (non-closed) short branches are spurs."""
+    skeletonizing a thin Canny edge map. Applies to both open dead-ends and
+    closed loops: a closed loop this short is degenerate pixel-level noise
+    left over at a clustered-node boundary (see extract_strokes), not a
+    real small feature - real closed shapes (e.g. a dot or a letter's
+    counter) are comfortably longer than any reasonable spur threshold."""
     return [
         (points, closed)
         for points, closed in strokes
-        if closed or _polyline_length(points) >= min_length_px
+        if _polyline_length(points) >= min_length_px
     ]
 
 

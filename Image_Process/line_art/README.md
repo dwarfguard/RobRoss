@@ -61,14 +61,15 @@ hundreds of components, not thousands.
 
 ```
 Config profile (configs/*.json)
-  -> line_tracing.binarize()          threshold grayscale -> boolean stroke mask
-  -> line_tracing.close_mask()        morphological closing -> bridge antialiasing gaps
-  -> line_tracing.skeletonize_mask()  mask -> single-pixel-wide skeleton
-  -> line_tracing.extract_strokes()   skeleton -> traced centerline chains
-  -> line_tracing.prune_spurs()       drop short skeletonization spurs
-  -> line_tracing.simplify()          Douglas-Peucker point reduction
-  -> path_ordering.order_strokes()    greedy nearest-neighbor travel order
-  -> generate_line_art_paths.py       -> output/<config-name>/<painting_paths_file> (+ preview SVG)
+  -> line_tracing.binarize()             threshold grayscale -> boolean stroke mask
+  -> line_tracing.close_mask()           morphological closing -> bridge antialiasing gaps
+  -> line_tracing.skeletonize_mask()     mask -> single-pixel-wide skeleton
+  -> line_tracing.prune_skeleton_spurs() structural pixel-level spur removal (see below)
+  -> line_tracing.extract_strokes()      skeleton -> traced centerline chains (node-clustered)
+  -> line_tracing.prune_spurs()          drop remaining short spurs/degenerate loops
+  -> line_tracing.simplify()             Douglas-Peucker point reduction
+  -> path_ordering.order_strokes()       greedy nearest-neighbor travel order
+  -> generate_line_art_paths.py          -> output/<config-name>/<painting_paths_file> (+ preview SVG)
 ```
 
 Like `sketch/`, there is no intermediate `painting_plan.json` step — no
@@ -93,7 +94,7 @@ config are CWD-relative), same as the other routes' scripts.
 | `source_image.path` | Path to the source line-art bitmap. RGBA is composited onto white using its alpha channel before thresholding, so both opaque exports and transparent-background art work the same way. |
 | `source_image.binary_threshold` | Grayscale cutoff (0-255, default 200): pixels darker than this are treated as part of a drawn line. See "Why not Canny?" above for why this needs to be higher than it looks like it should for antialiased raster art. |
 | `source_image.morph_close_kernel_px` | Morphological closing kernel size (pixels, default 2; 0 disables) applied to the mask before skeletonizing, to bridge small antialiasing-induced gaps. |
-| `source_image.min_spur_length_px` | Drop open (non-loop) traced branches shorter than this many pixels — skeletonization spurs at junctions/corners, not real strokes. Default 4.0. |
+| `source_image.min_spur_length_px` | Length threshold (pixels) used at two stages: structural spur removal on the raw skeleton before tracing, and a second pass dropping any short open branch or degenerate closed loop that survives extraction — see `prune_skeleton_spurs`/`prune_spurs` below. Default 4.0; a font-like image with sharp corners (e.g. `ai.png`) may need it higher (~7-8) to fully close ring-shaped letterforms — see "Known limitations". |
 | `source_image.min_stroke_length_mm` | After mapping to canvas millimeters, drop any stroke shorter than this — filters sub-pixel noise that survives spur pruning. Default 1.0. |
 | `source_image.simplify_epsilon_ratio` | Douglas-Peucker simplification strength as a fraction of each stroke's arc length — larger = fewer points/straighter lines. Default 0.002. |
 | `path_generation.tool_width_mm` | Pen stroke width (preview rendering + `path_settings.tool_width_mm` in the output). |
@@ -110,15 +111,41 @@ antialiasing before skeletonizing (`kernel_px <= 0` is a no-op).
 `skeletonize_mask()` thins the (closed) mask to single-pixel centerlines
 via `skimage.morphology.skeletonize`.
 
+`prune_skeleton_spurs(skeleton, min_length_px)`: removes short dead-end
+branches directly from the skeleton's pixel set, *before* the pixel graph
+is built — not after. A sharp corner (two strokes meeting at a point) makes
+`skeletonize()` grow a short "whisker" off that point; if that whisker were
+only cleaned up after the fact (by filtering already-extracted strokes),
+the damage is already done — the corner pixel was counted as a degree≥3
+junction while the whisker existed, so a closed loop that should pass
+straight through that corner gets cut into separate open fragments there.
+Removing the whisker first lets the corner's degree fall back to 2, so
+`extract_strokes()` treats it as an ordinary pass-through pixel and the
+loop stays whole. Runs iteratively to a fixed point, since removing one
+spur can expose a new one at a neighboring junction.
+
 `extract_strokes(skeleton)`: walks the skeleton's pixel graph (endpoints =
 degree 1, junctions = degree ≥ 3, treated as graph nodes; runs of degree-2
 pixels between them as edges, each walked once) to produce one entry per
 independent line — pixel `(x, y)` points plus whether it's a closed loop.
-Ported from `sketch/canny_edges.py`'s tracer.
+Ported from `sketch/canny_edges.py`'s tracer, with one addition: junction
+pixels that are 8-adjacent to each other are clustered into a single
+logical vertex (a rounded corner often rasterizes into 2-3 node pixels
+sitting right next to each other instead of one). Intra-cluster hops are
+skipped, and a stroke whose two ends land in the same cluster counts as
+closed — not just a stroke that returns to its exact starting pixel.
+Without this, those extra adjacent node pixels spawn near-duplicate paths
+and near-zero-length spurious edges that fragment what should be one
+continuous stroke.
 
-`prune_spurs(strokes, min_length_px)`: drops open (non-closed) strokes
-shorter than `min_length_px` — see "Why not Canny?" above for why this
-route needs pruning that `sketch/` doesn't.
+`prune_spurs(strokes, min_length_px)`: a second, coarser pass after
+extraction — drops any *open* stroke shorter than `min_length_px` (spurs
+`prune_skeleton_spurs` didn't need to touch, e.g. off a junction that
+stayed valid), and any *closed* loop shorter than `min_length_px` too.
+Short closed loops this size are degenerate pixel-level noise left over at
+a clustered-node boundary, not real small content — real closed shapes
+(a dot, a letter's counter) are comfortably longer than any reasonable
+spur threshold, so this doesn't risk real content.
 
 `simplify(points_xy, closed, epsilon_ratio)`: Douglas-Peucker point
 reduction (`cv2.approxPolyDP`), same as `sketch/canny_edges.py`'s.
@@ -144,6 +171,17 @@ open/closed lines, it never fills.
 config's source image, then scales pixel points onto the canvas's drawable
 box (canvas size minus `margin_mm` on each side), preserving aspect ratio
 and centering the result, then filters by `min_stroke_length_mm`.
+
+For closed strokes, it also re-appends the first (simplified) point to the
+end of the point list right after `simplify()`. `simplify()`'s
+Douglas-Peucker (`cv2.approxPolyDP(..., closed=True)`) returns a closed
+loop as a bare polygon — vertices only, no repeated closing point — and
+nothing downstream (`path_ordering.order_strokes()`, `paint_path`) tracks
+"closed" at all once the stroke's own point list is the only thing passed
+along. Without explicitly closing the loop here, the pen would lift one
+edge short of a full circuit even for a stroke `extract_strokes()`
+correctly identified as closed — this is what left `ai.png`'s letterform
+outlines with a small notch even after the node-clustering fix above.
 
 `main()` orders the strokes, then `build_commands()` turns each ordered
 stroke into one `move_to -> lower_tool -> paint_path -> lift_tool`
@@ -180,3 +218,17 @@ resolution limit, not a parameter to tune away; if legible text tracing
 matters, increase the source image's resolution (re-export the diagram
 larger) rather than fighting it with `binary_threshold`/
 `morph_close_kernel_px`.
+
+**Outline/bubble fonts need a higher `min_spur_length_px`.** A source image
+where every glyph is drawn as a hollow ring (constant-width outline stroke,
+e.g. `configs/line_art_ai_a4.json`'s `ai.png`) has letterforms that should
+each skeletonize to one clean closed loop. But a sharp corner (like the top
+of an "A") makes the loop pinch to near-zero local width, which
+`skeletonize()` turns into a short spur; the default `min_spur_length_px`
+(4.0, tuned for `hinton.png`'s hatching-heavy content) can be too low to
+fully remove that spur, leaving the loop split into open fragments even
+after node clustering. Check with `cv2.connectedComponents()` /
+`cv2.findContours(..., cv2.RETR_CCOMP)` on the binarized mask if this
+happens: an outline font's contour count (outer + inner per glyph) should
+roughly match `extract_strokes()`'s closed-loop count once traced; if it
+doesn't, raise `min_spur_length_px` a few pixels at a time until it does.
