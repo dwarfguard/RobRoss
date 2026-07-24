@@ -14,7 +14,7 @@ full A4 artwork. Companion to `docs/hardware-test-checklist.md` (what to verify)
   `test_line_paths.json` (the 50 mm first-contact line), and `curve_test_paths.json`
   (the post-contact curves and corners card) + previews.
 - `~/hardware_a4.yaml` exists (copy of `ros2/robross_painter/config/hardware_a4.yaml`);
-  `tool_offset_xyz: [0.0, -0.0595, 0.0514]` matches the value used during teaching.
+  `tool_offset_xyz: [0.001208, -0.06034, 0.090753]` is the 8-touch pivot result.
 - Claw collision box measured on the real claw (2026-07-16 session):
   `claw_collision_size_xyz: [0.02, 0.06, 0.02]`, offset `[0.0, -0.03, 0.0]`. The hardware
   profile is the source of truth for the tool offset and claw box; the sim profiles
@@ -24,9 +24,8 @@ full A4 artwork. Companion to `docs/hardware-test-checklist.md` (what to verify)
 - `dry_run: true` in the shipped profile (flip it only in `~/hardware_a4.yaml`, Step 6).
 
 **Gaps to fix before first contact (in order):**
-1. `~/canvas_calibration.yaml` is invalid (measured 366.7 × 315.8 mm, corner skew 23.75°; an A4
-   is 210 × 297 mm, skew must be < 2°) → re-teach on the real paper (Step 4). This bad teach —
-   not the elbow constraints — is what caused the RViz `wrist3_joint` motion-guard abort.
+1. `~/canvas_calibration.yaml` was taught with the previous TCP offset and is stale. Re-teach it
+   on the real paper with the 8-touch offset before planning or executing motion (Step 4).
 2. Robot IP unknown — read it off the teach pendant (Settings → Network) once cabled.
 
 ## Step 0 — Network (Ethernet direct)
@@ -39,10 +38,11 @@ full A4 artwork. Companion to `docs/hardware-test-checklist.md` (what to verify)
 ## Step 1 — Every terminal: environment
 
 ```bash
-export PATH="/usr/bin:$PATH"     # conda shadows ROS python — required or Python nodes crash
+export PATH="/usr/bin:$PATH"
 cd ~/robross_aubo_ws
 source install/setup.bash
 export ROBROSS_REPO=$PWD/src/RobRoss
+export AUBO_TYPE=aubo_i5_calibrated
 ```
 
 ## Step 2 — (Recommended, once) URDF calibration from the controller
@@ -117,11 +117,21 @@ the tool offset changes**; a canvas taught against a stale offset is wrong.
 Teach each corner at **just-touch** (spring at free length): the recorded point is the
 free-length virtual tip, so any compression at record time pushes the taught plane that far
 behind the paper. The 1.8 mm drawing preload is applied in software by `plane_bias_mm`.
-Terminal 3 and 4:
+Before enabling pendant freedrive, release the ROS position controller while keeping
+joint-state feedback active (terminal 3):
+
+```bash
+ros2 control switch_controllers \
+  --deactivate joint_trajectory_controller --strict
+ros2 control list_controllers
+```
+
+Confirm that `joint_trajectory_controller` is `inactive` and `joint_state_broadcaster` remains
+`active`. Only then enable freedrive on the pendant. Terminal 3 and 4:
 
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
-  -p tool_offset_xyz:="[0.0, -0.0595, 0.0514]" \
+  -p tool_offset_xyz:="[0.001208, -0.06034, 0.090753]" \
   -p plane_bias_mm:=1.8 \
   -p output_file:=$HOME/canvas_calibration.yaml
 
@@ -158,6 +168,17 @@ ros2 service call /teach_canvas/save                std_srvs/srv/Trigger
 `flatness_warn_mm` (default 0.3 mm), and no bottom-right residual warning. `save` refuses
 outright above `flatness_refuse_mm` (default 0.6 mm) — add interior samples or re-teach. Any
 warning → re-teach; don't rationalize.
+
+After saving, disable freedrive on the pendant before returning control to ROS:
+
+```bash
+ros2 control switch_controllers \
+  --activate joint_trajectory_controller --strict
+ros2 control list_controllers
+```
+
+Confirm that `joint_trajectory_controller` is `active` before planning or executing any motion.
+The driver rejects controller activation while freedrive is still enabled.
 
 ## Step 5 — Dry-run everything (`dry_run: true` in `~/hardware_a4.yaml`)
 

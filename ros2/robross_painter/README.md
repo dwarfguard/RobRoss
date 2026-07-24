@@ -263,7 +263,7 @@ pen preload as `plane_bias_mm`, plus the nudge helper in another terminal
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
   -p tool_offset_xyz:="[<x>, <y>, <z>]" \
-  -p plane_bias_mm:=1.8 \
+  -p plane_bias_mm:=1.0 \
   -p output_file:=$HOME/canvas_calibration.yaml
 
 # Second terminal: sub-millimeter approach steps along the pen axis. Launch

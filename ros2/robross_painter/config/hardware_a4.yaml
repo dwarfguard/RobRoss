@@ -49,7 +49,7 @@ painting_executor:
     # than a ruler. Re-calibrate after any pen or claw change, keep all four
     # profiles identical, and re-teach the canvas (it is taught in tip
     # coordinates). Values below are the 2026-07-16 hand-measured seed.
-    tool_offset_xyz: [0.0, -0.0595, 0.0514]
+    tool_offset_xyz: [0.001208, -0.06034, 0.090753]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     # Spin of the claw about the pen axis, degrees. Pick the value that
     # keeps the claw and cable clear of the wrist and wall.

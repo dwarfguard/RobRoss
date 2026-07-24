@@ -34,8 +34,8 @@
     {
       "command": "move_to",
       "label": "test_line",
-      "x_mm": 80.0,
-      "y_mm": 140.0
+      "x_mm": 150.0,
+      "y_mm": 200.0
     },
     {
       "command": "lower_tool",
@@ -46,12 +46,12 @@
       "label": "test_line",
       "color": "black",
       "from_mm": [
-        80.0,
-        140.0
+        150.0,
+        200.0
       ],
       "to_mm": [
-        130.0,
-        200.0
+        150.0,
+        140.0
       ]
     },
     {

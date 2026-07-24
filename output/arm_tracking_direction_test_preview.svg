@@ -1,0 +1,15 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="8.2677in"
+  height="11.6929in"
+  viewBox="0 0 210.0 297.0"
+>
+  <rect x="0" y="0" width="210.0" height="297.0" fill="white" />
+  <polyline points="105.0,85.0 105.0,115.0" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="105.0" y1="115.0" x2="105.0" y2="115.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="105.0,115.0 105.0,85.0" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="105.0" y1="85.0" x2="90.0" y2="140.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="90.0,140.0 120.0,140.0" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+  <line x1="120.0" y1="140.0" x2="120.0" y2="140.0" stroke="#999999" stroke-width="1.0" stroke-dasharray="4,3" />
+  <polyline points="120.0,140.0 90.0,140.0" fill="none" stroke="black" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55" />
+</svg>

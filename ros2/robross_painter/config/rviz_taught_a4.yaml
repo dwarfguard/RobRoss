@@ -15,7 +15,7 @@ painting_executor:
     canvas_origin_xyz: [0.55, 0.105, 0.55]
     canvas_quat_xyzw: [0.5, -0.5, 0.5, -0.5]
     # Measured claw + pen; keep identical to hardware_a4.yaml.
-    tool_offset_xyz: [0.0, -0.0595, 0.0514]
+    tool_offset_xyz: [0.001208, -0.06034, 0.090753]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     tool_spin_deg: -90.0
     # No 4x4 m ground box; the auto-sized backing patch below protects the

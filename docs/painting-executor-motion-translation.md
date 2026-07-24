@@ -176,7 +176,7 @@ Path coordinates describe the physical pen tip, but MoveIt plans motion for
 The calibration provides the fixed transform from `ee_link` to the pen tip:
 
 ```yaml
-tool_offset_xyz: [0.0, -0.0595, 0.0514]
+tool_offset_xyz: [0.001208, -0.06034, 0.090753]
 tool_offset_rpy: [0.0, 0.0, 0.0]
 ```
 
@@ -189,9 +189,9 @@ T_base_ee = T_base_tip * inverse(T_ee_tip)
 This happens in `makePose()` at
 `ros2/robross_painter/src/painting_executor.cpp:786-803`.
 
-If the pen is mounted 59.5 mm sideways and 51.4 mm away from `ee_link`, MoveIt
-moves `ee_link` to the offset location needed to put the pen tip on the
-requested canvas point.
+For this calibrated claw, the tip is 1.208 mm along x, -60.340 mm along y,
+and 90.753 mm along z from `ee_link`. MoveIt moves `ee_link` to the offset
+location needed to put the pen tip on the requested canvas point.
 
 MoveIt does not directly plan the tip frame because the tip is not an
 articulated robot link. It plans `ee_link` while accounting for the calibrated

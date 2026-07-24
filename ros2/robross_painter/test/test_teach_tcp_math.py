@@ -49,7 +49,7 @@ def _poses_touching(world_point, tool_point, rpys):
 
 def test_pivot_recovers_known_tool_point():
     world = [0.55, 0.10, 0.15]
-    tool = [0.0, -0.0595, 0.0514]
+    tool = [0.001208, -0.06034, 0.090753]
     rpys = [
         (0.2, 0.1, 0.0),
         (-0.3, 0.25, 0.5),
@@ -68,7 +68,7 @@ def test_pivot_recovers_known_tool_point():
 
 def test_pivot_reports_scatter_on_noisy_touches():
     world = [0.55, 0.10, 0.15]
-    tool = [0.0, -0.0595, 0.0514]
+    tool = [0.001208, -0.06034, 0.090753]
     rpys = [
         (0.2, 0.1, 0.0),
         (-0.3, 0.25, 0.5),
@@ -84,7 +84,7 @@ def test_pivot_reports_scatter_on_noisy_touches():
 
 def test_pivot_flags_identical_orientations_as_rank_deficient():
     world = [0.55, 0.10, 0.15]
-    tool = [0.0, -0.0595, 0.0514]
+    tool = [0.001208, -0.06034, 0.090753]
     # Operator never reoriented the wrist: every touch is the same pose, so the
     # stacked system cannot pin down the tool point (rank 3, not 6).
     rpys = [(0.10, 0.10, 0.10)] * 4
@@ -95,7 +95,7 @@ def test_pivot_flags_identical_orientations_as_rank_deficient():
 
 def test_pivot_condition_number_grows_as_orientation_spread_shrinks():
     world = [0.55, 0.10, 0.15]
-    tool = [0.0, -0.0595, 0.0514]
+    tool = [0.001208, -0.06034, 0.090753]
 
     def cond_for(scale):
         rpys = [

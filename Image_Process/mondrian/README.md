@@ -139,6 +139,37 @@ hardcoded so repeated hardware runs can be compared against the same reference.
 Do not use this card for first contact. Dry-run it first and run it on paper
 only after `output/test_line_paths.json` passes the hardware gate.
 
+## Arm Tracking Diagnostic
+
+When spring compression appears to change as the arm extends or retracts,
+generate the staged tracking fixtures:
+
+```bash
+python3 Image_Process/mondrian/generate_arm_tracking_test.py
+```
+
+This creates three independently runnable path files and matching previews:
+
+| File | Purpose |
+| --- | --- |
+| `output/arm_tracking_direction_test_paths.json` | Retraces the same vertical segment in `+Y` and `-Y`, then the same horizontal segment in `+X` and `-X`. |
+| `output/arm_tracking_reversal_test_paths.json` | Reverses Y direction without lifting so an immediate spring-compression change is visible. |
+| `output/arm_tracking_curve_test_paths.json` | Runs a compact `+X` curve with alternating Y direction while controller state is recorded. |
+
+Run them in that order, one file at a time. Dry-run each file first. The path
+format has no dwell command, so these fixtures diagnose moving and reversal
+behavior but do not implement the separate same-point hold test. Re-run the
+curve fixture with each reviewed velocity profile rather than changing its
+geometry between comparisons.
+
+Record desired and measured joint state during each hardware pass:
+
+```bash
+ros2 bag record \
+  /joint_trajectory_controller/controller_state \
+  /joint_states
+```
+
 ## Validation
 
 All path generators call `path_validation.validate_painting_paths()` before

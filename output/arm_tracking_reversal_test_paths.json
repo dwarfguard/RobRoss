@@ -1,0 +1,112 @@
+{
+  "project": "R.O.B Ross",
+  "style": "arm_tracking_reversal_test",
+  "version": "0.1",
+  "config": {
+    "profile_name": "demo_v1_a4_pen",
+    "source_file": "configs/demo_v1_a4_pen.json"
+  },
+  "units": "mm",
+  "canvas": {
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "width_in": 8.2677,
+    "height_in": 11.6929,
+    "margin_mm": 10.0,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 1.0,
+    "stroke_overlap_ratio": 0.0,
+    "edge_inset_mm": 5.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "arm_tracking_reversal_test",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "arm_tracking_reversal_test",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "plus_y_then_minus_y",
+      "x_mm": 100.0,
+      "y_mm": 170.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "plus_y_then_minus_y"
+    },
+    {
+      "command": "paint_path",
+      "label": "plus_y_then_minus_y",
+      "color": "black",
+      "points_mm": [
+        [
+          100.0,
+          170.0
+        ],
+        [
+          100.0,
+          200.0
+        ],
+        [
+          100.0,
+          170.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "plus_y_then_minus_y"
+    },
+    {
+      "command": "move_to",
+      "label": "minus_y_then_plus_y",
+      "x_mm": 110.0,
+      "y_mm": 200.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "minus_y_then_plus_y"
+    },
+    {
+      "command": "paint_path",
+      "label": "minus_y_then_plus_y",
+      "color": "black",
+      "points_mm": [
+        [
+          110.0,
+          200.0
+        ],
+        [
+          110.0,
+          170.0
+        ],
+        [
+          110.0,
+          200.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "minus_y_then_plus_y"
+    }
+  ],
+  "debug": {
+    "num_commands": 10,
+    "num_paint_path_commands": 2,
+    "num_path_points": 6,
+    "estimated_total_paint_distance_mm": 120.0
+  },
+  "validation": {
+    "passed": true,
+    "errors": [],
+    "warnings": []
+  }
+}

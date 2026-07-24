@@ -1,0 +1,231 @@
+{
+  "project": "R.O.B Ross",
+  "style": "arm_tracking_curve_test",
+  "version": "0.1",
+  "config": {
+    "profile_name": "demo_v1_a4_pen",
+    "source_file": "configs/demo_v1_a4_pen.json"
+  },
+  "units": "mm",
+  "canvas": {
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "width_in": 8.2677,
+    "height_in": 11.6929,
+    "margin_mm": 10.0,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 1.0,
+    "stroke_overlap_ratio": 0.0,
+    "edge_inset_mm": 5.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "arm_tracking_curve_test",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "arm_tracking_curve_test",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "plus_x_alternating_y_curve",
+      "x_mm": 80.0,
+      "y_mm": 245.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "plus_x_alternating_y_curve"
+    },
+    {
+      "command": "paint_path",
+      "label": "plus_x_alternating_y_curve",
+      "color": "black",
+      "points_mm": [
+        [
+          80.0,
+          245.0
+        ],
+        [
+          81.25,
+          248.09
+        ],
+        [
+          82.5,
+          250.88
+        ],
+        [
+          83.75,
+          253.09
+        ],
+        [
+          85.0,
+          254.51
+        ],
+        [
+          86.25,
+          255.0
+        ],
+        [
+          87.5,
+          254.51
+        ],
+        [
+          88.75,
+          253.09
+        ],
+        [
+          90.0,
+          250.88
+        ],
+        [
+          91.25,
+          248.09
+        ],
+        [
+          92.5,
+          245.0
+        ],
+        [
+          93.75,
+          241.91
+        ],
+        [
+          95.0,
+          239.12
+        ],
+        [
+          96.25,
+          236.91
+        ],
+        [
+          97.5,
+          235.49
+        ],
+        [
+          98.75,
+          235.0
+        ],
+        [
+          100.0,
+          235.49
+        ],
+        [
+          101.25,
+          236.91
+        ],
+        [
+          102.5,
+          239.12
+        ],
+        [
+          103.75,
+          241.91
+        ],
+        [
+          105.0,
+          245.0
+        ],
+        [
+          106.25,
+          248.09
+        ],
+        [
+          107.5,
+          250.88
+        ],
+        [
+          108.75,
+          253.09
+        ],
+        [
+          110.0,
+          254.51
+        ],
+        [
+          111.25,
+          255.0
+        ],
+        [
+          112.5,
+          254.51
+        ],
+        [
+          113.75,
+          253.09
+        ],
+        [
+          115.0,
+          250.88
+        ],
+        [
+          116.25,
+          248.09
+        ],
+        [
+          117.5,
+          245.0
+        ],
+        [
+          118.75,
+          241.91
+        ],
+        [
+          120.0,
+          239.12
+        ],
+        [
+          121.25,
+          236.91
+        ],
+        [
+          122.5,
+          235.49
+        ],
+        [
+          123.75,
+          235.0
+        ],
+        [
+          125.0,
+          235.49
+        ],
+        [
+          126.25,
+          236.91
+        ],
+        [
+          127.5,
+          239.12
+        ],
+        [
+          128.75,
+          241.91
+        ],
+        [
+          130.0,
+          245.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "plus_x_alternating_y_curve"
+    }
+  ],
+  "debug": {
+    "num_commands": 6,
+    "num_paint_path_commands": 1,
+    "num_path_points": 41,
+    "estimated_total_paint_distance_mm": 97.31
+  },
+  "validation": {
+    "passed": true,
+    "errors": [],
+    "warnings": []
+  }
+}
