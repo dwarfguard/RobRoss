@@ -123,30 +123,120 @@ def main():
     print("    [q]      退出")
     print()
 
+    # ── 实时 TCP 坐标刷新 (限频) ──────────────────────────────
+    last_tcp_fetch = 0.0
+    tcp_fetch_interval = 0.5  # 秒
+    current_base_xyz = None   # 当前实时 TCP (用于显示)
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
         display = frame.copy()
+        h, w = display.shape[:2]
 
         ids, corners, poses = detector.detect(display, cmat, dist)
         marker_found = len(ids) > 0
 
-        if marker_found and len(poses) > 0 and poses[0][1] is not None:
-            mid = ids[0]
-            rvec, tvec = poses[0]
-            cam_xyz = tvec.flatten()
-            label = f"ID:{mid}  cam=({cam_xyz[0]:.3f}, {cam_xyz[1]:.3f}, {cam_xyz[2]:.3f})"
-            cv2.putText(display, label, (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.drawFrameAxes(display, cmat, dist, rvec, tvec, args.marker_size * 0.6)
+        # 限频实时读取机器人 TCP 坐标 (用于显示，不存储)
+        now = time.time()
+        if robot and now - last_tcp_fetch > tcp_fetch_interval:
+            pose = robot.get_tcp_pose()
+            if pose is not None:
+                current_base_xyz = np.array(pose[:3])
+            last_tcp_fetch = now
 
-        info = f"已采集: {len(points_base)} 对"
-        cv2.putText(display, info, (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
-        cv2.putText(display, "[Space]采集 [c]完成 [q]退出",
-                    (10, display.shape[0] - 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
+        # 当前检测到的 ArUco 信息
+        current_cam_xyz = None
+        current_mid = None
+        current_rvec = None
+        if marker_found and len(poses) > 0 and poses[0][1] is not None:
+            current_mid = ids[0]
+            current_rvec = poses[0][0]
+            current_cam_xyz = poses[0][1].flatten()
+            cv2.drawFrameAxes(display, cmat, dist,
+                              current_rvec, current_cam_xyz,
+                              args.marker_size * 0.6)
+
+        # ══════════════════════════════════════════════════════════
+        #  信息叠加 (类 aubo_writer 风格, 左上角简洁显示)
+        # ══════════════════════════════════════════════════════════
+        n_history = len(points_base)
+
+        # 检测状态
+        if current_mid is not None:
+            status = f"✓  ID:{current_mid}"
+            status_color = (0, 220, 80)
+        else:
+            status = "✗  未检测到"
+            status_color = (0, 0, 230)
+
+        # 检测到的所有 ID
+        detected_ids_str = ""
+        if marker_found:
+            detected_ids_str = f"  检测到 ID: {sorted(ids)}"
+
+        # 第 1 行: 采集数 + 检测状态 + 检测到的 ID
+        line1 = f"已采集: {n_history} 组  |  检测: {status}{detected_ids_str}"
+        cv2.putText(display, line1, (10, 28),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, status_color, 2)
+
+        # 第 2 行: 相机坐标
+        if current_cam_xyz is not None:
+            txt_cam = (f"Camera:  ({current_cam_xyz[0]:.3f}, "
+                       f"{current_cam_xyz[1]:.3f}, "
+                       f"{current_cam_xyz[2]:.3f})  m")
+            cv2.putText(display, txt_cam, (10, 52),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 220, 80), 1)
+
+        # 第 3 行: 基座坐标 (实时)
+        if robot and current_base_xyz is not None:
+            txt_base = (f"Base:    ({current_base_xyz[0]:.3f}, "
+                        f"{current_base_xyz[1]:.3f}, "
+                        f"{current_base_xyz[2]:.3f})  m")
+            cv2.putText(display, txt_base, (10, 74),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 200, 255), 1)
+            cv2.putText(display, "●", (330, 74),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 0), 1)
+        elif not robot and current_cam_xyz is not None:
+            cv2.putText(display, "Base:    (手动输入)", (10, 74),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
+
+        # 已采集点对列表 (右上角紧凑显示)
+        if n_history > 0:
+            list_x = w - 320
+            # 浅色背景短条
+            list_h = min(n_history, 5) * 18 + 28
+            cv2.rectangle(display, (list_x, 8), (list_x + 310, 8 + list_h),
+                          (20, 20, 20), -1)
+            list_roi = display[8:8 + list_h, list_x:list_x + 310]
+            cv2.addWeighted(list_roi, 0.7, np.full_like(list_roi, 20), 0.3, 0, list_roi)
+
+            cv2.putText(display, f"─ 采集点: {n_history} 对 ─",
+                        (list_x + 8, list_y := 28),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1)
+            for i in range(min(n_history, 5)):
+                pc = points_cam[i]
+                pb = points_base[i]
+                ry = list_y + 14 + i * 18
+                cv2.putText(display,
+                            f"#{i+1:02d} cam({pc[0]:.3f},{pc[1]:.3f},{pc[2]:.3f})",
+                            (list_x + 10, ry),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (160, 220, 160), 1)
+                cv2.putText(display,
+                            f"    base({pb[0]:.3f},{pb[1]:.3f},{pb[2]:.3f})",
+                            (list_x + 10, ry + 13),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (160, 190, 230), 1)
+            if n_history > 5:
+                cv2.putText(display, f"  ... {n_history - 5} 对隐藏",
+                            (list_x + 10, list_y + 14 + 5 * 18),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (150, 150, 150), 1)
+
+        # 底部操作提示
+        cv2.putText(display, "[Space] 采集    [c] 完成    [q] 退出",
+                    (10, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (200, 200, 200), 1)
+
         cv2.imshow("Hand-Eye Calibration", display)
         key = cv2.waitKey(1) & 0xFF
 
@@ -166,6 +256,7 @@ def main():
                 base_xyz = np.array(pose[:3])
                 print(f"\n  ID:{mid}  相机: ({cam_xyz[0]:.4f}, {cam_xyz[1]:.4f}, {cam_xyz[2]:.4f})")
                 print(f"           基座: ({base_xyz[0]:.4f}, {base_xyz[1]:.4f}, {base_xyz[2]:.4f})  ← 从机械臂自动读取")
+                current_base_xyz = base_xyz  # 同步实时显示
                 points_cam.append(cam_xyz.copy())
                 points_base.append(base_xyz)
                 print(f"  [✓] 第 {len(points_base)} 对")
