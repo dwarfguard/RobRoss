@@ -156,7 +156,7 @@ class ArucoDetector:
     }
 
     def __init__(self, dictionary: str = "4X4_50",
-                 marker_size_m: float = 0.035,
+                 marker_size_m: float = 0.02,
                  target_ids: Optional[List[int]] = None):
         dict_id = self.DICT_MAP.get(dictionary)
         if dict_id is None:
@@ -211,7 +211,7 @@ class ArucoDetector:
 def compute_drawing_area(ids: List[int],
                          poses: List[Tuple[np.ndarray, np.ndarray]],
                          calib: HandEyeCalib,
-                         marker_size: float = 0.035) -> Optional[DrawingArea]:
+                         marker_size: float = 0.02) -> Optional[DrawingArea]:
     """
     从 4 个 ArUco 标记的 3D 位姿计算绘图区域。
 
@@ -679,8 +679,8 @@ def main():
                         help="摄像头 ID (默认 0)")
     parser.add_argument("--aruco-dict", default="4X4_50",
                         help="ArUco 字典 (默认 4X4_50)")
-    parser.add_argument("--marker-size", type=float, default=0.035,
-                        help="标记边长/米 (默认 0.035)")
+    parser.add_argument("--marker-size", type=float, default=0.02,
+                        help="标记边长/米 (默认 0.02)")
     parser.add_argument("--robot-ip",
                         help="机械臂控制器 IP")
     parser.add_argument("--robot-port", type=int, default=8899,
@@ -877,7 +877,45 @@ def main():
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
                 # ── 坐标轴: 在绘图区域中心画 X(红) Y(绿) Z(蓝) ──
-                # 计算平均位姿 (4 个标记的均值) 作为区域中心在相机坐标系下的位姿
+                # 从 4 个标记的内侧顶点计算纸面坐标轴在相机坐标系下的朝向
+                # (不平均标记旋转 — 标记朝向 ≠ 纸面朝向)
+                local_c4 = np.array([
+                    [-args.marker_size / 2,  args.marker_size / 2, 0],
+                    [ args.marker_size / 2,  args.marker_size / 2, 0],
+                    [ args.marker_size / 2, -args.marker_size / 2, 0],
+                    [-args.marker_size / 2, -args.marker_size / 2, 0],
+                ], dtype=np.float64)
+
+                cam_c3d: Dict[int, np.ndarray] = {}
+                for mid, (rvec, tvec) in zip(ids, poses):
+                    R, _ = cv2.Rodrigues(rvec)
+                    pts = (R @ local_c4.T).T + tvec.flatten()
+                    cam_c3d[mid] = pts
+
+                all_cam = np.vstack([cam_c3d[m] for m in [0, 1, 2, 3]])
+                gcenter_cam = np.mean(all_cam, axis=0)
+
+                # 每个标记的内侧顶点 (离全局中心最近)
+                inner_cam = []
+                for m in [0, 1, 2, 3]:
+                    pts = cam_c3d[m]
+                    dists = np.linalg.norm(pts - gcenter_cam, axis=1)
+                    inner_cam.append(pts[int(np.argmin(dists))])
+
+                # 从内侧顶点计算纸面坐标轴
+                p0, p1, p2, p3 = inner_cam
+                center_cam = np.mean(inner_cam, axis=0)
+                vx_cam = p1 - p0     # X = 顶边 (ID:0 → ID:1)
+                vy_cam = p3 - p0     # Y = 左边 (ID:0 → ID:3)
+                x_cam = vx_cam / np.linalg.norm(vx_cam)
+                z_cam = np.cross(x_cam, vy_cam)
+                zn = np.linalg.norm(z_cam)
+                if zn > 0:
+                    z_cam /= zn
+                y_cam = np.cross(z_cam, x_cam)
+                R_paper = np.column_stack([x_cam, y_cam, z_cam])
+                rvec_paper, _ = cv2.Rodrigues(R_paper)
+
                 cm = cmat
                 dc = dcoeff
                 if cm is None:
@@ -885,27 +923,13 @@ def main():
                     cm = np.array([[w, 0, w/2], [0, w, h/2], [0, 0, 1]], dtype=np.float32)
                     dc = np.zeros((5, 1), dtype=np.float32)
 
-                # 平均平移
-                avg_t = np.mean([poses[i][1].flatten() for i in range(4)], axis=0)
-                # 平均旋转 (旋转矩阵均值 → SVD 再正交化)
-                Rs = []
-                for i in range(4):
-                    R, _ = cv2.Rodrigues(poses[i][0])
-                    Rs.append(R)
-                avg_R = np.mean(Rs, axis=0)
-                U, _, Vt = np.linalg.svd(avg_R)
-                avg_R = U @ Vt
-                # 翻转 Z 轴 → 指向纸内
-                avg_R[:, 2] = -avg_R[:, 2]
-                avg_rvec, _ = cv2.Rodrigues(avg_R)
-
-                axis_len = max(area.size[0], area.size[1]) * 0.3  # 轴长 = 区域尺寸 30%
-                cv2.drawFrameAxes(display, cm, dc, avg_rvec, avg_t, axis_len)
+                axis_len = max(area.size[0], area.size[1]) * 0.3
+                cv2.drawFrameAxes(display, cm, dc, rvec_paper, center_cam, axis_len)
 
                 # 轴标签 (投影到图像)
                 center_2d, _ = cv2.projectPoints(
                     np.array([[0, 0, 0]], dtype=np.float32),
-                    avg_rvec, avg_t, cm, dc)
+                    rvec_paper, center_cam, cm, dc)
                 ox, oy = map(int, center_2d[0][0])
                 for label, pt_w, color in [
                     ("X", (axis_len, 0, 0), (0, 0, 255)),
@@ -914,7 +938,7 @@ def main():
                 ]:
                     end_2d, _ = cv2.projectPoints(
                         np.array([pt_w], dtype=np.float32),
-                        avg_rvec, avg_t, cm, dc)
+                        rvec_paper, center_cam, cm, dc)
                     px, py = map(int, end_2d[0][0])
                     if 0 <= px < display.shape[1] and 0 <= py < display.shape[0]:
                         cv2.arrowedLine(display, (ox, oy), (px, py), color, 2, tipLength=0.15)

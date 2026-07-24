@@ -61,7 +61,7 @@ def main():
     parser.add_argument("--camera-calib", default="camera_calib.json",
                         help="相机标定文件")
     parser.add_argument("--aruco-dict", default="4X4_50", help="ArUco 字典")
-    parser.add_argument("--marker-size", type=float, default=0.035,
+    parser.add_argument("--marker-size", type=float, default=0.02,
                         help="标记边长/米")
     parser.add_argument("--output", default="handeye_calib.txt",
                         help="输出文件 (默认 handeye_calib.txt)")
