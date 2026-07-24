@@ -69,9 +69,6 @@ R20 R21 R22 tz
 | `--start-from ID` | Starting corner: 0\|1\|2\|3 or "center" (default 0) |
 | `--robross` | Output RobRoss canvas calibration YAML instead of direct robot control |
 | `--robross-output PATH` | Output path for RobRoss canvas calibration (default canvas_calibration.yaml) |
-| `--start-from ID` | Starting corner: 0\|1\|2\|3 or "center" (default 0) |
-| `--robross` | Output RobRoss canvas calibration YAML instead of direct robot control |
-| `--robross-output PATH` | Output path for RobRoss canvas calibration (default canvas_calibration.yaml) |
 
 ## Robot Communication (JSON-RPC)
 

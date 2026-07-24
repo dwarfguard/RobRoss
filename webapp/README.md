@@ -46,6 +46,26 @@ jobs and read anything under `output/`.
    `_config.json`), so it shows up as a new card without any extra
    bookkeeping.
 
+## Deleting a run
+
+Every card in the gallery has a **Delete run** button. It deletes the whole
+`output/<name>/` folder in one go - not individual files inside it, since a
+run's `painting_paths.json` and its preview files are one coherent unit
+(deleting just one would leave the rest orphaned and broken in the gallery,
+per `generate_output_gallery.py`'s `collect_runs()`).
+
+Clicking it pops a browser `confirm()` dialog first - there's no undo, no
+trash/recycle bin, and no persistent database to restore from (see "Not in
+scope" below), so a mis-click is unrecoverable. After deleting,
+`output/index.html` is regenerated automatically so the static gallery
+(opened directly via `file://`, without the webapp running) doesn't keep
+showing a card for a run that no longer exists.
+
+The delete button only appears when the webapp renders the gallery - the
+static `output/index.html` produced by `python3 generate_output_gallery.py`
+never shows one, since that page has no server behind it to handle the
+delete request.
+
 ## Adding a new route
 
 Everything route-specific lives in `route_adapters.py`'s `ROUTE_ADAPTERS`

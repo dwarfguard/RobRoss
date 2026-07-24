@@ -174,6 +174,7 @@ legacy behavior:
 | `image_to_mondrian_lenna_a4.json` | A4 210×297mm, 10mm margin | image_to_mondrian | Lenna tuning config (bilateral, chroma) |
 | `image_to_mondrian_minions_a4.json` | A4 210×297mm, 10mm margin | image_to_mondrian | Minions test variant |
 | `line_art_demo_a4.json` | A4 210×297mm, 10mm margin | line_art | traces `Image_Process/assets/hinton.png`, 1mm pen |
+| `line_art_ai_a4.json` | A4 297×210mm landscape, 10mm margin | line_art | traces `Image_Process/assets/ai.png`, `min_spur_length_px` 8.0 |
 
 Config field references live in each route's README.
 
@@ -201,8 +202,12 @@ Config field references live in each route's README.
   Rerun after regenerating any config's output; not wired into the generation scripts themselves
   since not every run (e.g. CI validation) needs the extra HTML artifact.
 - `CAD/` — SolidWorks 2025 SP5.0 prototype files for hardware (canvas/paint holders).
-- `firmware/` — ESP32 servo gripper firmware (Arduino IDE sketch, continuous-rotation MG996R).
-  See `firmware/gripper_esp32/README.md`.
+- `firmware/` — ESP32 servo gripper firmware (Arduino IDE sketch, continuous-rotation MG996R),
+  controllable over USB or RS485 (a MAX485 transceiver on `Serial2`, for the robot controller's
+  RS485 port). See `firmware/gripper_esp32/README.md`.
+- `handeye_calibration/` — camera-to-robot (hand-eye) calibration tooling and a one-click
+  `start_painting.sh` script that chains ArUco marker detection with the ROS 2 painting launch.
+  See `handeye_calibration/README.md` (also has a `README_EN.md`).
 
 ## Conventions
 

@@ -9,7 +9,7 @@
     },
     {
       "name": "webapp",
-      "runtimeExecutable": "python3",
+      "runtimeExecutable": "/usr/local/bin/python3",
       "runtimeArgs": ["webapp/app.py"],
       "port": 5050
     }
