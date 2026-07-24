@@ -476,14 +476,18 @@ def direction_resolved_normal_err(xy_mm, normal_err_mm, t_s,
 
     Splits a reversal/curve command by the direction of motion at each sample
     (returns the +X/-X/+Y/-Y buckets that have samples) instead of reducing the
-    whole command to its net-displacement direction.
+    whole command to its net-displacement direction. Diagonal samples (neither
+    canvas axis dominant) are retained in their own "mixed" bucket rather than
+    discarded: a curved command's largest canvas-normal error often falls on
+    the diagonal portion, so dropping it would hide the worst tracking error.
+    Only genuinely stationary ("static") samples are excluded.
     """
     v = sample_velocities_mm_s(xy_mm, t_s)
     ne = np.asarray(normal_err_mm, dtype=float)
     buckets = {}
     for i in range(len(ne)):
         d = _instantaneous_direction(v[i, 0], v[i, 1], min_speed_mm_s, dominance)
-        if d in ("static", "mixed"):
+        if d == "static":
             continue
         buckets.setdefault(d, []).append(ne[i])
     out = {}
@@ -576,9 +580,18 @@ def normal_pp_per_cycle(tangential_xy_mm, normal_err_mm, min_step_mm=0.05):
     whole = float(ne.max() - ne.min()) if n else 0.0
     if n < 3:
         return {"n_cycles": 0, "pp_mean_mm": whole, "pp_max_mm": whole}
-    rng = xy.max(axis=0) - xy.min(axis=0)
-    pos = xy[:, int(np.argmax(rng))]
-    bounds = [0] + _reversal_indices(pos, min_step_mm) + [n - 1]
+    # Pick the OSCILLATING tangential axis (the one that actually reverses),
+    # not the axis with the greatest total travel. The real sine fixture
+    # advances ~90 mm monotonically in X while oscillating ~48 mm in Y, so
+    # argmax(range) would pick monotonic X, find no reversals, and report
+    # zero cycles. Compare each axis's reversal count and fall back to the
+    # widest axis only on a tie (e.g. neither axis reverses).
+    revs_by_axis = [_reversal_indices(xy[:, k], min_step_mm) for k in (0, 1)]
+    if len(revs_by_axis[0]) == len(revs_by_axis[1]):
+        axis = int(np.argmax(xy.max(axis=0) - xy.min(axis=0)))
+    else:
+        axis = 0 if len(revs_by_axis[0]) > len(revs_by_axis[1]) else 1
+    bounds = [0] + revs_by_axis[axis] + [n - 1]
     windows = [(bounds[k], bounds[k + 2])
                for k in range(0, len(bounds) - 2, 2)]
     pps = [float(ne[a:b + 1].max() - ne[a:b + 1].min())
@@ -836,15 +849,29 @@ def _render_tracking(metrics_list):
             f"{cyc['pp_mean_mm']:.2f}/{cyc['pp_max_mm']:.2f} mm "
             f"({cyc['n_cycles']} cyc), rms {m['normal_err_rms_mm']:.3f} mm")
     g = _tracking_gate(metrics_list)
+    # Command-to-feedback delay is a MANDATORY Phase 2B criterion. Linear-only
+    # bags produce no delay estimate (a monotonic ramp correlates at every lag),
+    # so absence of a delay measurement must read INCOMPLETE, never PASS -
+    # absence of evidence is not evidence the gate was met.
+    delay_available = g["delay_median_ms"] is not None
     checks = []
-    if g["delay_median_ms"] is not None:
+    if delay_available:
         checks.append(("delay median <30 ms", g["delay_median_ms"] < 30.0))
         checks.append(("delay p95 <50 ms", g["delay_p95_ms"] < 50.0))
     checks.append(("|normal| <=0.25 mm", g["worst_normal_abs_mm"] <= 0.25))
-    passed = all(v for _, v in checks) if checks else False
-    detail = ", ".join(f"{name}: {'ok' if v else 'FAIL'}" for name, v in checks)
-    lines.append(
-        f"Phase 2B tracking gate: {'PASS' if passed else 'FAIL'} ({detail})")
+    measured_pass = all(v for _, v in checks)
+    if not measured_pass:
+        status = "FAIL"
+    elif not delay_available:
+        status = "INCOMPLETE"
+    else:
+        status = "PASS"
+    detail_parts = [f"{name}: {'ok' if v else 'FAIL'}" for name, v in checks]
+    if not delay_available:
+        detail_parts.insert(
+            0, "delay: MISSING (mandatory; need an oscillatory/curved path)")
+    detail = ", ".join(detail_parts)
+    lines.append(f"Phase 2B tracking gate: {status} ({detail})")
     dmed = ("n/a" if g["delay_median_ms"] is None
             else f"{g['delay_median_ms']:.0f}/{g['delay_p95_ms']:.0f} ms")
     lines.append(
@@ -892,17 +919,33 @@ def _render_servoj(servoj):
         f"log warnings: mismatch {warn['mismatch']}, rc {warn['rc']}, "
         f"queue-full {warn['queue_full']}; fault latched: "
         f"{'YES' if warn['fault_latched'] else 'no'}")
+    # The configured rate is a MANDATORY input: without a servoj_config line the
+    # bag cannot prove it ran at the intended rate, so the gate reads INCOMPLETE
+    # (never a silent PASS with the rate check dropped). Queue-full and non-OK
+    # return-code WARNINGS are folded in alongside the per-window stats counts so
+    # events in the trailing, never-reported window still fail the gate.
+    rate_known = agg["rate_pct_of_configured"] is not None
     checks = []
-    if agg["rate_pct_of_configured"] is not None:
+    if rate_known:
         checks.append(("rate >= 95%", agg["rate_pct_of_configured"] >= 95.0))
-    checks.append(("no queue-full", agg["qf_events"] == 0))
+    checks.append(("no queue-full",
+                   agg["qf_events"] == 0 and warn["queue_full"] == 0))
     checks.append(("no non-OK rc/exc",
-                   agg["non_ok_rc"] == 0 and agg["exc"] == 0))
+                   agg["non_ok_rc"] == 0 and agg["exc"] == 0
+                   and warn["rc"] == 0))
     checks.append(("no timing fault", not warn["fault_latched"]))
-    passed = all(v for _, v in checks)
-    detail = ", ".join(f"{name}: {'ok' if v else 'FAIL'}" for name, v in checks)
-    lines.append(
-        f"Phase 2B timing gate: {'PASS' if passed else 'FAIL'} ({detail})")
+    measured_pass = all(v for _, v in checks)
+    if not measured_pass:
+        status = "FAIL"
+    elif not rate_known:
+        status = "INCOMPLETE"
+    else:
+        status = "PASS"
+    detail_parts = [f"{name}: {'ok' if v else 'FAIL'}" for name, v in checks]
+    if not rate_known:
+        detail_parts.insert(0, "rate: UNKNOWN (no servoj_config in bag)")
+    detail = ", ".join(detail_parts)
+    lines.append(f"Phase 2B timing gate: {status} ({detail})")
     lines.append(
         "  (joint-delay gate <30 ms median / <50 ms p95 is assessed separately "
         "from controller_state cross-correlation.)")

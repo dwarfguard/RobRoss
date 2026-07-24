@@ -263,7 +263,7 @@ pen preload as `plane_bias_mm`, plus the nudge helper in another terminal
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
   -p tool_offset_xyz:="[<x>, <y>, <z>]" \
-  -p plane_bias_mm:=1.8 \
+  -p plane_bias_mm:=1.0 \
   -p output_file:=$HOME/canvas_calibration.yaml
 
 # Second terminal: sub-millimeter approach steps along the pen axis. Launch
@@ -278,7 +278,9 @@ Teach at **just-touch**: the recorded point is the free-length virtual pen
 tip, so any spring compression at record time pushes the taught plane that
 far behind the paper — the drawing preload is applied in software by
 `plane_bias_mm` instead (see PREFLIGHT.md section 2). Touch the **physical
-paper corners**, not the artwork-margin corners. For each corner:
+paper corners**, not the artwork-margin corners. Keep the current 1.0 mm bias
+while direction-dependent tracking remediation remains open; do not increase
+preload to hide tracking error. For each corner:
 
 1. Enable pendant freedrive and bring the pen tip to hover a few mm off
    the corner, roughly perpendicular to the paper — the i5's freedrive
@@ -355,9 +357,11 @@ ros2 launch robross_painter paint.launch.py \
   paths_file:=$ROBROSS_REPO/output/painting_paths.json
 ```
 
-Only after that succeeds should a reviewed profile set `dry_run: false` and run
-`output/test_line_paths.json` at the preflight speeds. Keep an operator on the
-e-stop.
+Dry-run success alone does not currently authorize contact. The pushed Phase 2 diagnostics are
+screening-grade and do not yet provide the required per-ServoJ-call telemetry. Follow
+`docs/hardware-first-run-guide.md` Step 5.5; keep `dry_run: true` until a later reviewed
+implementation satisfies every formal Phase 2 gate. When contact is eventually approved, run
+`output/test_line_paths.json` first at the preflight speeds with an operator on the e-stop.
 
 ## Offline Tracking-Bag Analysis
 
@@ -409,7 +413,12 @@ normal oscillation** section computed from the bagged controller state:
 It ends with a **Phase 2B tracking gate** (delay median < 30 ms / p95 < 50 ms,
 actual `|normal|` ≤ 0.25 mm), the tracking half of the Section 7 gate; the
 ServoJ-timing half is below. This section renders from any bag with tracking
-segments, including ones without driver ServoJ diagnostics.
+segments, including ones without driver ServoJ diagnostics. The gate reports
+one of three states: **PASS** (all criteria met), **FAIL** (a measured
+criterion is out of tolerance), or **INCOMPLETE**. Delay is a *mandatory*
+criterion, so a bag that never exercises an oscillatory/curved path (no delay
+estimate at all) reads INCOMPLETE, not PASS — record a sine/curve fixture to
+certify the delay gate. Only PASS authorizes moving past the gate.
 
 ### ServoJ timing (Phase 2)
 
@@ -422,8 +431,14 @@ RPC and whole-`Servoj` durations, late-cycle runs, queue-full events/retries,
 and the servoJoint return-code breakdown, aggregated across the whole bag. It
 ends with a **Phase 2B timing gate** line summarizing the plan's Section 7
 checks (loop rate ≥ 95% of configured, no queue-full, no non-OK return
-codes/exceptions, no latched timing fault). The joint-delay half of the Section
-7 gate lives in the Phase delay section above; both halves must pass.
+codes/exceptions, no latched timing fault). Like the tracking gate it reports
+PASS / FAIL / **INCOMPLETE**: a bag lacking the `servoj_config` line cannot
+prove which rate it ran at, so its rate check is unverifiable and the gate reads
+INCOMPLETE rather than dropping the check and passing. Queue-full and non-OK
+return-code *warnings* (including any in the trailing window after the last
+`servoj_stats` report) are folded into the gate so a late fault still fails it.
+The joint-delay half of the Section 7 gate lives in the Phase delay section
+above; both halves must pass.
 `--servoj-csv` writes the per-window timing series, which is
 the easiest way to compare two candidate timing trials (e.g. 125 Hz / t=0.008
 vs 200 Hz / t=0.005). Bags recorded before Phase 2A, or on fake hardware, carry

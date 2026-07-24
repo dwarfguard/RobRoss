@@ -456,3 +456,101 @@ def test_segment_metrics_includes_phase_and_oscillation_keys(tmp_path):
     summary = analyze_tracking_bag.render_summary(metrics, {}, None)
     assert "Phase delay & normal oscillation" in summary
     assert "Phase 2B tracking gate" in summary
+
+
+# --- Phase 0 analyzer-honesty fixes (code review 2.2/2.4/2.7/2.11) ----------
+
+def test_normal_pp_per_cycle_on_real_sine_fixture_geometry():
+    # generate_curve_test.py's sine squiggle advances X ~90 mm monotonically
+    # while Y oscillates ~48 mm pp. Selecting argmax(range) would pick monotonic
+    # X, find no reversals, and report zero cycles; the oscillating Y axis must
+    # be chosen instead so the fixture that most needs per-cycle analysis works.
+    n = 97
+    i = np.arange(n)
+    x = 100.0 + 90.0 * i / 96.0           # monotonic, widest range
+    y = 120.0 + 24.0 * np.sin(5.0 * np.pi * i / 96.0)   # oscillating
+    xy = np.column_stack([x, y])
+    ne = 1.0 * np.sin(5.0 * np.pi * i / 96.0)   # normal error in phase with Y
+    res = analyze_tracking_bag.normal_pp_per_cycle(xy, ne)
+    assert res["n_cycles"] >= 2
+    assert res["pp_max_mm"] > 1.0
+
+
+def test_direction_resolved_retains_mixed_diagonal():
+    # A 45-degree diagonal (equal X and Y speed) is "mixed"; its samples must be
+    # kept in their own bucket, not discarded, so a curve's diagonal portion
+    # (often the largest canvas-normal error) is still reported.
+    t = [i * 0.01 for i in range(20)]
+    xy = [[float(i), float(i)] for i in range(20)]
+    ne = [0.7] * 20
+    dr = analyze_tracking_bag.direction_resolved_normal_err(
+        xy, ne, t, min_speed_mm_s=1.0)
+    assert "mixed" in dr
+    np.testing.assert_allclose(dr["mixed"]["mean_mm"], 0.7, atol=1e-9)
+
+
+def _tracking_metric(label, normal_min, normal_max, delays=None):
+    """Minimal metrics dict carrying only the fields the tracking gate reads."""
+    seg = analyze_tracking_bag.Segment(1, 1, "paint_stroke", label, 0, S)
+    return {
+        "segment": seg,
+        "direction_resolved": {},
+        "joint_delay_ms": dict(delays or {}),
+        "normal_pp_per_cycle": {"n_cycles": 0, "pp_mean_mm": 0.0,
+                                "pp_max_mm": 0.0},
+        "normal_err_pp_mm": normal_max - normal_min,
+        "normal_err_rms_mm": 0.0,
+        "normal_err_min_mm": normal_min,
+        "normal_err_max_mm": normal_max,
+    }
+
+
+def test_tracking_gate_incomplete_without_delay():
+    # Normal error within tolerance but no delay estimate at all (linear-only
+    # bag) -> INCOMPLETE, never a silent PASS.
+    text = "\n".join(analyze_tracking_bag._render_tracking(
+        [_tracking_metric("linear", 0.0, 0.1)]))
+    assert "Phase 2B tracking gate: INCOMPLETE" in text
+    assert "tracking gate: PASS" not in text
+
+
+def test_tracking_gate_pass_with_delay_and_low_normal():
+    text = "\n".join(analyze_tracking_bag._render_tracking(
+        [_tracking_metric("sine", -0.1, 0.1, delays={"j1": 10.0})]))
+    assert "Phase 2B tracking gate: PASS" in text
+
+
+def test_tracking_gate_fail_on_large_normal():
+    text = "\n".join(analyze_tracking_bag._render_tracking(
+        [_tracking_metric("bad", 0.0, 0.5, delays={"j1": 10.0})]))
+    assert "Phase 2B tracking gate: FAIL" in text
+
+
+_CLEAN_WINDOW = ("servoj_stats cycles=100 "
+                 "period_ms=min:4.90,mean:5.00,max:5.20,p95:5.10,p99:5.15 "
+                 "rpc_ms=min:0.40,mean:1.00,max:1.50,p95:1.20 "
+                 "total_ms=mean:1.10,max:1.60 late=0,late_run_max=0 "
+                 "qf_events=0,qf_retries=0,qf_blocked_ms=0.00 "
+                 "rc=ok:100,busy:0,bad:0,inval:0,ign:0,other:0 "
+                 "last_other_rc=0 exc=0")
+
+
+def test_servoj_gate_incomplete_without_config():
+    # No servoj_config line -> configured rate unknown -> INCOMPLETE, not PASS
+    # (a clean window at an unverifiable rate must not certify).
+    msgs = [(2 * S, _diag_log(_CLEAN_WINDOW))]
+    servoj = analyze_tracking_bag.parse_servoj_diag(msgs)
+    summary = analyze_tracking_bag.render_summary([], {}, servoj)
+    assert "Phase 2B timing gate: INCOMPLETE" in summary
+    assert "timing gate: PASS" not in summary
+
+
+def test_servoj_gate_fails_on_late_queue_full_warning():
+    # A queue-full warning after the last reported window (not counted in any
+    # servoj_stats window) must still fail the gate.
+    msgs = [(1 * S, _diag_log(SERVOJ_CONFIG_LINE)),
+            (2 * S, _diag_log(_CLEAN_WINDOW)),
+            (3 * S, _diag_log("servoj queue-full: dropping oldest command"))]
+    servoj = analyze_tracking_bag.parse_servoj_diag(msgs)
+    summary = analyze_tracking_bag.render_summary([], {}, servoj)
+    assert "Phase 2B timing gate: FAIL" in summary

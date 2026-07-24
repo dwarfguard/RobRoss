@@ -36,13 +36,14 @@ point is the free-length virtual tip (TF x the fixed tool offset), so
 every mm the spring is compressed at record time pushes the taught plane
 1 mm behind the real paper — invisible to every save-time check, and the
 mechanism that rips paper when the spring bottoms out mid-stroke.
-Therefore teach at **just-touch** (zero compression) and let
-`plane_bias_mm:=1.8` apply the preload in software: the saved plane sits
-exactly 1.8 mm "into" the wall, so
+Therefore teach at **just-touch** (zero compression) and let the current
+`plane_bias_mm:=1.0` apply the preload in software: the saved plane sits
+exactly 1.0 mm "into" the wall. Do not increase this value while the
+direction-dependent tracking remediation remains open. With this bias:
 
 - a plane error toward the wall of up to ~2 mm still stays within the
   spring's travel (no hard contact, no arm fault);
-- a plane error away from the wall of up to ~1.8 mm still leaves ink on
+- a plane error away from the wall of up to ~1.0 mm still leaves ink on
   the paper (no air-drawing);
 - the preload itself is one number, tuned from test-line darkness, not an
   eyeballed compression repeated identically at every corner.
@@ -52,7 +53,7 @@ Checklist:
 - [ ] `joint_trajectory_controller` is inactive and
       `joint_state_broadcaster` remains active. Run `teach_canvas.py` with
       the SAME `tool_offset_xyz` as the executor config and
-      `plane_bias_mm:=1.8`, and launch `teach_nudge.launch.py` with the SAME
+      `plane_bias_mm:=1.0`, and launch `teach_nudge.launch.py` with the SAME
       `tool_offset_rpy` (launch, not `ros2 run`, so its MoveGroupInterface
       gets the robot model; it needs `move_group` running).
 - [ ] Freedrive only for the coarse approach (hover a few mm out,
@@ -96,6 +97,10 @@ ros2 launch robross_painter paint.launch.py \
       `tool_spin_deg` or move the canvas, don't lower the jump threshold.
 
 ## 4. First contact
+
+**Current Phase 2 gate:** contact remains blocked on the pushed timing-instrumentation revisions.
+Complete `docs/hardware-first-run-guide.md` Step 5.5 and wait for acceptance-grade per-ServoJ-call
+telemetry and all formal Phase 2 gates to pass before using this section.
 
 - [ ] Clear the arm's whole reach sphere. Pen-up travel may use bounded
       joint-space planning when a straight path fails. It avoids modeled

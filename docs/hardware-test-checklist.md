@@ -15,7 +15,8 @@ The first goal is:
 
 > Draw one correctly oriented 50 mm line on A4 paper.
 
-Only after that succeeds should the team test a small subset of generated paths, then eventually a full Demo v1 Mondrian-style path.
+After the formal Phase 2 gate permits contact and that line succeeds, the team may test a small
+subset of generated paths, then eventually a full Demo v1 Mondrian-style path.
 
 ---
 
@@ -191,6 +192,10 @@ Increasing y moves down.
 ---
 
 ## 9. First Contact Test: 50 mm Line
+
+**Current Phase 2 gate:** do not perform this section on the pushed timing-instrumentation
+revisions. Complete `docs/hardware-first-run-guide.md` Step 5.5 and wait for acceptance-grade
+per-ServoJ-call telemetry and all formal Phase 2 gates to pass.
 
 Draw only one simple line first.
 
