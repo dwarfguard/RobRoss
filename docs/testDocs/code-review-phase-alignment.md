@@ -23,7 +23,19 @@ Findings already closed:
   report PASS / FAIL / **INCOMPLETE** instead of silently passing without delay
   evidence or without a known configured rate; `normal_pp_per_cycle` selects the
   oscillating tangential axis (real sine fixture); diagonal/`mixed` samples are
-  retained. Verified: `robross_painter` colcon test 82 passed. Not committed.
+  retained. Verified: `robross_painter` colcon test 82 passed. Committed `1b39829`.
+- **Slice 2a (2.6, 2.9)** — Phase 2A driver queue-full policy + off-RT
+  diagnostics, in `aubo_ros2_driver` (`aubo_hardware_interface.{h,cpp}`,
+  `servo_timing_stats.h`, + tests). The unbounded blocking queue-full retry is
+  replaced by a bounded policy that drops the cycle (keeping the newest command
+  for the next) and latches a control fault on sustained saturation (same
+  transient-tolerant streak pattern as the timing-mismatch latch); the periodic
+  timing report's string formatting + `/rosout` publish move to an off-RT worker
+  thread. Verified: `aubo_ros2_driver` colcon test 15 passed. Not committed. The
+  motivating evidence is `robross_phase2_20260724_144321` — see
+  `docs/testDocs/phase2b-trial-results-and-next-steps.md`. **2.1 (full-rate
+  per-call telemetry) is deferred** — it needs a transport decision (CSV vs
+  topic) and feeds Slice 3, not the immediate re-trial gate.
 
 The remaining open findings are mapped below.
 
@@ -37,9 +49,9 @@ The remaining open findings are mapped below.
 | 2.11 diagonal/curve samples discarded | **Phase 0** (§5) | "split reversal and curved commands by instantaneous canvas direction" | **done** Slice 1 |
 | 2.3 delay median/p95 semantics not per-cycle | **Phase 0** (§5) → Phase 2B gate (§7, <30/50 ms) | open |
 | 2.5 `servoj_time` accepts invalid input | **Phase 2A/2B** (§7) | "reject an obvious configuration mismatch" | **done** `9bba97a` |
-| 2.6 failed ServoJ writes reported OK | **Phase 2A** (§7) | "unexpected return codes must no longer be silently discarded" + Queue-full Policy | open |
-| 2.9 diagnostics run on the RT control thread | **Phase 2A** (§7) | "logging … throttled so diagnostics do not create additional timing load" | open |
-| 2.1 no full-rate per-call command telemetry | **Phase 2A** (§7) | "timestamped commanded joint positions for every ServoJ call … phase delay through each sine cycle" | open |
+| 2.6 failed ServoJ writes reported OK | **Phase 2A** (§7) | "unexpected return codes must no longer be silently discarded" + Queue-full Policy | **done** Slice 2a |
+| 2.9 diagnostics run on the RT control thread | **Phase 2A** (§7) | "logging … throttled so diagnostics do not create additional timing load" | **done** Slice 2a |
+| 2.1 no full-rate per-call command telemetry | **Phase 2A** (§7) | "timestamped commanded joint positions for every ServoJ call … phase delay through each sine cycle" | open (Slice 2b; transport TBD) |
 | 2.8 launch does not pair rate with `servoj_time` | **Phase 2B** (§7) | "derive it from one authoritative controller period" | open |
 | 2.10 submodule commit not on remote | **§13/§14** cross-repo versioning | "changes spanning the two repositories … versioned together" | **done** |
 
@@ -96,16 +108,30 @@ dry-run bag analyzable without lying. Files:
 Reuse existing helpers: `_tracking_gate`, `_render_tracking`, `_render_servoj`,
 `normal_pp_per_cycle`, `_reversal_indices`, `direction_resolved_normal_err`.
 
-### Slice 2 — Phase 2A driver telemetry (2.1 + 2.9 + 2.6)
+### Slice 2 — Phase 2A driver telemetry (2.6 + 2.9 + 2.1)
 
-RT-safe per-ServoJ-call command/timestamp capture handed to a non-RT diagnostics
-worker; escalate persistent non-OK return codes / exceptions to a control error
-with a transient-tolerant streak policy (mirroring the existing timing latch);
-bounded queue-full handling that preserves the newest command. **Behavior-
-changing and touches §4 safety constraints — confirm the escalation policy
-before editing.** Files: `aubo_hardware_interface.{h,cpp}`, `servo_timing_stats.h`,
-driver `test/`. Description + driver changes versioned and pushed together
-(submodule first — the 2.10 lesson).
+Split into 2a (done) and 2b (deferred):
+
+- **Slice 2a — bounded queue-full policy (2.6) + off-RT diagnostics (2.9)
+  [done, uncommitted].** The unbounded blocking retry is replaced by a bounded
+  policy that drops the cycle on sustained `AUBO_QUEUE_FULL` (the newest command
+  is resent next cycle; nothing stale is buffered; default 0 in-cycle retries so
+  the RT write thread never sleeps on back-pressure), and latches a control fault
+  when drops persist for a full report window — the same transient-tolerant
+  streak pattern as the timing-mismatch latch. The periodic timing report's
+  formatting + `/rosout` publish move to an off-RT worker thread. `qf_drops` /
+  `qf_run_max` added to the stats line; queue-full drops count as `qf_events`
+  (so the Phase 2B "no queue-full" gate already sees them) and rc 2 is no longer
+  bucketed as an "other" return code. Files: `aubo_hardware_interface.{h,cpp}`,
+  `servo_timing_stats.h`, driver `test/`. Driver-only (no description change).
+  Verified: `aubo_ros2_driver` colcon test 15 passed.
+- **Slice 2b — full-rate per-call telemetry (2.1) [deferred].** RT-safe
+  per-ServoJ-call command/timestamp capture handed to the (now existing) non-RT
+  worker, sufficient to compute per-cycle phase delay. Needs a transport
+  decision (opt-in CSV file vs. a recorded topic) before editing, since it adds a
+  data sink to the driver; it is the input for Slice 3 (2.3), not for the
+  immediate re-trial gate. If it later touches the description/launch, version
+  the two repos together (submodule first — the 2.10 lesson).
 
 ### Slice 3 — Phase 0 per-cycle delay (2.3)
 
