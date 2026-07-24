@@ -43,13 +43,96 @@ Calibration files (place in this directory):
 }
 ```
 
-**handeye_calib.txt:** 4×4 homogeneous transform matrix
+**handeye_calib.txt:** 4×4 homogeneous transform matrix T_base_cam
+
+Transforms a point from camera coordinates to robot base coordinates:
+
+```
+p_base = T_base_cam × p_cam
+
+        ┌                 ┐
+        │ R00 R01 R02  tx │
+T_base_cam = │ R10 R11 R12  ty │
+        │ R20 R21 R22  tz │
+        │  0   0   0   1 │
+        └                 ┘
+```
+
+After pressing **c** to complete calibration, the terminal shows:
+
+```
+  ┌─ Result: T_base_cam
+  │  R:                                               ← rotation matrix (3×3)
+  │    [0.999847, -0.005508,  0.016582]
+  │    [0.005686,  0.999970, -0.005982]
+  │    [-0.016550,  0.006069,  0.999845]
+  │  t: [0.4500, -0.1200, 0.3800]                    ← translation vector (meters)
+  │  RPY: -0.3°, 0.9°, 0.3°                           ← Euler angles
+  │  Mean residual: 1.23 mm                           ← smaller is better
+  │  Max residual:  2.10 mm
+  └─
+```
+
+| Output | Meaning | Unit |
+|--------|---------|------|
+| **R** | Rotation matrix — camera → base orientation | — |
+| **t** | Translation — camera origin in base coordinates | meters |
+| **RPY** | Euler angles (Roll/Pitch/Yaw), human-readable R | degrees |
+| **Mean residual** | Average reprojection error across all points | mm |
+| **Max residual** | Worst point's deviation | mm |
+
+**Residual quality guide:**
+
+| Residual | Rating |
+|----------|--------|
+| < 2 mm | Excellent, ready to use |
+| 2–5 mm | Acceptable, can refine with more points |
+| > 5 mm | Redo — check if the pen tip was aligned to the marker center |
+
+Saved as plain text `handeye_calib.txt`:
 ```
 R00 R01 R02 tx
 R10 R11 R12 ty
 R20 R21 R22 tz
 0   0   0   1
 ```
+
+## Full Coordinate Chain
+
+After hand-eye calibration produces `T_base_cam`, the complete coordinate pipeline is:
+
+```
+Camera sees paper point P
+    │
+    ▼
+P_cam  (camera coordinates)
+    │
+    │  T_base_cam  (4×4, hand-eye calibration result)
+    ▼
+P_tcp  ── pen tip target position (base coordinates)
+    │
+    ├── [JSON-RPC Direct Pipeline]
+    │   moveLine([P_tcp, roll, pitch, yaw])
+    │   └→ AUBO controller internally: uses TCP offset [0.0595, 0, 0.0514]
+    │       to convert pen-tip target to flange trajectory
+    │     └→ Flange moves → pen tip lands on P_tcp ✓
+    │
+    └── [ROS 2 / MoveIt Pipeline]
+        T_ee = T_tip × tool_offset_inv_
+        └→ tool_offset_xyz = [0.0595, 0, 0.0514]  (hardware_a4.yaml)
+        └→ MoveIt plans flange motion from current pose to T_ee
+          └→ Flange moves → pen tip lands on P_tcp ✓
+```
+
+**Critical requirement:** The TCP offset set on the AUBO teach pendant MUST match `tool_offset_xyz`.
+Current value for both: `[0.0595, 0, 0.0514]` meters (pen tip in flange coordinates).
+
+| Component | TCP offset source | Value |
+|-----------|------------------|-------|
+| AUBO controller (JSON-RPC) | Teach pendant TCP config | `[0.0595, 0, 0.0514]` |
+| ROS 2 / MoveIt | `config/hardware_a4.yaml` → `tool_offset_xyz` | `[0.0595, 0, 0.0514]` |
+
+> If you modify the TCP value on either side, **the other side must be updated too**, or the two pipelines will place the pen at different positions.
 
 ## Options
 

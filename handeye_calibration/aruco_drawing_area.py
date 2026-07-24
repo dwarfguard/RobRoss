@@ -818,7 +818,7 @@ def main():
         display = frame.copy()
 
         ids, corners, poses = detector.detect(display, cmat, dcoeff)
-        found = len(ids) == 4
+        found = {0, 1, 2, 3}.issubset(set(ids))
 
         # ── 绘制 ArUco 标记 & 绘图区域边界 ────────────────────
         if found:
@@ -875,6 +875,51 @@ def main():
                     dim = f"{area.size[0]*1000:.0f} x {area.size[1]*1000:.0f} mm"
                     cv2.putText(display, dim, (10, display.shape[0] - 20),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+                # ── 坐标轴: 在绘图区域中心画 X(红) Y(绿) Z(蓝) ──
+                # 计算平均位姿 (4 个标记的均值) 作为区域中心在相机坐标系下的位姿
+                cm = cmat
+                dc = dcoeff
+                if cm is None:
+                    h, w = display.shape[:2]
+                    cm = np.array([[w, 0, w/2], [0, w, h/2], [0, 0, 1]], dtype=np.float32)
+                    dc = np.zeros((5, 1), dtype=np.float32)
+
+                # 平均平移
+                avg_t = np.mean([poses[i][1].flatten() for i in range(4)], axis=0)
+                # 平均旋转 (旋转矩阵均值 → SVD 再正交化)
+                Rs = []
+                for i in range(4):
+                    R, _ = cv2.Rodrigues(poses[i][0])
+                    Rs.append(R)
+                avg_R = np.mean(Rs, axis=0)
+                U, _, Vt = np.linalg.svd(avg_R)
+                avg_R = U @ Vt
+                # 翻转 Z 轴 → 指向纸内
+                avg_R[:, 2] = -avg_R[:, 2]
+                avg_rvec, _ = cv2.Rodrigues(avg_R)
+
+                axis_len = max(area.size[0], area.size[1]) * 0.3  # 轴长 = 区域尺寸 30%
+                cv2.drawFrameAxes(display, cm, dc, avg_rvec, avg_t, axis_len)
+
+                # 轴标签 (投影到图像)
+                center_2d, _ = cv2.projectPoints(
+                    np.array([[0, 0, 0]], dtype=np.float32),
+                    avg_rvec, avg_t, cm, dc)
+                ox, oy = map(int, center_2d[0][0])
+                for label, pt_w, color in [
+                    ("X", (axis_len, 0, 0), (0, 0, 255)),
+                    ("Y", (0, axis_len, 0), (0, 255, 0)),
+                    ("Z", (0, 0, -axis_len), (255, 0, 0)),
+                ]:
+                    end_2d, _ = cv2.projectPoints(
+                        np.array([pt_w], dtype=np.float32),
+                        avg_rvec, avg_t, cm, dc)
+                    px, py = map(int, end_2d[0][0])
+                    if 0 <= px < display.shape[1] and 0 <= py < display.shape[0]:
+                        cv2.arrowedLine(display, (ox, oy), (px, py), color, 2, tipLength=0.15)
+                        cv2.putText(display, label, (px + 5, py - 5),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
         # ── 状态栏 ───────────────────────────────────────────
         status = "✓ 4/4 已定位" if found else f"✗ {len(ids)}/4"
