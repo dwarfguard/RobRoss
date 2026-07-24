@@ -1,0 +1,20 @@
+# Canvas calibration written by teach_canvas.py.
+# base frame: base_link, ee frame: ee_link, tool_offset_xyz: [0.001208, -0.06034, 0.090753]
+# measured paper: 211.3 x 297.6 mm
+# out-of-plane error: 0.38 mm before correction, 0.00 mm after (2 interior sample(s))
+# canvas_z_correction_coeffs [a,b,c,d,e,f]: quadratic surface z(x,y)=a+b*x+c*y+d*x*y+e*x^2+f*y^2 (mm, x/y in canvas mm).
+# Measured flatness record only — NOT applied by the executor (see docs/aubo-painting-tracking-remediation-plan.md Section 4).
+# plane_bias_mm: 1.0 (origin sits this far behind the raw top_left, along the canvas normal into the wall)
+# top_left:     [-0.7168037700629452, -0.21317526235030865, -0.035924974986753185]
+# top_right:    [-0.7163465249383711, -0.0018872501216751095, -0.035955001242126874]
+# bottom_left:  [-0.41920705964283655, -0.210932061409205, -0.03721121430979634]
+# bottom_right: [-0.41980283067753305, -0.002353009649954409, -0.036755301944669416] (rectangle residual 2.95 mm)
+# sample 1: [-0.5709412902220802, -0.15897593112515224, -0.03604687855868295]
+# sample 2: [-0.6400945573438084, -0.10707801778181221, -0.03584782410056589]
+# Pass to the executor as: canvas_file:=<this file>
+painting_executor:
+  ros__parameters:
+    canvas_origin_xyz: [-0.716807, -0.213175, -0.036925]
+    canvas_quat_xyzw: [0.707871, 0.706339, -0.001082, -0.001536]
+    canvas_z_correction_coeffs: [0.0, 0.00023438, -0.00522196, -7.7e-06, 2.58e-06,
+      1.971e-05]

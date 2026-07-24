@@ -1,0 +1,90 @@
+# RobRoss hardware profile: A4 paper on any taught surface (wall, table,
+# ground, slanted stand), pen held by the custom claw. Template for the
+# first real-arm tests - measure and edit every value marked TODO before
+# running with dry_run: false.
+#
+# The canvas pose itself does NOT live here. Teach it on the real setup:
+#   1. Put the arm in freedrive, run teach_canvas.py with the same
+#      tool_offset_xyz as below, touch the pen tip to the paper's top-left,
+#      top-right and bottom-left corners, call the record services, then
+#      ~/save (see the package README).
+#   2. Launch with both files:
+#        ros2 launch robross_painter paint.launch.py \
+#          calibration_file:=<this file> \
+#          canvas_file:=<teach_canvas output yaml> \
+#          paths_file:=...
+painting_executor:
+  ros__parameters:
+    # Fallback flat-canvas pose, overridden by the taught canvas_file.
+    canvas_origin_xyz: [0.5985, 0.105, 0.15]
+    canvas_x_yaw_deg: -90.0
+
+    # Pen hover distance off the paper for travel moves (meters).
+    safe_clearance_m: 0.02
+
+    # No global ground plane: the taught canvas may lie on or near the
+    # mounting surface, and the backing patch below protects the surface
+    # under the paper instead. ground_z_m only applies if re-enabled.
+    ground_enabled: false
+    ground_z_m: -0.005
+    # Surface behind/under the paper: reject any plan where an arm/claw
+    # link pushes past the drawing plane. Clearance = paper-to-surface gap
+    # the pen tip is allowed to occupy (paper thickness + margin).
+    # Size [0, 0] auto-sizes the patch to the canvas plus the margin on
+    # every side.
+    canvas_backing_enabled: true
+    canvas_backing_clearance_m: 0.005
+    canvas_backing_size_xy_m: [0.0, 0.0]
+    canvas_backing_margin_m: 0.05
+
+    # TODO: pen tip position (and axis, if angled) in ee_link, from the
+    # claw CAD or measured on the flange. Example: pen sticking 120 mm
+    # straight out along ee_link z.
+    tool_offset_xyz: [0.001208, -0.06034, 0.090753]
+    tool_offset_rpy: [0.0, 0.0, 0.0]
+    # Spin of the claw about the pen axis, degrees. Pick the value that
+    # keeps the claw and cable clear of the wrist and wall.
+    tool_spin_deg: -90.0
+
+    # TODO: box that fully encloses the claw, attached to ee_link so
+    # MoveIt collision-checks it against the wall (the claw is not in the
+    # URDF). Size in meters, offset = box center in ee_link.
+    claw_collision_size_xyz: [0.02, 0.06, 0.02]
+    claw_collision_offset_xyz: [0.0, -0.03, 0.0]
+
+    # Slow for first contact tests; raise once trusted.
+    velocity_scaling: 0.025
+    acceleration_scaling: 0.025
+    # Cartesian interpolation resolution (meters).
+    eef_step_m: 0.0002
+    # Reject Cartesian paths whose consecutive IK solutions jump more than
+    # this factor times the average joint step (an arm configuration flip).
+    # Never set to 0: that disables the check and a flip executes as the
+    # arm sweeping through unchecked space (self/ground/wall collision).
+    cartesian_jump_threshold: 2.0
+    # Hard elbow-up policy: startup and every trajectory must remain in this
+    # band. An out-of-band start aborts without moving the arm.
+    elbow_up_enabled: true
+    elbow_joint: foreArm_joint
+    elbow_up_min_deg: -5.0
+    elbow_up_max_deg: 175.0
+    # Bound base-axis movement. Tune only from recorded dry-run trajectories;
+    # do not raise these merely to make a rejected plan execute.
+    guarded_joints: [shoulder_joint]
+    max_guarded_joint_goal_delta_deg: 120.0
+    max_guarded_joint_travel_deg: 150.0
+    max_guarded_joint_paint_travel_deg: 90.0
+    max_guarded_joint_step_deg: 45.0
+    # Verify the trajectory after time parameterization still follows the
+    # requested pen-tip path and orientation.
+    max_cartesian_deviation_mm: 2.0
+    max_cartesian_normal_deviation_mm: 0.5
+    max_cartesian_orientation_deviation_deg: 2.0
+    max_execution_tip_error_mm: 2.0
+    max_execution_tip_orientation_error_deg: 1.0
+    totg_path_tolerance: 0.01
+    totg_resample_dt: 0.02
+    joint_states_topic: /joint_states
+    state_validity_service: /check_state_validity
+    # Keep true for the first run: plans everything, executes nothing.
+    dry_run: false

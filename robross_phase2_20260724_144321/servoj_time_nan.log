@@ -1,0 +1,31 @@
+[INFO] [launch]: All log files can be found below /home/robross/.ros/log/2026-07-24-14-44-02-666167-longROBROSSdd-XiaoXinPro-14-AHP9-228642
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [aubo_ros2_control_node-1]: process started with pid [228645]
+[INFO] [robot_state_publisher-2]: process started with pid [228647]
+[INFO] [spawner-3]: process started with pid [228649]
+[robot_state_publisher-2] [INFO] [1784875442.876491374] [robot_state_publisher]: got segment base_link
+[robot_state_publisher-2] [INFO] [1784875442.876591193] [robot_state_publisher]: got segment ee_link
+[robot_state_publisher-2] [INFO] [1784875442.876598756] [robot_state_publisher]: got segment foreArm_Link
+[robot_state_publisher-2] [INFO] [1784875442.876603269] [robot_state_publisher]: got segment shoulder_Link
+[robot_state_publisher-2] [INFO] [1784875442.876606609] [robot_state_publisher]: got segment upperArm_Link
+[robot_state_publisher-2] [INFO] [1784875442.876609518] [robot_state_publisher]: got segment world
+[robot_state_publisher-2] [INFO] [1784875442.876612567] [robot_state_publisher]: got segment wrist1_Link
+[robot_state_publisher-2] [INFO] [1784875442.876615295] [robot_state_publisher]: got segment wrist2_Link
+[robot_state_publisher-2] [INFO] [1784875442.876618244] [robot_state_publisher]: got segment wrist3_Link
+[aubo_ros2_control_node-1] [WARN] [1784875442.877174792] [controller_manager]: [Deprecated] Passing the robot description parameter directly to the control_manager node is deprecated. Use '~/robot_description' topic from 'robot_state_publisher' instead.
+[aubo_ros2_control_node-1] [INFO] [1784875442.877408894] [resource_manager]: Loading hardware 'auboHardwareInterface' 
+[aubo_ros2_control_node-1] [INFO] [1784875442.878726192] [resource_manager]: Initialize hardware 'auboHardwareInterface' 
+[aubo_ros2_control_node-1] [INFO] [1784875442.878759953] [AuboHardwareInterface]: servoj_time hardware parameter not set; defaulting to 0.0050 s
+[aubo_ros2_control_node-1] [INFO] [1784875442.878771407] [resource_manager]: Successful initialization of hardware 'auboHardwareInterface'
+[aubo_ros2_control_node-1] [INFO] [1784875442.878807927] [resource_manager]: 'configure' hardware 'auboHardwareInterface' 
+[aubo_ros2_control_node-1] [INFO] [1784875442.878813122] [resource_manager]: Successful 'configure' of hardware 'auboHardwareInterface'
+[aubo_ros2_control_node-1] [INFO] [1784875442.878817275] [resource_manager]: 'activate' hardware 'auboHardwareInterface' 
+[aubo_ros2_control_node-1] [INFO] [1784875442.878819832] [AuboHardwareInterface]: Starting ...please wait...
+[aubo_ros2_control_node-1] [INFO] [1784875442.879494354] [aubo_servoj_diag]: servoj_config t=0.0050 a=0.200 v=0.200 lookahead=0.100 gain=200 window=400
+[aubo_ros2_control_node-1] [Error] [connector_asio.h:119] Connect to 127.0.0.1:30004 FAILED: Connection refused
+[aubo_ros2_control_node-1] terminate called after throwing an instance of 'arcs::common_interface::AuboException'
+[aubo_ros2_control_node-1]   what():  getRobotNames-RPC client has not connected
+[ERROR] [aubo_ros2_control_node-1]: process has died [pid 228645, exit code -6, cmd '/home/robross/robross_aubo_ws/install/aubo_ros2_driver/lib/aubo_ros2_driver/aubo_ros2_control_node --ros-args --params-file /tmp/launch_params_zguv0ro1 --params-file /home/robross/robross_aubo_ws/install/aubo_ros2_driver/share/aubo_ros2_driver/config/aubo_controllers.yaml'].
+[spawner-3] [INFO] [1784875443.067437423] [spawner_joint_state_broadcaster]: waiting for service /controller_manager/list_controllers to become available...
+[spawner-3] [WARN] [1784875453.086703927] [spawner_joint_state_broadcaster]: Could not contact service /controller_manager/list_controllers
+[spawner-3] [INFO] [1784875453.087409866] [spawner_joint_state_broadcaster]: waiting for service /controller_manager/list_controllers to become available...

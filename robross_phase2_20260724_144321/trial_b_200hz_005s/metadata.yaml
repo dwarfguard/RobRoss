@@ -1,0 +1,62 @@
+rosbag2_bagfile_information:
+  version: 5
+  storage_identifier: sqlite3
+  duration:
+    nanoseconds: 285595567905
+  starting_time:
+    nanoseconds_since_epoch: 1784876896772963339
+  message_count: 72559
+  topics_with_message_count:
+    - topic_metadata:
+        name: /robross_markers
+        type: visualization_msgs/msg/Marker
+        serialization_format: cdr
+        offered_qos_profiles: "- history: 3\n  depth: 0\n  reliability: 1\n  durability: 1\n  deadline:\n    sec: 9223372036\n    nsec: 854775807\n  lifespan:\n    sec: 9223372036\n    nsec: 854775807\n  liveliness: 1\n  liveliness_lease_duration:\n    sec: 9223372036\n    nsec: 854775807\n  avoid_ros_namespace_conventions: false"
+      message_count: 6
+    - topic_metadata:
+        name: /joint_states
+        type: sensor_msgs/msg/JointState
+        serialization_format: cdr
+        offered_qos_profiles: "- history: 3\n  depth: 0\n  reliability: 1\n  durability: 1\n  deadline:\n    sec: 9223372036\n    nsec: 854775807\n  lifespan:\n    sec: 9223372036\n    nsec: 854775807\n  liveliness: 1\n  liveliness_lease_duration:\n    sec: 9223372036\n    nsec: 854775807\n  avoid_ros_namespace_conventions: false"
+      message_count: 46128
+    - topic_metadata:
+        name: /joint_trajectory_controller/controller_state
+        type: control_msgs/msg/JointTrajectoryControllerState
+        serialization_format: cdr
+        offered_qos_profiles: "- history: 3\n  depth: 0\n  reliability: 1\n  durability: 1\n  deadline:\n    sec: 9223372036\n    nsec: 854775807\n  lifespan:\n    sec: 9223372036\n    nsec: 854775807\n  liveliness: 1\n  liveliness_lease_duration:\n    sec: 9223372036\n    nsec: 854775807\n  avoid_ros_namespace_conventions: false"
+      message_count: 17069
+    - topic_metadata:
+        name: /tf
+        type: tf2_msgs/msg/TFMessage
+        serialization_format: cdr
+        offered_qos_profiles: "- history: 3\n  depth: 0\n  reliability: 1\n  durability: 2\n  deadline:\n    sec: 9223372036\n    nsec: 854775807\n  lifespan:\n    sec: 9223372036\n    nsec: 854775807\n  liveliness: 1\n  liveliness_lease_duration:\n    sec: 9223372036\n    nsec: 854775807\n  avoid_ros_namespace_conventions: false"
+      message_count: 9016
+    - topic_metadata:
+        name: /tf_static
+        type: tf2_msgs/msg/TFMessage
+        serialization_format: cdr
+        offered_qos_profiles: "- history: 3\n  depth: 0\n  reliability: 1\n  durability: 1\n  deadline:\n    sec: 9223372036\n    nsec: 854775807\n  lifespan:\n    sec: 9223372036\n    nsec: 854775807\n  liveliness: 1\n  liveliness_lease_duration:\n    sec: 9223372036\n    nsec: 854775807\n  avoid_ros_namespace_conventions: false"
+      message_count: 2
+    - topic_metadata:
+        name: /robot_description
+        type: std_msgs/msg/String
+        serialization_format: cdr
+        offered_qos_profiles: "- history: 3\n  depth: 0\n  reliability: 1\n  durability: 1\n  deadline:\n    sec: 9223372036\n    nsec: 854775807\n  lifespan:\n    sec: 9223372036\n    nsec: 854775807\n  liveliness: 1\n  liveliness_lease_duration:\n    sec: 9223372036\n    nsec: 854775807\n  avoid_ros_namespace_conventions: false"
+      message_count: 2
+    - topic_metadata:
+        name: /rosout
+        type: rcl_interfaces/msg/Log
+        serialization_format: cdr
+        offered_qos_profiles: "- history: 3\n  depth: 0\n  reliability: 1\n  durability: 1\n  deadline:\n    sec: 9223372036\n    nsec: 854775807\n  lifespan:\n    sec: 10\n    nsec: 0\n  liveliness: 1\n  liveliness_lease_duration:\n    sec: 9223372036\n    nsec: 854775807\n  avoid_ros_namespace_conventions: false\n- history: 3\n  depth: 0\n  reliability: 1\n  durability: 1\n  deadline:\n    sec: 9223372036\n    nsec: 854775807\n  lifespan:\n    sec: 10\n    nsec: 0\n  liveliness: 1\n  liveliness_lease_duration:\n    sec: 9223372036\n    nsec: 854775807\n  avoid_ros_namespace_conventions: false"
+      message_count: 336
+  compression_format: ""
+  compression_mode: ""
+  relative_file_paths:
+    - trial_b_200hz_005s_0.db3
+  files:
+    - path: trial_b_200hz_005s_0.db3
+      starting_time:
+        nanoseconds_since_epoch: 1784876896772963339
+      duration:
+        nanoseconds: 285595567905
+      message_count: 72559

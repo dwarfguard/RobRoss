@@ -1,0 +1,37 @@
+A message was lost!!!
+	total count change:1
+	total count: 1---
+header:
+  stamp:
+    sec: 1784875952
+    nanosec: 586549040
+  frame_id: base_link
+name:
+- shoulder_joint
+- foreArm_joint
+- wrist1_joint
+- upperArm_joint
+- wrist2_joint
+- wrist3_joint
+position:
+- 3.5598642796554514
+- 1.7336524042998787
+- 0.08418567566202227
+- 0.08060991566561879
+- 1.5675656856284188
+- 1.0857654395559526
+velocity:
+- 0.0
+- -0.00015846908965760757
+- -0.00037969821482317854
+- 0.0
+- 0.0
+- 0.0
+effort:
+- .nan
+- .nan
+- .nan
+- .nan
+- .nan
+- .nan
+---
