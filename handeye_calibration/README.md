@@ -140,7 +140,7 @@ P_tcp  ── 笔尖目标位置 (基座坐标系)
 |------|------|
 | `--camera-id ID` | 摄像头 ID（默认 0，用 `--list-cameras` 查看可用 ID） |
 | `--robot-ip IP` | 机械臂控制器 IP |
-| `--marker-size M` | 标记实际边长/米（默认 0.035） |
+| `--marker-size M` | 标记实际边长/米（默认 0.02，即 20mm） |
 | `--aruco-dict NAME` | ArUco 字典（默认 4X4_50） |
 | `--camera-calib PATH` | 相机标定文件 |
 | `--handeye-calib PATH` | 手眼标定文件 |
@@ -212,7 +212,7 @@ cd handeye_calibration/
 | `--paths-file` | **必选** 绘画路径文件 (painting_paths.json) |
 | `--camera-calib` | 相机内参文件 (默认 camera_calib.json) |
 | `--handeye-calib` | 手眼标定矩阵 (默认 handeye_calib.txt) |
-| `--marker-size` | ArUco 标记边长/米 (默认 0.035) |
+| `--marker-size` | ArUco 标记边长/米 (默认 0.02，即 20mm) |
 | `--robross-output` | 画布标定 YAML 输出路径 (默认 /tmp/...) |
 | `--calibration-file` | ROS 2 硬件参数 YAML (默认仅仿真用) |
 | `--ros-workspace` | ROS 2 colcon 工作空间 (也支持 \$COLCON_WS) |

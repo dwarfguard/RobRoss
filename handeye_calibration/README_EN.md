@@ -140,7 +140,7 @@ Current value for both: `[0.0595, 0, 0.0514]` meters (pen tip in flange coordina
 |----------|-------------|
 | `--camera-id ID` | Camera device ID (default 0, use `--list-cameras` to find available IDs) |
 | `--robot-ip IP` | Robot controller IP address |
-| `--marker-size M` | Actual marker side length in meters (default 0.035) |
+| `--marker-size M` | Actual marker side length in meters (default 0.02 / 20mm) |
 | `--aruco-dict NAME` | ArUco dictionary (default 4X4_50) |
 | `--camera-calib PATH` | Camera calibration file |
 | `--handeye-calib PATH` | Hand-eye calibration file |
@@ -212,7 +212,7 @@ The script does two things:
 | `--paths-file` | **Required** Path to painting_paths.json |
 | `--camera-calib` | Camera intrinsics (default camera_calib.json) |
 | `--handeye-calib` | Hand-eye calibration (default handeye_calib.txt) |
-| `--marker-size` | ArUco marker side length in meters (default 0.035) |
+| `--marker-size` | ArUco marker side length in meters (default 0.02 / 20mm) |
 | `--robross-output` | Canvas YAML output path (default /tmp/...) |
 | `--calibration-file` | ROS 2 hardware parameters YAML |
 | `--ros-workspace` | ROS 2 colcon workspace (also reads \$COLCON_WS) |
