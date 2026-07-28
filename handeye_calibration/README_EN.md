@@ -50,12 +50,12 @@ Transforms a point from camera coordinates to robot base coordinates:
 ```
 p_base = T_base_cam × p_cam
 
-        ┌                 ┐
-        │ R00 R01 R02  tx │
-T_base_cam = │ R10 R11 R12  ty │
-        │ R20 R21 R22  tz │
-        │  0   0   0   1 │
-        └                 ┘
+              ┌                 ┐
+              │ R00 R01 R02  tx │
+T_base_cam =  │ R10 R11 R12  ty │
+              │ R20 R21 R22  tz │
+              │  0   0   0   1  │
+              └                 ┘
 ```
 
 After pressing **c** to complete calibration, the terminal shows:

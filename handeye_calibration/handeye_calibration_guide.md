@@ -128,12 +128,12 @@ p_base = T_base_cam × p_cam
 ```
 
 ```
-        ┌                 ┐
-        │ R00 R01 R02  tx │
+             ┌                 ┐
+             │ R00 R01 R02  tx │
 T_base_cam = │ R10 R11 R12  ty │
-        │ R20 R21 R22  tz │
-        │  0   0   0   1 │
-        └                 ┘
+             │ R20 R21 R22  tz │
+             │  0   0   0   1  │
+             └                 ┘
 ```
 
 | 部分 | 含义 |
