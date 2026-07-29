@@ -136,5 +136,32 @@ class TestFullPipelineOnSyntheticImage(unittest.TestCase):
         self.assertEqual(painting_paths["debug"]["num_paint_path_commands"], 1)
 
 
+class TestFullPipelineClosedLoopOnSyntheticImage(unittest.TestCase):
+    """A closed loop's traced points must come back to their own start -
+    simplify()'s Douglas-Peucker (cv2.approxPolyDP) returns a closed
+    contour as a bare polygon (no repeated closing point), and nothing
+    downstream (order_strokes, paint_path) otherwise knows the stroke was
+    closed - without build_canvas_strokes() explicitly re-appending the
+    start point, the pen would lift one edge short of a full loop."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+        image = np.full((40, 40), 255, dtype=np.uint8)
+        cv2.rectangle(image, (10, 10), (29, 29), color=0, thickness=2)
+        self.image_path = Path(self.tmpdir.name) / "ring.png"
+        cv2.imwrite(str(self.image_path), image)
+
+    def test_closed_stroke_returns_to_its_start_point(self):
+        config = dict(CONFIG)
+        config["source_image"] = {**CONFIG["source_image"], "path": str(self.image_path)}
+
+        strokes_data, _ = build_canvas_strokes(config)
+        self.assertEqual(len(strokes_data), 1)
+        points, closed = strokes_data[0]
+        self.assertTrue(closed)
+        self.assertEqual(points[0], points[-1])
+
+
 if __name__ == "__main__":
     unittest.main()

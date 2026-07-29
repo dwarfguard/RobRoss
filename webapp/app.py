@@ -15,6 +15,8 @@ Then open http://127.0.0.1:5050 . Local dev tool only - no auth, binds to
 this to a network.
 """
 
+import re
+import shutil
 import sys
 from html import escape
 from pathlib import Path
@@ -78,7 +80,7 @@ EXTRA_STYLE = """
 def index():
     runs = generate_output_gallery.collect_runs()
     body = render_upload_form() + generate_output_gallery.render_gallery_grid(
-        runs, base_url="/output/"
+        runs, base_url="/output/", show_delete=True
     )
     return f"""<!doctype html>
 <html lang="en">
@@ -132,6 +134,34 @@ def render_error(message: str) -> str:
 @app.route("/output/<path:filename>")
 def output_files(filename):
     return send_from_directory(generate_output_gallery.OUTPUT_DIR, filename)
+
+
+_RUN_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+@app.route("/output/<name>/delete", methods=["POST"])
+def delete_run(name):
+    """Deletes a whole output/<name>/ run directory - the smallest unit
+    collect_runs() treats as coherent (a run's painting_paths.json + its
+    preview files belong together; deleting just one would leave the rest
+    orphaned and broken in the gallery). Two independent checks against
+    path traversal: a charset allowlist on the raw name (same convention as
+    route_adapters._slugify()) before it ever touches a path, and an
+    is_relative_to() containment check on the resolved path after."""
+    if not _RUN_NAME_RE.match(name) or ".." in name:
+        return render_error(f"Invalid run name: {name!r}")
+
+    output_dir = generate_output_gallery.OUTPUT_DIR.resolve()
+    run_dir = (output_dir / name).resolve()
+    if run_dir == output_dir or output_dir not in run_dir.parents:
+        return render_error(f"Refusing to delete outside output/: {name!r}")
+    if not run_dir.is_dir():
+        return render_error(f"No such run: {name!r}")
+
+    shutil.rmtree(run_dir)
+    generate_output_gallery.main()  # keep the static output/index.html in sync too
+
+    return redirect(url_for("index"), code=303)
 
 
 if __name__ == "__main__":

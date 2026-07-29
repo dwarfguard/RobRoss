@@ -33,7 +33,15 @@ from config_loader import (
     DEFAULT_SIMPLIFY_EPSILON_RATIO,
     load_config,
 )
-from line_tracing import binarize, close_mask, extract_strokes, prune_spurs, simplify, skeletonize_mask
+from line_tracing import (
+    binarize,
+    close_mask,
+    extract_strokes,
+    prune_skeleton_spurs,
+    prune_spurs,
+    simplify,
+    skeletonize_mask,
+)
 from path_ordering import order_strokes, total_travel_distance
 from path_validation import validate_painting_paths
 
@@ -111,6 +119,7 @@ def build_canvas_strokes(config: dict) -> tuple:
     mask, image_size = binarize(image_path, threshold)
     mask = close_mask(mask, morph_close_kernel_px)
     skeleton = skeletonize_mask(mask)
+    skeleton = prune_skeleton_spurs(skeleton, min_spur_length_px)
     raw_strokes = extract_strokes(skeleton)
     pruned_strokes = prune_spurs(raw_strokes, min_spur_length_px)
 
@@ -123,6 +132,16 @@ def build_canvas_strokes(config: dict) -> tuple:
         simplified = simplify(points_xy, closed, epsilon_ratio)
         if len(simplified) < 2:
             continue
+        if closed and simplified[0] != simplified[-1]:
+            # simplify()'s Douglas-Peucker (cv2.approxPolyDP) returns a
+            # closed loop as a bare polygon - vertices only, no repeated
+            # closing point. Everything downstream (order_strokes,
+            # paint_path) only sees a flat point list with no memory of
+            # "closed", so without explicitly repeating the first point
+            # here, the pen would lift one edge short of a full loop -
+            # even after extract_strokes() correctly identifies it as
+            # closed, the rendered stroke would still look open.
+            simplified = simplified + [simplified[0]]
         canvas_points = map_points_to_canvas(simplified, image_size, drawable_origin, drawable_size)
         stroke_length_mm = sum(
             math.dist(a, b) for a, b in zip(canvas_points, canvas_points[1:])

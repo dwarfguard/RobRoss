@@ -61,6 +61,8 @@ validation status, path/stroke counts) instead of opening files one by one.
 | Prepare a real-arm session | [Hardware preflight](ros2/robross_painter/PREFLIGHT.md) |
 | Review prototype requirements | [Prototype v1](docs/Rob_Ross_Prototype_v1.md) |
 | Work with CAD assemblies | [CAD assets](CAD/README.md) |
+| Control the pen gripper servo (ESP32, USB/RS485) | [Gripper firmware](firmware/gripper_esp32/README.md) |
+| Calibrate camera-to-robot (hand-eye) | [Hand-eye calibration](handeye_calibration/README.md) |
 
 The active artwork profile is `configs/demo_v1_a4_pen.json`. The
 `mondrian_12x12_paint.json` profile preserves the older color-canvas behavior
@@ -100,13 +102,15 @@ fake-hardware and RViz launch sequence.
 
 ```text
 configs/                         Artwork and path-generation profiles
-Image_Process/mondrian/          Artwork, path, preview, and test-line tools
+Image_Process/                   One subfolder per artwork-generation route - see "Start Here" above
 ros2/robross_painter/            MoveIt path executor and canvas teaching tool
 docs/                            Requirements and path-format references
 CAD/                             Tool, canvas, and paint-holder models
 output/                          Generated plans, paths, and previews (one subfolder per config)
 generate_output_gallery.py       Builds output/index.html, a static preview of every generated run
 webapp/                          Optional local control panel: upload a photo, run a route, browse the result
+firmware/                        ESP32 gripper firmware (USB + RS485 control) - see "Start Here" above
+handeye_calibration/             Camera-to-robot calibration tooling - see "Start Here" above
 ```
 
 `webapp/` is an optional add-on (needs `pip install flask`) — see

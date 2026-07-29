@@ -10557,6 +10557,10 @@
         [
           59.99,
           176.55
+        ],
+        [
+          59.48,
+          176.3
         ]
       ]
     },
@@ -11257,6 +11261,10 @@
         ],
         [
           63.05,
+          197.72
+        ],
+        [
+          63.56,
           197.72
         ]
       ]
@@ -15395,6 +15403,10 @@
         [
           75.29,
           244.39
+        ],
+        [
+          74.78,
+          243.88
         ]
       ]
     },
@@ -15584,6 +15596,10 @@
         [
           63.3,
           241.59
+        ],
+        [
+          63.56,
+          241.33
         ]
       ]
     },
@@ -21500,6 +21516,10 @@
         [
           125.79,
           235.72
+        ],
+        [
+          126.3,
+          236.23
         ]
       ]
     },
@@ -21594,6 +21614,10 @@
         [
           132.67,
           236.23
+        ],
+        [
+          133.18,
+          235.72
         ]
       ]
     },
@@ -21685,7 +21709,7 @@
     {
       "command": "move_to",
       "label": "line_art_line_302",
-      "x_mm": 135.99,
+      "x_mm": 135.22,
       "y_mm": 238.78
     },
     {
@@ -21698,24 +21722,28 @@
       "color": "black",
       "points_mm": [
         [
-          135.99,
+          135.22,
           238.78
         ],
         [
-          135.99,
+          135.22,
           235.21
-        ],
-        [
-          135.73,
-          234.96
         ],
         [
           135.48,
           234.96
         ],
         [
-          135.22,
+          135.73,
+          234.96
+        ],
+        [
+          135.99,
           235.21
+        ],
+        [
+          135.99,
+          238.78
         ],
         [
           135.22,
@@ -25783,14 +25811,14 @@
   "debug": {
     "num_commands": 1466,
     "num_paint_path_commands": 366,
-    "estimated_total_paint_distance_mm": 3461.59,
+    "estimated_total_paint_distance_mm": 3465.97,
     "num_traced_lines": 366,
     "num_select_tool_commands": 1,
     "num_lift_tool_commands": 366,
     "num_lower_tool_commands": 366,
     "num_dip_paint_commands": 1,
-    "baseline_pen_up_travel_mm": 37867.92,
-    "optimized_pen_up_travel_mm": 1149.94
+    "baseline_pen_up_travel_mm": 37927.59,
+    "optimized_pen_up_travel_mm": 1149.35
   },
   "validation": {
     "passed": true,
