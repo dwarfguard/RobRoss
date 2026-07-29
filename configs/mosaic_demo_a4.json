@@ -1,0 +1,57 @@
+{
+  "profile_name": "mosaic_demo_a4",
+  "project": "R.O.B Ross",
+  "style": "mosaic",
+
+  "canvas": {
+    "name": "A4 portrait",
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "margin_mm": 10.0,
+    "origin": "top-left"
+  },
+
+  "source_image": {
+    "path": "Image_Process/mosaic/assets/sample.jpg",
+    "blur_kernel_size": 5,
+    "blur_sigma": 0,
+    "downscale_max_dimension_px": 600
+  },
+
+  "palette": {
+    "colors": [
+      {"name": "white", "hex": "#ffffff"},
+      {"name": "red", "hex": "#d62828"},
+      {"name": "yellow", "hex": "#f1c40f"},
+      {"name": "blue", "hex": "#1d3557"}
+    ],
+    "color_space": "lab"
+  },
+
+  "mosaic": {
+    "cell_size_mm": 5.0,
+    "color_threshold_ratio": 0.5,
+    "skip_white_cells": false,
+    "active_colors": ["white", "red", "yellow", "blue"]
+  },
+
+  "path_generation": {
+    "tool_width_mm": 3.0,
+    "stroke_overlap_ratio": 0.15,
+    "mask_erosion_mm": 1.5,
+    "home_position_mm": [10.0, 10.0]
+  },
+
+  "border_generation": {
+    "draw_borders": false,
+    "simplify_epsilon_ratio": 0.002
+  },
+
+  "output": {
+    "directory": "output/mosaic_demo_a4",
+    "painting_paths_file": "mosaic_painting_paths.json",
+    "preview_svg_file": "mosaic_path_preview.svg",
+    "quantized_preview_png_file": "mosaic_quantized_preview.png",
+    "mosaic_preview_png_file": "mosaic_preview.png"
+  }
+}

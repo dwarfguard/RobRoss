@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mosaic Generator — 4-Colour Grid Mosaic</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e; color: #e0e0e0; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 1.5rem;
+  }
+  h1 { font-size: 1.6rem; margin-bottom: 0.25rem; color: #ffffff; }
+  .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 1.5rem; }
+
+  .main-container {
+    display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center;
+    max-width: 1200px; width: 100%;
+  }
+
+  /* --- Controls panel --- */
+  .controls {
+    background: #16213e; border-radius: 10px; padding: 1.25rem;
+    min-width: 260px; max-width: 320px; flex: 1;
+    display: flex; flex-direction: column; gap: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .controls h2 { font-size: 1rem; color: #ccc; margin-bottom: -0.5rem; }
+
+  .upload-area {
+    border: 2px dashed #444; border-radius: 8px; padding: 1.5rem 1rem;
+    text-align: center; cursor: pointer; transition: border-color 0.2s;
+    background: #0f3460;
+  }
+  .upload-area:hover, .upload-area.drag-over { border-color: #e94560; }
+  .upload-area p { font-size: 0.85rem; color: #aaa; }
+  .upload-area .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+  #file-input { display: none; }
+
+  .control-group { display: flex; flex-direction: column; gap: 0.35rem; }
+  .control-group label { font-size: 0.8rem; color: #aaa; font-weight: 500; }
+  .control-group input[type="range"] { width: 100%; accent-color: #e94560; }
+  .control-group .range-val { font-size: 0.75rem; color: #e94560; text-align: right; }
+
+  .palette-preview { display: flex; gap: 0.5rem; align-items: center; }
+  .swatch {
+    width: 28px; height: 28px; border-radius: 4px; border: 1px solid #555;
+    display: inline-block;
+  }
+  .swatch-label { font-size: 0.7rem; color: #aaa; }
+
+  button {
+    background: #e94560; color: white; border: none; border-radius: 6px;
+    padding: 0.7rem 1rem; font-size: 0.9rem; cursor: pointer;
+    font-weight: 600; transition: background 0.2s;
+  }
+  button:hover { background: #c73b54; }
+  button:disabled { background: #444; cursor: not-allowed; }
+
+  .reset-btn { background: #444; }
+  .reset-btn:hover { background: #555; }
+
+  .status { font-size: 0.8rem; color: #4ecca3; min-height: 1.2em; }
+
+  /* --- Preview panels --- */
+  .previews { flex: 2; min-width: 340px; max-width: 700px; display: flex; flex-direction: column; gap: 1rem; }
+  .preview-panel {
+    background: #16213e; border-radius: 10px; padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .preview-panel h3 { font-size: 0.9rem; color: #ccc; margin-bottom: 0.5rem; }
+  .canvas-wrap {
+    width: 100%; overflow: auto; text-align: center;
+    background: #0f3460; border-radius: 6px; padding: 0.5rem;
+  }
+  canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; border-radius: 4px; }
+
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.5rem; margin-top: 0.75rem; font-size: 0.75rem;
+  }
+  .stat { background: #0f3460; border-radius: 6px; padding: 0.5rem; text-align: center; }
+  .stat .val { font-size: 1.1rem; font-weight: 700; color: #e94560; }
+  .stat .lbl { color: #888; margin-top: 0.15rem; }
+
+  .download-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+  .download-btn {
+    background: #0f3460; color: #e0e0e0; border: 1px solid #333;
+    border-radius: 6px; padding: 0.5rem 0.85rem; font-size: 0.8rem;
+    cursor: pointer; text-decoration: none;
+  }
+  .download-btn:hover { background: #1a3a6e; }
+
+  .color-legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.75rem; font-size: 0.75rem; }
+  .color-legend .item { display: flex; align-items: center; gap: 0.3rem; }
+  .color-legend .dot { width: 12px; height: 12px; border-radius: 2px; }
+
+  @media (max-width: 700px) {
+    .main-container { flex-direction: column; align-items: center; }
+    .controls { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>🧩 Mosaic Generator</h1>
+<p class="subtitle">4-colour grid mosaic — red, yellow, blue, white</p>
+
+<div class="main-container">
+
+  <!-- ====== Controls ====== -->
+  <div class="controls">
+    <h2>📷 Source Image</h2>
+    <div class="upload-area" id="upload-area">
+      <div class="icon">🖼️</div>
+      <p>Click or drag &amp; drop an image here</p>
+      <input type="file" id="file-input" accept="image/*">
+    </div>
+
+    <h2>🔧 Settings</h2>
+    <div class="control-group">
+      <label for="cell-size">Cell Size (px): <span class="range-val" id="cell-size-val">10</span></label>
+      <input type="range" id="cell-size" min="2" max="80" value="10" step="1">
+    </div>
+
+    <div class="control-group">
+      <label for="max-dim">Max Image Dimension (px): <span class="range-val" id="max-dim-val">600</span></label>
+      <input type="range" id="max-dim" min="100" max="2000" value="600" step="50">
+    </div>
+
+    <div class="control-group">
+      <label>
+        <input type="checkbox" id="skip-white" checked>
+        Skip white cells (leave as paper)
+      </label>
+    </div>
+
+    <h2>🎨 Palette</h2>
+    <div class="palette-preview">
+      <span class="swatch" style="background:#ffffff" title="White"></span>
+      <span class="swatch-label">White</span>
+      <span class="swatch" style="background:#f1c40f" title="Yellow"></span>
+      <span class="swatch-label">Yellow</span>
+      <span class="swatch" style="background:#d62828" title="Red"></span>
+      <span class="swatch-label">Red</span>
+      <span class="swatch" style="background:#1d3557" title="Blue"></span>
+      <span class="swatch-label">Blue</span>
+    </div>
+
+    <button id="generate-btn" disabled>🎯 Generate Mosaic</button>
+    <button id="reset-btn" class="reset-btn">↺ Reset</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <!-- ====== Previews ====== -->
+  <div class="previews">
+    <div class="preview-panel" id="panel-original">
+      <h3>📷 Original Image</h3>
+      <div class="canvas-wrap"><canvas id="canvas-original"></canvas></div>
+    </div>
+
+    <div class="preview-panel" id="panel-quantized">
+      <h3>🎨 Per-Pixel Quantized (nearest palette colour)</h3>
+      <div class="canvas-wrap"><canvas id="canvas-quantized"></canvas></div>
+    </div>
+
+    <div class="preview-panel" id="panel-mosaic">
+      <h3>🧩 Mosaic Result (grid majority vote)</h3>
+      <div class="canvas-wrap"><canvas id="canvas-mosaic"></canvas></div>
+
+      <div class="color-legend" id="color-stats"></div>
+
+      <div class="stats-grid" id="stats-grid"></div>
+
+      <div class="download-row">
+        <button class="download-btn" id="download-mosaic">💾 Download Mosaic PNG</button>
+        <button class="download-btn" id="download-quantized">💾 Download Quantized PNG</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// =========================================================================
+// Palette colours from configs/mosaic_demo_a4.json
+// =========================================================================
+const PALETTE = [
+  { name: 'white',  hex: '#ffffff', rgb: [255, 255, 255] },
+  { name: 'red',    hex: '#d62828', rgb: [214,  40,  40] },
+  { name: 'yellow', hex: '#f1c40f', rgb: [241, 196,  15] },
+  { name: 'blue',   hex: '#1d3557', rgb: [ 29,  53,  87] },
+];
+
+// Pre-compute Lab values for palette colours (for perceptual distance)
+function rgbToLab(r, g, b) {
+  // sRGB -> linear
+  let rr = r / 255, gg = g / 255, bb = b / 255;
+  rr = rr > 0.04045 ? Math.pow((rr + 0.055) / 1.055, 2.4) : rr / 12.92;
+  gg = gg > 0.04045 ? Math.pow((gg + 0.055) / 1.055, 2.4) : gg / 12.92;
+  bb = bb > 0.04045 ? Math.pow((bb + 0.055) / 1.055, 2.4) : bb / 12.92;
+  // Linear RGB -> XYZ (D65)
+  const x = 0.4124564 * rr + 0.3575761 * gg + 0.1804375 * bb;
+  const y = 0.2126729 * rr + 0.7151522 * gg + 0.0721750 * bb;
+  const z = 0.0193339 * rr + 0.1191920 * gg + 0.9503041 * bb;
+  // XYZ -> Lab (D65 reference white)
+  const xn = 0.95047, yn = 1.0, zn = 1.08883;
+  const fx = x / xn > 0.008856 ? Math.cbrt(x / xn) : (903.3 * (x / xn) + 16) / 116;
+  const fy = y / yn > 0.008856 ? Math.cbrt(y / yn) : (903.3 * (y / yn) + 16) / 116;
+  const fz = z / zn > 0.008856 ? Math.cbrt(z / zn) : (903.3 * (z / zn) + 16) / 116;
+  const L = 116 * fy - 16;
+  const a = 500 * (fx - fy);
+  const bVal = 200 * (fy - fz);
+  return [L, a, bVal];
+}
+
+const PALETTE_LAB = PALETTE.map(c => rgbToLab(c.rgb[0], c.rgb[1], c.rgb[2]));
+
+function nearestPaletteIndex(r, g, b) {
+  const lab = rgbToLab(r, g, b);
+  let bestIdx = 0, bestDist = Infinity;
+  for (let i = 0; i < PALETTE_LAB.length; i++) {
+    const dL = lab[0] - PALETTE_LAB[i][0];
+    const da = lab[1] - PALETTE_LAB[i][1];
+    const db = lab[2] - PALETTE_LAB[i][2];
+    const dist = dL*dL + da*da + db*db;
+    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+  }
+  return bestIdx;
+}
+
+// =========================================================================
+// DOM refs
+// =========================================================================
+const uploadArea = document.getElementById('upload-area');
+const fileInput = document.getElementById('file-input');
+const cellSizeSlider = document.getElementById('cell-size');
+const cellSizeVal = document.getElementById('cell-size-val');
+const maxDimSlider = document.getElementById('max-dim');
+const maxDimVal = document.getElementById('max-dim-val');
+const skipWhiteCheck = document.getElementById('skip-white');
+const generateBtn = document.getElementById('generate-btn');
+const resetBtn = document.getElementById('reset-btn');
+const statusEl = document.getElementById('status');
+const canvasOrig = document.getElementById('canvas-original');
+const canvasQuant = document.getElementById('canvas-quantized');
+const canvasMosaic = document.getElementById('canvas-mosaic');
+const colorStatsEl = document.getElementById('color-stats');
+const statsGridEl = document.getElementById('stats-grid');
+const downloadMosaicBtn = document.getElementById('download-mosaic');
+const downloadQuantBtn = document.getElementById('download-quantized');
+
+let sourceImage = null;   // HTML Image element
+let quantizedData = null; // ImageData of per-pixel quantized result
+let mosaicData = null;    // ImageData of mosaic result
+let mosaicCells = null;   // Array of cell info for stats
+
+// =========================================================================
+// Upload handling
+// =========================================================================
+uploadArea.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files.length > 0) loadImageFile(e.target.files[0]);
+});
+
+uploadArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadArea.classList.add('drag-over');
+});
+uploadArea.addEventListener('dragleave', () => {
+  uploadArea.classList.remove('drag-over');
+});
+uploadArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadArea.classList.remove('drag-over');
+  if (e.dataTransfer.files.length > 0) loadImageFile(e.dataTransfer.files[0]);
+});
+
+function loadImageFile(file) {
+  if (!file.type.startsWith('image/')) {
+    setStatus('Please select an image file.', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      sourceImage = img;
+      drawOriginal();
+      generateBtn.disabled = false;
+      setStatus(`Loaded: ${file.name} (${img.naturalWidth}×${img.naturalHeight})`, 'ok');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// =========================================================================
+// Slider value display
+// =========================================================================
+cellSizeSlider.addEventListener('input', () => {
+  cellSizeVal.textContent = cellSizeSlider.value;
+});
+maxDimSlider.addEventListener('input', () => {
+  maxDimVal.textContent = maxDimSlider.value;
+});
+
+// =========================================================================
+// Draw original image to canvas (with downscale)
+// =========================================================================
+function drawOriginal() {
+  if (!sourceImage) return;
+  const maxDim = parseInt(maxDimSlider.value);
+  const { width, height } = computeScaledSize(
+    sourceImage.naturalWidth, sourceImage.naturalHeight, maxDim
+  );
+  canvasOrig.width = width;
+  canvasOrig.height = height;
+  const ctx = canvasOrig.getContext('2d');
+  ctx.drawImage(sourceImage, 0, 0, width, height);
+}
+
+// =========================================================================
+// Compute scaled size preserving aspect ratio
+// =========================================================================
+function computeScaledSize(origW, origH, maxDim) {
+  const longest = Math.max(origW, origH);
+  if (longest <= maxDim) return { width: origW, height: origH };
+  const scale = maxDim / longest;
+  return {
+    width: Math.max(1, Math.round(origW * scale)),
+    height: Math.max(1, Math.round(origH * scale)),
+  };
+}
+
+// =========================================================================
+// Generate
+// =========================================================================
+generateBtn.addEventListener('click', generateMosaic);
+
+function generateMosaic() {
+  if (!sourceImage) return;
+
+  const cellSize = parseInt(cellSizeSlider.value);
+  const maxDim = parseInt(maxDimSlider.value);
+  const skipWhite = skipWhiteCheck.checked;
+
+  setStatus('Processing...', 'ok');
+
+  // --- Step 1: Draw scaled source to offscreen canvas ---
+  const { width, height } = computeScaledSize(
+    sourceImage.naturalWidth, sourceImage.naturalHeight, maxDim
+  );
+  const offscreen = document.createElement('canvas');
+  offscreen.width = width;
+  offscreen.height = height;
+  const offCtx = offscreen.getContext('2d');
+  offCtx.drawImage(sourceImage, 0, 0, width, height);
+  const srcData = offCtx.getImageData(0, 0, width, height);
+
+  // --- Step 2: Per-pixel quantize to nearest palette colour ---
+  const quantOff = document.createElement('canvas');
+  quantOff.width = width;
+  quantOff.height = height;
+  const quantCtx = quantOff.getContext('2d');
+  quantizedData = quantCtx.createImageData(width, height);
+
+  const pixels = srcData.data;
+  const qPixels = quantizedData.data;
+  const labelImage = new Int8Array(width * height); // palette index per pixel
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+    const idx = nearestPaletteIndex(r, g, b);
+    const pal = PALETTE[idx];
+    qPixels[i]     = pal.rgb[0];
+    qPixels[i + 1] = pal.rgb[1];
+    qPixels[i + 2] = pal.rgb[2];
+    qPixels[i + 3] = 255;
+    labelImage[i >> 2] = idx;
+  }
+  quantCtx.putImageData(quantizedData, 0, 0);
+
+  // --- Step 3: Grid majority vote ---
+  const cols = Math.ceil(width / cellSize);
+  const rows = Math.ceil(height / cellSize);
+
+  // Build sets of active colour indices
+  const activeColorIdxSet = new Set();
+  for (let ci = 0; ci < PALETTE.length; ci++) {
+    if (PALETTE[ci].name !== 'white') activeColorIdxSet.add(ci);
+  }
+
+  const cells = [];
+  for (let row = 0; row < rows; row++) {
+    const y0 = row * cellSize;
+    const y1 = Math.min(y0 + cellSize, height);
+    for (let col = 0; col < cols; col++) {
+      const x0 = col * cellSize;
+      const x1 = Math.min(x0 + cellSize, width);
+
+      // Count pixels per active colour
+      const counts = new Array(PALETTE.length).fill(0);
+      for (let y = y0; y < y1; y++) {
+        const rowStart = y * width;
+        for (let x = x0; x < x1; x++) {
+          const ci = labelImage[rowStart + x];
+          if (activeColorIdxSet.has(ci)) counts[ci]++;
+        }
+      }
+
+      // Find majority
+      let bestIdx = -1, bestCount = -1;
+      for (let ci = 0; ci < PALETTE.length; ci++) {
+        if (activeColorIdxSet.has(ci) && counts[ci] > bestCount) {
+          bestCount = counts[ci];
+          bestIdx = ci;
+        }
+      }
+
+      // No active colour -> white
+      if (bestIdx < 0) {
+        bestIdx = PALETTE.findIndex(c => c.name === 'white');
+        if (bestIdx < 0) bestIdx = 0;
+      }
+
+      cells.push({
+        row, col, x0, y0, x1, y1,
+        colorIndex: bestIdx,
+        colorName: PALETTE[bestIdx].name,
+        colorHex: PALETTE[bestIdx].hex,
+        colorRgb: PALETTE[bestIdx].rgb,
+      });
+    }
+  }
+
+  // --- Step 4: Render mosaic ---
+  const mosaicOff = document.createElement('canvas');
+  mosaicOff.width = width;
+  mosaicOff.height = height;
+  const mosaicCtx = mosaicOff.getContext('2d');
+
+  // Fill with white background
+  mosaicCtx.fillStyle = '#ffffff';
+  mosaicCtx.fillRect(0, 0, width, height);
+
+  const filledCells = [];
+  for (const cell of cells) {
+    if (skipWhite && cell.colorName === 'white') continue;
+    filledCells.push(cell);
+    mosaicCtx.fillStyle = cell.colorHex;
+    mosaicCtx.fillRect(cell.x0, cell.y0, cell.x1 - cell.x0, cell.y1 - cell.y0);
+  }
+  mosaicData = mosaicCtx.getImageData(0, 0, width, height);
+  mosaicCells = cells;
+
+  // --- Step 5: Display results ---
+  canvasQuant.width = width;
+  canvasQuant.height = height;
+  canvasQuant.getContext('2d').putImageData(quantizedData, 0, 0);
+
+  canvasMosaic.width = width;
+  canvasMosaic.height = height;
+  canvasMosaic.getContext('2d').putImageData(mosaicData, 0, 0);
+
+  // --- Step 6: Stats ---
+  renderStats(cells, filledCells, cols, rows, cellSize, skipWhite);
+
+  // Enable downloads
+  downloadMosaicBtn.disabled = false;
+  downloadQuantBtn.disabled = false;
+
+  setStatus(`Done! ${rows}×${cols} grid (${cellSize}px cells), ${filledCells.length} cells filled.`, 'ok');
+}
+
+// =========================================================================
+// Stats rendering
+// =========================================================================
+function renderStats(cells, filledCells, cols, rows, cellSize, skipWhite) {
+  // Color legend with counts
+  const colorCounts = {};
+  for (const cell of filledCells) {
+    colorCounts[cell.colorName] = (colorCounts[cell.colorName] || 0) + 1;
+  }
+  colorStatsEl.innerHTML = PALETTE.map(c => {
+    const cnt = colorCounts[c.name] || 0;
+    const pct = filledCells.length > 0 ? ((cnt / filledCells.length) * 100).toFixed(1) : '0.0';
+    return `<div class="item">
+      <span class="dot" style="background:${c.hex}"></span>
+      ${c.name}: <strong>${cnt}</strong> cells (${pct}%)
+    </div>`;
+  }).join('');
+
+  const total = cells.length;
+  const skipped = skipWhite ? cells.filter(c => c.colorName === 'white').length : 0;
+  const activeColorCount = filledCells.filter(c => c.colorName !== 'white').length;
+
+  statsGridEl.innerHTML = `
+    <div class="stat"><div class="val">${total}</div><div class="lbl">Total cells</div></div>
+    <div class="stat"><div class="val">${filledCells.length}</div><div class="lbl">Filled cells</div></div>
+    <div class="stat"><div class="val">${skipped}</div><div class="lbl">White (skipped)</div></div>
+    <div class="stat"><div class="val">${cols}×${rows}</div><div class="lbl">Grid size</div></div>
+    <div class="stat"><div class="val">${cellSize}px</div><div class="lbl">Cell size</div></div>
+  `;
+}
+
+// =========================================================================
+// Download buttons
+// =========================================================================
+downloadMosaicBtn.addEventListener('click', () => {
+  if (!canvasMosaic.width) return;
+  const link = document.createElement('a');
+  link.download = 'mosaic_result.png';
+  link.href = canvasMosaic.toDataURL('image/png');
+  link.click();
+});
+
+downloadQuantBtn.addEventListener('click', () => {
+  if (!canvasQuant.width) return;
+  const link = document.createElement('a');
+  link.download = 'quantized_preview.png';
+  link.href = canvasQuant.toDataURL('image/png');
+  link.click();
+});
+
+// =========================================================================
+// Reset
+// =========================================================================
+resetBtn.addEventListener('click', () => {
+  sourceImage = null;
+  quantizedData = null;
+  mosaicData = null;
+  mosaicCells = null;
+  generateBtn.disabled = true;
+  downloadMosaicBtn.disabled = true;
+  downloadQuantBtn.disabled = true;
+  canvasOrig.width = 0; canvasOrig.height = 0;
+  canvasQuant.width = 0; canvasQuant.height = 0;
+  canvasMosaic.width = 0; canvasMosaic.height = 0;
+  colorStatsEl.innerHTML = '';
+  statsGridEl.innerHTML = '';
+  setStatus('Ready. Upload an image to begin.', 'ok');
+  fileInput.value = '';
+});
+
+// =========================================================================
+// Helpers
+// =========================================================================
+function setStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.style.color = type === 'error' ? '#e94560' : '#4ecca3';
+}
+
+// Init
+setStatus('Ready. Upload an image to begin.', 'ok');
+</script>
+</body>
+</html>

@@ -60,6 +60,30 @@ ROUTE_ADAPTERS = {
         "needs_source_image": True,
         "steps": [("Image_Process/line_art/generate_line_art_paths.py", [])],
     },
+    "glass_stained_glass": {
+        "label": "Photo -> stained glass fill",
+        "template_config": "configs/glass_a4.json",
+        "needs_source_image": True,
+        "steps": [("Image_Process/glass/generate_painting_paths.py", [])],
+    },
+    "glass_polygon": {
+        "label": "Photo -> glass polygon fill",
+        "template_config": "configs/glass_polygon_a4.json",
+        "needs_source_image": True,
+        "steps": [("Image_Process/glass/generate_painting_paths.py", [])],
+    },
+    "colourful": {
+        "label": "Photo -> colourful quantized fill",
+        "template_config": "configs/colourful_demo_a4.json",
+        "needs_source_image": True,
+        "steps": [("Image_Process/colourful/generate_painting_paths.py", [])],
+    },
+    "mosaic": {
+        "label": "Photo -> mosaic grid fill (red/yellow/blue)",
+        "template_config": "configs/mosaic_demo_a4.json",
+        "needs_source_image": True,
+        "steps": [("Image_Process/mosaic/generate_mosaic_paths.py", [])],
+    },
 }
 
 
