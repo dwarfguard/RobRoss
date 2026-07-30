@@ -127,6 +127,11 @@ def main():
     tcp_fetch_interval = 0.5  # 秒
     current_base_xyz = None   # 当前实时 TCP (用于显示)
 
+    # ── 缓存最后一次检测到的 ArUco 位置 ──────────────────────
+    # 笔碰到标记时会遮挡视线，此时用缓存的相机坐标完成采集
+    cached_cam_xyz = None
+    cached_cam_mid = None
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -153,6 +158,9 @@ def main():
             current_mid = ids[0]
             current_rvec = poses[0][0]
             current_cam_xyz = poses[0][1].flatten()
+            # 更新缓存（只要检测到就刷新）
+            cached_cam_xyz = current_cam_xyz.copy() if current_cam_xyz is not None else None
+            cached_cam_mid = current_mid
             cv2.drawFrameAxes(display, cmat, dist,
                               current_rvec, current_cam_xyz,
                               args.marker_size * 0.6)
@@ -166,17 +174,23 @@ def main():
         if current_mid is not None:
             status = f"✓  ID:{current_mid}"
             status_color = (0, 220, 80)
+            cache_note = ""
+        elif cached_cam_xyz is not None:
+            status = f"◉  缓存 ID:{cached_cam_mid}"
+            status_color = (0, 180, 255)
+            cache_note = "  (标记被遮挡，使用缓存)"
         else:
             status = "✗  未检测到"
             status_color = (0, 0, 230)
+            cache_note = ""
 
         # 检测到的所有 ID
         detected_ids_str = ""
         if marker_found:
             detected_ids_str = f"  检测到 ID: {sorted(ids)}"
 
-        # 第 1 行: 采集数 + 检测状态 + 检测到的 ID
-        line1 = f"已采集: {n_history} 组  |  检测: {status}{detected_ids_str}"
+        # 第 1 行: 采集数 + 检测状态 + 缓存提示 + 检测到的 ID
+        line1 = f"已采集: {n_history} 组  |  检测: {status}{cache_note}{detected_ids_str}"
         cv2.putText(display, line1, (10, 28),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, status_color, 2)
 
@@ -242,7 +256,18 @@ def main():
         if key == ord("q"):
             break
 
-        elif key == 32 and marker_found and len(poses) > 0 and poses[0][1] is not None:
+        elif key == 32:
+            # 优先用当前检测，标记被遮挡时用缓存
+            if marker_found and len(poses) > 0 and poses[0][1] is not None:
+                cam_xyz = poses[0][1].flatten()
+                mid = ids[0]
+            elif cached_cam_xyz is not None:
+                cam_xyz = cached_cam_xyz
+                mid = cached_cam_mid
+                print(f"\n  [i] 标记被笔遮挡，使用缓存的相机坐标")
+            else:
+                print("\n  [✗] 未检测到标记，也无法获取缓存")
+                continue
             cam_xyz = poses[0][1].flatten()
             mid = ids[0]
 
