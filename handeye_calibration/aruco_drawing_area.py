@@ -5,9 +5,7 @@ ArUco 绘制区域检测与 AUBO 机械臂定位
 
 相机检测 4 个 ArUco → 计算绘图区域 → 发送给机械臂
 
-通信后端自动选择:
-  1. pyaubo_sdk (官方 SDK，Linux/Windows)
-  2. JSON-RPC over TCP (纯 socket，macOS 开发调试用)
+通信使用 JSON-RPC over TCP (纯 socket，直连控制器 8899 端口)
 
 ArUco 布局（从相机视角看）:
     +-----------------------+
@@ -48,14 +46,6 @@ from typing import List, Tuple, Optional, Dict, Any
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import yaml
-
-# ── 尝试导入 pyaubo_sdk ──────────────────────────────────────────
-try:
-    from pyaubo_sdk import AuboApi as _AuboApi
-    SDK_AVAILABLE = True
-except ModuleNotFoundError:
-    SDK_AVAILABLE = False
-
 
 # ══════════════════════════════════════════════════════════════════════
 #  数据结构
@@ -333,44 +323,6 @@ class RobotBackend(ABC):
     def set_speed(self, fraction: float): ...
 
 
-class SdkBackend(RobotBackend):
-    """官方 pyaubo_sdk 后端"""
-
-    def __init__(self, robot_name: str = "rob1"):
-        self.robot_name = robot_name
-
-    def connect(self, ip: str, port: int = 8899) -> bool:
-        try:
-            self._api = _AuboApi()
-            self._api.getRobotNames()
-            self._robot_iface = self._api.getRobotInterface()
-            self._motion = self._robot_iface.getMotionControl()
-            self._state = self._robot_iface.getRobotState()
-            print(f"[✓] SDK 后端已创建 (robot={self.robot_name})")
-            return True
-        except Exception as e:
-            print(f"[✗] SDK 后端初始化失败: {e}")
-            return False
-
-    def disconnect(self):
-        self._api = None
-
-    def login(self) -> bool:
-        return True
-
-    def move_line(self, pose, a=0.3, v=0.2, blend=0.0, duration=0.0) -> bool:
-        return self._motion.moveLine(pose, a, v, blend, duration) == 0
-
-    def move_joint(self, q, a=0.5, v=0.5, blend=0.0, duration=0.0) -> bool:
-        return self._motion.moveJoint(q, a, v, blend, duration) == 0
-
-    def get_tcp_pose(self):
-        return self._state.getTcpPose()
-
-    def set_speed(self, fraction: float):
-        self._motion.setSpeedFraction(fraction)
-
-
 class JsonRpcBackend(RobotBackend):
     """JSON-RPC 后端 (纯 socket，兼容所有平台)"""
 
@@ -442,12 +394,9 @@ class JsonRpcBackend(RobotBackend):
 
 def create_robot_backend(ip: str, port: int = 8899,
                          robot_name: str = "rob1") -> Optional[RobotBackend]:
-    """自动选择通信后端: 优先 pyaubo_sdk，否则 JSON-RPC"""
-    backend = SdkBackend(robot_name) if SDK_AVAILABLE else JsonRpcBackend(robot_name)
-    label = "pyaubo_sdk" if SDK_AVAILABLE else "JSON-RPC"
-    print(f"[i] 使用 {label} 后端")
-    if not SDK_AVAILABLE:
-        print("    (macOS 调试用; Linux 机械臂上安装 pyaubo_sdk 后自动切换)")
+    """创建 JSON-RPC 后端（通过 TCP 直连机械臂控制器）"""
+    backend = JsonRpcBackend(robot_name)
+    print(f"[i] 使用 JSON-RPC 后端 ({ip}:{port})")
     if not backend.connect(ip, port):
         return None
     if not backend.login():
