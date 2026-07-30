@@ -268,8 +268,6 @@ def main():
             else:
                 print("\n  [✗] 未检测到标记，也无法获取缓存")
                 continue
-            cam_xyz = poses[0][1].flatten()
-            mid = ids[0]
 
             if robot:
                 # 从机械臂自动读取当前 TCP 坐标
