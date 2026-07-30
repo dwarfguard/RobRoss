@@ -157,6 +157,32 @@ three-terminal fake-hardware RViz flow is documented in `README.md` ("ROS 2 Aubo
 - Safety checks refuse out-of-canvas coordinates, `move_to` with the pen down, and strokes with
   the pen up.
 
+### Hand-eye calibration & ArUco detection (`handeye_calibration/`)
+
+Run from the `handeye_calibration/` directory.
+
+```bash
+# Preview detection (no robot connection)
+python3 aruco_drawing_area.py --camera-id <ID> --dry-run
+
+# Generate and print ArUco markers
+python3 aruco_drawing_area.py --generate-markers
+
+# Hand-eye calibration (touch marker with pen tip, press Space)
+python3 calibrate_handeye.py --robot-ip 192.168.1.100
+
+# RobRoss canvas calibration YAML output (for ROS 2 painting)
+python3 aruco_drawing_area.py --camera-id <ID> --robross
+
+# One-click ArUco detection → ROS 2 painting
+./start_painting.sh \
+  --camera-id <ID> \
+  --paths-file /path/to/painting_paths.json \
+  --calibration-file /path/to/hardware_a4.yaml
+```
+
+See `handeye_calibration/README.md` / `README_EN.md` for full options.
+
 ## Config profiles
 
 Core profiles in `configs/`; use `demo_v1_a4_pen.json` unless exercising a different route or the
@@ -211,6 +237,10 @@ Config field references live in each route's README.
 
 ## Conventions
 
+- Camera architecture: single fixed D405 (eye-to-hand only, no arm-end camera). See
+  `handeye_calibration/README.md`'s "Camera Architecture" section for rationale — Demo v1
+  doesn't need a second camera; it's a future consideration for auto TCP calibration or
+  collision recovery.
 - Prefer simple, readable Python using the standard library unless a dependency is clearly
   justified — `mondrian/` has zero third-party dependencies. Route-specific dependencies are
   deliberate, folder-scoped exceptions (see each route's README). Don't let dependencies spread to

@@ -134,6 +134,41 @@ Current value for both: `[0.0595, 0, 0.0514]` meters (pen tip in flange coordina
 
 > If you modify the TCP value on either side, **the other side must be updated too**, or the two pipelines will place the pen at different positions.
 
+## Camera Architecture
+
+Currently we use a single fixed D405 camera in an eye-to-hand configuration above the drawing area. There is no second camera on the robot arm end, and one is not needed for Demo v1.
+
+### Current Setup Is Sufficient for Demo v1
+
+Demo v1's goal is to prove the robot can draw a line drawing with a pen on A4 paper — it's an open-loop process. The fixed camera handles three jobs:
+
+1. Detect 4 ArUco markers → locate paper position and orientation
+2. Hand-eye calibration → compute `T_base_cam` (camera → base coordinate transform)
+3. Generate `canvas_calibration.yaml` → used by ROS 2 painting executor
+
+All paint paths are generated offline; no visual feedback is needed during painting. The single fixed camera is sufficient.
+
+### Why Not Add an Arm-End Camera
+
+| Reason | Detail |
+|--------|--------|
+| Extra hardware cost | Needs ultra-light camera (<30g), custom mount, cable routing |
+| Calibration complexity | Eye-in-hand requires its own calibration procedure and an extra transform matrix |
+| End-effector load limit | D405 is too heavy; only lighter cameras fit on the arm, compromising capability |
+| Software complexity | Merging two camera coordinate systems adds significant debugging and validation |
+
+### Future Value of an Arm-End Camera
+
+If the next phase aims to improve automation, the most valuable capabilities an arm-end camera would enable:
+
+| Capability | Value | Difficulty |
+|-----------|-------|------------|
+| Auto TCP calibration (no teach pendant needed) | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| Auto re-localization if paper is bumped | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| Real-time closed-loop correction of pen position | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+
+> **Bottom line: Not needed for Demo v1. But if the next phase includes auto TCP calibration or collision recovery, an arm-end camera is the most valuable next step.**
+
 ## Options
 
 | Argument | Description |
