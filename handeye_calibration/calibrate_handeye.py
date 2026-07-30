@@ -31,8 +31,7 @@ import argparse
 import time
 sys.path.insert(0, os.path.dirname(__file__))
 from aruco_drawing_area import (
-    ArucoDetector, CameraCalib, JsonRpcBackend, SdkBackend, SDK_AVAILABLE,
-    create_robot_backend
+    ArucoDetector, CameraCalib, JsonRpcBackend, create_robot_backend
 )
 
 
