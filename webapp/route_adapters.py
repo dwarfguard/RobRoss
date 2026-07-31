@@ -84,6 +84,12 @@ ROUTE_ADAPTERS = {
         "needs_source_image": True,
         "steps": [("Image_Process/mosaic/generate_mosaic_paths.py", [])],
     },
+    "human_mondrian": {
+        "label": "Photo -> human Mondrian (with flourishes)",
+        "template_config": "configs/human_mondrian_demo_a4.json",
+        "needs_source_image": True,
+        "steps": [("Image_Process/human_mondrian/generate_human_mondrian_paths.py", [])],
+    },
 }
 
 
