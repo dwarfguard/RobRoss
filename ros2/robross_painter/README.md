@@ -357,10 +357,10 @@ ros2 launch robross_painter paint.launch.py \
   paths_file:=$ROBROSS_REPO/output/painting_paths.json
 ```
 
-Dry-run success alone does not currently authorize contact. The pushed Phase 2 diagnostics are
-screening-grade and do not yet provide the required per-ServoJ-call telemetry. Follow
-`docs/hardware-first-run-guide.md` Step 5.5; keep `dry_run: true` until a later reviewed
-implementation satisfies every formal Phase 2 gate. When contact is eventually approved, run
+Dry-run success alone does not authorize contact. The reviewed driver provides full-rate
+per-ServoJ-call telemetry, but its stationary lifecycle, hover latency, telemetry, and formal
+Phase 2 gates still require hardware evidence. Follow `docs/hardware_run_guide.md` Step 5.5 and
+keep `dry_run: true` until that evidence passes review. When contact is approved, run
 `output/test_line_paths.json` first at the preflight speeds with an operator on the e-stop.
 
 ## Offline Tracking-Bag Analysis

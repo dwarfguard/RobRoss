@@ -1,11 +1,10 @@
-# Hardware First-Run Guide: Aubo i5 over Ethernet
+# Hardware Run Guide: Aubo i5 over Ethernet
 
-Step-by-step commands for the first real-arm painting session, from cabling the robot to the
-full A4 artwork. Companion to `docs/hardware-test-checklist.md` (what to verify) and
-`ros2/robross_painter/PREFLIGHT.md` (run top-to-bottom before every session) — this guide is the
-"exact commands" walkthrough; those two remain the authoritative checklists.
+Step-by-step commands for qualifying the driver on a real arm and progressing from stationary
+checks to hover motion, first contact, and the full A4 artwork. This is the exact-command
+walkthrough; `ros2/robross_painter/PREFLIGHT.md` remains the authoritative per-session checklist.
 
-## Readiness status (as of 2026-07-23)
+## Readiness status (as of 2026-07-30)
 
 **Ready:**
 - Workspace built: `install/` contains all packages (`aubo_ros2_driver`, `aubo_moveit_config`,
@@ -22,27 +21,63 @@ full A4 artwork. Companion to `docs/hardware-test-checklist.md` (what to verify)
 - `velocity_scaling`/`acceleration_scaling` at 0.1 (correct for first runs);
   `cartesian_jump_threshold: 2.0` (nonzero, correct); `canvas_backing_enabled: true`.
 - `dry_run: true` in the shipped profile (flip it only in `~/hardware_a4.yaml`, Step 6).
+- The reviewed driver now records per-ServoJ-call system/ROS and steady timestamps, uses a
+  bounded off-RT telemetry/report path, validates SDK activation results, and rolls activation
+  back transactionally.
+- Driver verification passed in the development workspace: normal and ASan/UBSan builds, 29
+  focused gtests, and 30 total package test results with no failures.
 
-**Gaps to fix before first contact (in order):**
+**Gates still required before first contact (in order):**
 1. `~/canvas_calibration.yaml` is invalid (measured 366.7 × 315.8 mm, corner skew 23.75°; an A4
    is 210 × 297 mm, skew must be < 2°) → re-teach on the real paper (Step 4). This bad teach —
    not the elbow constraints — is what caused the RViz `wrist3_joint` motion-guard abort.
 2. Robot IP unknown — read it off the teach pendant (Settings → Network) once cabled.
+3. Complete the stationary activation/deactivation/reactivation checks and the hover-only
+   report-boundary latency run in Step 5.5. Software completion alone does not authorize contact.
 
 ## Step 0 — Network (Ethernet direct)
 
 1. Cable the PC to the Aubo control box LAN port. Read the controller IP from the pendant.
 2. Put the PC on the same subnet (e.g. controller `192.168.127.128` → PC `192.168.127.100/24`,
    via the desktop network settings or `nmcli`).
-3. Verify: `ping <ROBOT_IP>`.
-
-## Step 1 — Every terminal: environment
+3. Read and verify the address with this complete block:
 
 ```bash
-export PATH="/usr/bin:$PATH"     # conda shadows ROS python — required or Python nodes crash
+read -r -p "Robot controller IP: " ROBOT_IP
+export ROBOT_IP
+ping -c 4 "$ROBOT_IP"
+```
+
+## Step 1 — Session environment
+
+Run once in the first terminal. This creates one reusable environment file so every terminal
+uses the same robot, source tree, and evidence directory:
+
+```bash
+export PATH="/usr/bin:$PATH"
 cd ~/robross_aubo_ws
 source install/setup.bash
+: "${ROBOT_IP:?Run Step 0 in this terminal before creating the session}"
 export ROBROSS_REPO=$PWD/src/RobRoss
+export AUBO_TYPE=${AUBO_TYPE:-aubo_i5}
+export HARDWARE_SESSION=$HOME/robross_hardware_$(date +%Y%m%d_%H%M%S)
+mkdir -p "$HARDWARE_SESSION"
+cat > "$HOME/robross_hardware_session.env" <<EOF
+export PATH="/usr/bin:\$PATH"
+export ROBOT_IP="$ROBOT_IP"
+export AUBO_TYPE="$AUBO_TYPE"
+export HARDWARE_SESSION="$HARDWARE_SESSION"
+export ROBROSS_REPO="$ROBROSS_REPO"
+EOF
+printf 'Session evidence: %s\n' "$HARDWARE_SESSION"
+```
+
+Run this complete block in every additional terminal:
+
+```bash
+cd ~/robross_aubo_ws
+source install/setup.bash
+source "$HOME/robross_hardware_session.env"
 ```
 
 ## Step 2 — (Recommended, once) URDF calibration from the controller
@@ -51,10 +86,12 @@ export ROBROSS_REPO=$PWD/src/RobRoss
 python3 -m pip install --user pyaubo-sdk==0.24.1
 python3 -c "import numpy, pyaubo_sdk"
 python3 src/aubo_ros2_driver/aubo_description/scripts/calibrate_urdf_dh.py \
-  --robot-model aubo_i5 --robot-ip <ROBOT_IP>
+  --robot-model aubo_i5 --robot-ip "$ROBOT_IP"
 colcon build --packages-select aubo_description
 source install/setup.bash
 export AUBO_TYPE=aubo_i5_calibrated
+printf 'export AUBO_TYPE=%q\n' "$AUBO_TYPE" >> \
+  "$HOME/robross_hardware_session.env"
 ```
 
 Keep `AUBO_TYPE=aubo_i5_calibrated` in every terminal after calibration. Using
@@ -64,8 +101,17 @@ Keep `AUBO_TYPE=aubo_i5_calibrated` in every terminal after calibration. Using
 
 Terminal 1 (driver, real hardware):
 ```bash
+export AUBO_SERVOJ_TELEMETRY_CSV=$HARDWARE_SESSION/stationary_servoj.csv
+test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV" || {
+  echo "Choose a new HARDWARE_SESSION; telemetry output already exists"
+  exit 1
+}
+test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV.partial" || {
+  echo "Choose a new HARDWARE_SESSION; partial telemetry output already exists"
+  exit 1
+}
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
-  aubo_type:=$AUBO_TYPE robot_ip:=<ROBOT_IP> use_fake_hardware:=false \
+  aubo_type:=$AUBO_TYPE robot_ip:=$ROBOT_IP use_fake_hardware:=false \
   controllers_file:=aubo_controllers.yaml servoj_time:=0.005
 ```
 
@@ -126,7 +172,7 @@ Terminal 3 and 4:
 
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
-  -p tool_offset_xyz:="[0.0, -0.0595, 0.0514]" \
+  -p tool_offset_xyz:="[0.001208, -0.06034, 0.090753]" \
   -p plane_bias_mm:=1.0 \
   -p output_file:=$HOME/canvas_calibration.yaml
 
@@ -166,29 +212,126 @@ warning → re-teach; don't rationalize.
 
 ## Step 5 — Dry-run everything (`dry_run: true` in `~/hardware_a4.yaml`)
 
-Full artwork, the test line, then the curve test card:
+Run the full artwork, test line, and curve card with this complete loop:
 
 ```bash
+set -euo pipefail
 ros2 launch robross_painter paint.launch.py \
   aubo_type:=$AUBO_TYPE \
   calibration_file:=$HOME/hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
-  paths_file:=$ROBROSS_REPO/output/painting_paths.json
-# then again with paths_file:=$ROBROSS_REPO/output/test_line_paths.json
-# then again with paths_file:=$ROBROSS_REPO/output/curve_test_paths.json
+  paths_file:=$ROBROSS_REPO/output/$path_file
 ```
+painting_paths.json
+test_line_paths.json
+curve_test_paths.json
 
 **Gate:** all commands plan cleanly, arm never moves. Repeated
 `Cartesian path only X% feasible` in one canvas region → try a different `tool_spin_deg` or move
 the canvas; never lower `cartesian_jump_threshold`. A motion-guard rejection is a rejected plan,
 not a parameter-tuning prompt.
 
-## Step 5.5 - Screen the pushed Phase 2 ServoJ changes above the paper
+## Step 5.5 - Qualify the reviewed ServoJ driver above the paper
 
-Complete this section before any paper-contact run. It covers the pushed Aubo driver changes
-that make ServoJ `t` configurable, publish timing diagnostics, add the 125 Hz trial profile,
-reject malformed `servoj_time` values, and add offline timing/tracking analysis in
-`robross_painter`.
+Complete this section before any paper-contact run. The reviewed driver now has full-rate
+per-call telemetry, transactional activation, checked stale-output handling, synchronized
+deactivation, and preallocated report buffers. The first hardware run must prove those paths on
+the robot before contact is considered.
+
+### 5.5.0 Mandatory stationary lifecycle and telemetry qualification
+
+Keep the arm stationary, clear its reach sphere, and keep the position controller unloaded.
+Terminal 1 must still be running the Step 3 driver with
+`AUBO_SERVOJ_TELEMETRY_CSV=$HARDWARE_SESSION/stationary_servoj.csv`.
+
+In Terminal 3, record the initial states, deactivate both controllers, and deactivate hardware:
+
+```bash
+set -euo pipefail
+ros2 control list_hardware_components | tee "$HARDWARE_SESSION/hardware_before.txt"
+ros2 control list_controllers | tee "$HARDWARE_SESSION/controllers_before.txt"
+ros2 param get /controller_manager use_sim_time | \
+  tee "$HARDWARE_SESSION/use_sim_time.txt"
+grep -F "Boolean value is: False" "$HARDWARE_SESSION/use_sim_time.txt"
+ros2 control switch_controllers --strict \
+  --deactivate joint_trajectory_controller joint_state_broadcaster
+ros2 control set_hardware_component_state auboHardwareInterface inactive
+test -f "$HARDWARE_SESSION/stationary_servoj.csv"
+test ! -e "$HARDWARE_SESSION/stationary_servoj.csv.partial"
+tail -n 1 "$HARDWARE_SESSION/stationary_servoj.csv" | \
+  tee "$HARDWARE_SESSION/first_activation_footer.txt"
+grep -F "status=complete" "$HARDWARE_SESSION/first_activation_footer.txt"
+cp "$HARDWARE_SESSION/stationary_servoj.csv" \
+  "$HARDWARE_SESSION/stationary_servoj_first_activation.csv"
+```
+
+Reactivate in the same process, run stationary for two report windows, and deactivate again:
+
+```bash
+set -euo pipefail
+ros2 control set_hardware_component_state auboHardwareInterface active
+ros2 control switch_controllers --strict \
+  --activate joint_state_broadcaster joint_trajectory_controller
+sleep 5
+ros2 control switch_controllers --strict \
+  --deactivate joint_trajectory_controller joint_state_broadcaster
+ros2 control set_hardware_component_state auboHardwareInterface inactive
+test -f "$HARDWARE_SESSION/stationary_servoj.csv"
+test ! -e "$HARDWARE_SESSION/stationary_servoj.csv.partial"
+tail -n 1 "$HARDWARE_SESSION/stationary_servoj.csv" | \
+  tee "$HARDWARE_SESSION/second_activation_footer.txt"
+grep -F "status=complete" "$HARDWARE_SESSION/second_activation_footer.txt"
+cp "$HARDWARE_SESSION/stationary_servoj.csv" \
+  "$HARDWARE_SESSION/stationary_servoj_second_activation.csv"
+ros2 control set_hardware_component_state auboHardwareInterface active
+ros2 control switch_controllers --strict \
+  --activate joint_state_broadcaster joint_trajectory_controller
+ros2 topic echo /joint_states --once | \
+  tee "$HARDWARE_SESSION/joint_states_after_reactivation.yaml"
+```
+
+Inspect both complete CSVs with a copy-pasteable parser:
+
+```bash
+SESSION="$HARDWARE_SESSION" python3 - <<'PY'
+import csv
+import os
+from pathlib import Path
+
+session = Path(os.environ["SESSION"])
+for name in (
+    "stationary_servoj_first_activation.csv",
+    "stationary_servoj_second_activation.csv",
+):
+    path = session / name
+    lines = path.read_text().splitlines()
+    footer = lines[-1]
+    rows = list(csv.DictReader(line for line in lines if not line.startswith("#")))
+    if not rows:
+        raise SystemExit(f"{path}: no ServoJ rows recorded")
+    seq = [int(row["seq"]) for row in rows]
+    if "status=complete" not in footer or "dropped=0" not in footer:
+        raise SystemExit(f"{path}: invalid footer: {footer}")
+    if seq and seq != list(range(seq[0], seq[0] + len(seq))):
+        raise SystemExit(f"{path}: sequence gap")
+    call_ros = [float(row["t_call_ros_s"]) for row in rows]
+    cycle_ros = [float(row["t_ros_s"]) for row in rows]
+    if any(value <= 0.0 for value in call_ros):
+        raise SystemExit(f"{path}: invalid call timestamp")
+    max_clock_delta = max(abs(call - cycle) for call, cycle in zip(call_ros, cycle_ros))
+    if max_clock_delta > 1.0:
+        raise SystemExit(f"{path}: ROS/system clock mismatch {max_clock_delta:.6f} s")
+    print(
+        f"PASS {path}: rows={len(rows)} max_clock_delta_s={max_clock_delta:.6f} "
+        f"footer={footer}"
+    )
+PY
+```
+
+**Gate:** both activations succeed in one driver process, each deactivation disables Servo mode,
+both files finalize with zero drops and contiguous sequence numbers, no `.partial` remains, and
+live joint states resume. An unexpected activation failure still ends the qualification run;
+preserve logs and restart the stack before any motion.
 
 The objective is an A/B comparison with exactly one timing variable changed:
 
@@ -210,8 +353,8 @@ recorder for each timing trial must be running before its fresh driver starts.
 From the workspace root:
 
 ```bash
-export PHASE2_SESSION=$HOME/robross_phase2_$(date +%Y%m%d_%H%M%S)
-mkdir "$PHASE2_SESSION"
+export PHASE2_SESSION=$HARDWARE_SESSION
+mkdir -p "$PHASE2_SESSION"
 {
   git -C src/RobRoss status --short --branch
   git -C src/RobRoss rev-parse HEAD
@@ -235,31 +378,41 @@ repositories and the description repository are clean, and `git submodule status
 `+` or `-`. Keep this terminal open and export the same `PHASE2_SESSION` value in every trial
 terminal. Do not compare bags produced by different source trees, including uncommitted changes.
 
-### 5.5.2 One-time malformed `servoj_time` startup checks
+### 5.5.2 One-time startup-failure checks
 
 Run these checks with the loopback address, not the robot address. This verifies that malformed
 values fail during hardware-interface initialization before any robot connection or ServoJ
-stream can begin:
+stream can begin. It also exercises fail-fast telemetry initialization with a path that cannot
+be opened:
 
 ```bash
 timeout 15s ros2 launch aubo_ros2_driver aubo_control.launch.py \
   aubo_type:=aubo_i5 robot_ip:=127.0.0.1 use_fake_hardware:=false \
-  servoj_time:=nan 2>&1 | tee $PHASE2_SESSION/servoj_time_nan.log
+  servoj_time:=nan 2>&1 | tee $PHASE2_SESSION/servoj_time_nan.log || true
 grep -F "is not a finite number" $PHASE2_SESSION/servoj_time_nan.log
 
 timeout 15s ros2 launch aubo_ros2_driver aubo_control.launch.py \
   aubo_type:=aubo_i5 robot_ip:=127.0.0.1 use_fake_hardware:=false \
-  servoj_time:=0.005junk 2>&1 | tee $PHASE2_SESSION/servoj_time_trailing.log
+  servoj_time:=0.005junk 2>&1 | tee $PHASE2_SESSION/servoj_time_trailing.log || true
 grep -F "has trailing characters after the number" \
   $PHASE2_SESSION/servoj_time_trailing.log
+
+export AUBO_SERVOJ_TELEMETRY_CSV=/proc/aubo_servoj_forbidden.csv
+timeout 15s ros2 launch aubo_ros2_driver aubo_control.launch.py \
+  aubo_type:=aubo_i5 robot_ip:=127.0.0.1 use_fake_hardware:=false \
+  servoj_time:=0.005 2>&1 | tee $PHASE2_SESSION/telemetry_open_failure.log || true
+grep -F "could not open" $PHASE2_SESSION/telemetry_open_failure.log
+test ! -e /proc/aubo_servoj_forbidden.csv
+test ! -e /proc/aubo_servoj_forbidden.csv.partial
+unset AUBO_SERVOJ_TELEMETRY_CSV
 ```
 
 The launch process may remain alive until `timeout` stops it after the component rejects the
 hardware configuration. The required result is the matching fatal message and no attempt to
 connect to a real controller.
 
-**Gate:** both `grep` commands find their expected rejection. Do not continue if either value is
-accepted or reaches ServoJ setup.
+**Gate:** all three `grep` commands find their expected rejection, no forbidden telemetry file is
+created, and no check reaches a real controller or ServoJ setup.
 
 ### 5.5.3 Confirm the diagnostic fixtures
 
@@ -450,8 +603,17 @@ ros2 bag record -o "$TRIAL_DIR" \
 With the recorder running, start a fresh driver in Terminal 1:
 
 ```bash
+export AUBO_SERVOJ_TELEMETRY_CSV=$PHASE2_SESSION/trial_a_servoj_calls.csv
+test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV" || {
+  echo "Trial A telemetry output already exists; choose a new session"
+  exit 1
+}
+test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV.partial" || {
+  echo "Trial A partial telemetry output already exists; choose a new session"
+  exit 1
+}
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
-  aubo_type:=$AUBO_TYPE robot_ip:=<ROBOT_IP> use_fake_hardware:=false \
+  aubo_type:=$AUBO_TYPE robot_ip:=$ROBOT_IP use_fake_hardware:=false \
   controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008
 ```
 
@@ -496,13 +658,13 @@ done
 ```
 
 While each executor is active, use another terminal to preserve its effective layered
-parameters. Export the same trial name in that terminal and replace `<fixture>` with
-`direction`, `sine`, `reversal`, or `curve`:
+parameters. Export the same trial name and enter the active fixture label when prompted:
 
 ```bash
 export TRIAL_NAME=trial_a
+read -r -p "Fixture label (direction/sine/reversal/curve): " FIXTURE
 ros2 param dump /painting_executor > \
-  $PHASE2_SESSION/${TRIAL_NAME}_<fixture>_painting_executor.yaml
+  $PHASE2_SESSION/${TRIAL_NAME}_${FIXTURE}_painting_executor.yaml
 ```
 
 If the node exits before the dump, invalidate the complete trial. Stop the bag and stack, return
@@ -513,6 +675,18 @@ for the effective runtime parameters.
 Stop immediately for queue-full warnings, nonzero `servoj_rc`, a timing fault, visible wrist
 oscillation toward the paper, unexpected path geometry, or loss of hover clearance. After all
 fixtures finish, stop the bag recorder cleanly with Ctrl-C, then stop MoveIt and the driver.
+
+After the driver exits, verify Trial A telemetry finalized:
+
+```bash
+set -euo pipefail
+test -f "$PHASE2_SESSION/trial_a_servoj_calls.csv"
+test ! -e "$PHASE2_SESSION/trial_a_servoj_calls.csv.partial"
+tail -n 1 "$PHASE2_SESSION/trial_a_servoj_calls.csv" | \
+  tee "$PHASE2_SESSION/trial_a_servoj_footer.txt"
+grep -F "status=complete" "$PHASE2_SESSION/trial_a_servoj_footer.txt"
+grep -F "dropped=0" "$PHASE2_SESSION/trial_a_servoj_footer.txt"
+```
 
 ### 5.5.6 Trial B: 200 Hz controller with ServoJ `t=0.005 s`
 
@@ -541,8 +715,17 @@ analysis commands below; never record over or delete a prior comparison bag.
 Start a fresh driver with the matched 200 Hz pair:
 
 ```bash
+export AUBO_SERVOJ_TELEMETRY_CSV=$PHASE2_SESSION/trial_b_servoj_calls.csv
+test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV" || {
+  echo "Trial B telemetry output already exists; choose a new session"
+  exit 1
+}
+test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV.partial" || {
+  echo "Trial B partial telemetry output already exists; choose a new session"
+  exit 1
+}
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
-  aubo_type:=$AUBO_TYPE robot_ip:=<ROBOT_IP> use_fake_hardware:=false \
+  aubo_type:=$AUBO_TYPE robot_ip:=$ROBOT_IP use_fake_hardware:=false \
   controllers_file:=aubo_controllers.yaml servoj_time:=0.005
 ```
 
@@ -614,6 +797,18 @@ four-fixture loop from Trial A, and dump each `/painting_executor` parameter set
 name. Stop the recorder, MoveIt, and driver when finished. Do not adjust velocity scaling, path
 geometry, tool pose, canvas pose, or any ServoJ parameter between trials.
 
+After the driver exits, verify Trial B telemetry finalized:
+
+```bash
+set -euo pipefail
+test -f "$PHASE2_SESSION/trial_b_servoj_calls.csv"
+test ! -e "$PHASE2_SESSION/trial_b_servoj_calls.csv.partial"
+tail -n 1 "$PHASE2_SESSION/trial_b_servoj_calls.csv" | \
+  tee "$PHASE2_SESSION/trial_b_servoj_footer.txt"
+grep -F "status=complete" "$PHASE2_SESSION/trial_b_servoj_footer.txt"
+grep -F "dropped=0" "$PHASE2_SESSION/trial_b_servoj_footer.txt"
+```
+
 ### 5.5.7 Analyze each bag offline
 
 Run analysis after the hardware stack is stopped. Use the same hover canvas and executor profile
@@ -650,6 +845,59 @@ For Trial A, the summary must show `config: t=0.008` and an effective configured
 For Trial B, it must show `config: t=0.005` and 200 Hz. If the config line is absent, the bag was
 started too late; repeat the trial instead of interpreting the timing gate.
 
+Validate the full-rate call files and screen report-boundary cadence. The report windows are 250
+cycles at 125 Hz and 400 cycles at 200 Hz:
+
+```bash
+SESSION="$PHASE2_SESSION" python3 - <<'PY'
+import csv
+import os
+import statistics
+from pathlib import Path
+
+session = Path(os.environ["SESSION"])
+trials = (
+    ("trial_a", session / "trial_a_servoj_calls.csv", 0.008, 250),
+    ("trial_b", session / "trial_b_servoj_calls.csv", 0.005, 400),
+)
+for label, path, nominal, window in trials:
+    lines = path.read_text().splitlines()
+    footer = lines[-1]
+    rows = list(csv.DictReader(line for line in lines if not line.startswith("#")))
+    if "status=complete" not in footer or "dropped=0" not in footer:
+        raise SystemExit(f"{label}: incomplete footer: {footer}")
+    seq = [int(row["seq"]) for row in rows]
+    if seq != list(range(len(seq))):
+        raise SystemExit(f"{label}: sequence gap or nonzero first sequence")
+    wall = [float(row["t_wall_s"]) for row in rows]
+    call_ros = [float(row["t_call_ros_s"]) for row in rows]
+    cycle_ros = [float(row["t_ros_s"]) for row in rows]
+    if any(value <= 0.0 for value in call_ros):
+        raise SystemExit(f"{label}: invalid ROS call timestamp")
+    max_clock_delta = max(abs(call - cycle) for call, cycle in zip(call_ros, cycle_ros))
+    if max_clock_delta > 1.0:
+        raise SystemExit(f"{label}: ROS/system clock mismatch {max_clock_delta:.6f} s")
+    intervals = [b - a for a, b in zip(wall, wall[1:])]
+    boundary = [
+        intervals[i - 1]
+        for i in range(1, len(rows))
+        if int(rows[i]["seq"]) % window == 0
+    ]
+    if not intervals or not boundary:
+        raise SystemExit(f"{label}: insufficient rows/report boundaries")
+    late_limit = nominal * 1.25
+    print(
+        f"{label}: rows={len(rows)} mean_ms={statistics.mean(intervals)*1000:.3f} "
+        f"max_ms={max(intervals)*1000:.3f} "
+        f"boundary_max_ms={max(boundary)*1000:.3f} "
+        f"max_clock_delta_s={max_clock_delta:.6f} "
+        f"late_limit_ms={late_limit*1000:.3f}"
+    )
+    if max(boundary) > late_limit:
+        raise SystemExit(f"{label}: report-boundary cadence exceeded late limit")
+PY
+```
+
 Record the following comparison in the session notes:
 
 | Metric | Trial A: 125 Hz / 8 ms | Trial B: 200 Hz / 5 ms |
@@ -676,6 +924,8 @@ Apply these gates when selecting a timing pair for further engineering work:
   the Phase 1 `+/-0.20 mm` normal limit.
 - No visible movement-synchronized wrist oscillation remains.
 - Direction, reversal, curve, and sine paths all complete above the paper without a safety abort.
+- Both full-rate call CSVs finalize with contiguous sequences, zero drops, valid call timestamps,
+  and no report-boundary interval above 1.25 times the matched control period.
 
 Preserve and inspect the executor evidence with:
 
@@ -686,30 +936,27 @@ grep -h "Cartesian FK error after retiming" $PHASE2_SESSION/trial_*.log
 Every reported normal into/out-of-paper magnitude must be no greater than `0.20 mm`. Missing
 lines are incomplete evidence, not a pass.
 
-Treat a missing ServoJ configuration, missing report window, malformed diagnostics, or
-`delay n/a` for the sine fixture as **INCOMPLETE**, even if the current analyzer prints `PASS`.
-The pushed analyzer estimates phase delay from controller-state publication and the pushed
-driver currently emits windowed timing statistics rather than every timestamped ServoJ command.
-These results are suitable for A/B screening, but they do not by themselves satisfy the
-remediation plan's raw per-call telemetry requirement.
+Treat a missing ServoJ configuration, missing report window, missing/incomplete full-rate CSV,
+malformed diagnostics, report-boundary cadence failure, or `delay n/a` for the sine fixture as
+**INCOMPLETE**, even if the current bag analyzer prints `PASS`. The bag analyzer's exported
+`trial_*_servoj.csv` contains report-window data; `trial_*_servoj_calls.csv` is the driver's
+separate full-rate call trail. Preserve and review both.
 
 If neither timing pair satisfies every measurable gate, stop. Do not proceed to contact, do not
 increase plane bias, do not add direction-dependent Z compensation, and do not tune ServoJ
 lookahead or gain. Investigate the RPC streaming path first. If one pair is clearly acceptable,
-record that complete launch pair as a candidate for the next implementation step; controller
-rate and ServoJ `t` must always be reviewed together. A candidate does not authorize contact.
-Paper contact remains blocked until the driver records every timestamped ServoJ command/call
-interval, the analyzer computes acceptance-grade temporal delay distributions from that data,
-and all formal Phase 2 gates pass.
+record that complete launch pair as the reviewed candidate; controller rate and ServoJ `t` must
+always be reviewed together. Software completion alone does not authorize contact. Paper contact
+remains blocked until the stationary lifecycle test, complete full-rate telemetry, hover motion,
+report-boundary cadence, temporal-delay analysis, and every formal Phase 2 gate pass review.
 
 ## Step 6 — First contact: the 50 mm line
 
-**Current gate:** do not run this step on the pushed Phase 2 revisions described in Step 5.5.
-Their diagnostics support A/B screening but do not yet provide the required per-call telemetry.
-Begin contact only after a later reviewed implementation closes that gap and the formal Phase 2
-gate passes. Then edit `~/hardware_a4.yaml`: `dry_run: false` (keep scaling at 0.1), return to the
-original `~/canvas_calibration.yaml` (never the hover canvas), clear the arm's entire reach
-sphere, and keep one hand on the e-stop:
+**Current gate:** the reviewed implementation provides per-call telemetry, but do not run this
+step until all Step 5.5 hardware evidence has been reviewed and accepted. Then edit
+`~/hardware_a4.yaml`: `dry_run: false` (keep scaling at 0.1), return to the original
+`~/canvas_calibration.yaml` (never the hover canvas), clear the arm's entire reach sphere, and
+keep one hand on the e-stop:
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
@@ -742,8 +989,18 @@ takes an unexpected shortcut between shapes.
 
 ## Step 8 — Full artwork
 
-Same command with `paths_file:=$ROBROSS_REPO/output/painting_paths.json`; compare the result
-against `output/path_preview.svg`. Raise `velocity_scaling` only after motion is trusted.
+Run the full artwork only after the line and curve gates pass:
+
+```bash
+ros2 launch robross_painter paint.launch.py \
+  aubo_type:=$AUBO_TYPE \
+  calibration_file:=$HOME/hardware_a4.yaml \
+  canvas_file:=$HOME/canvas_calibration.yaml \
+  paths_file:=$ROBROSS_REPO/output/painting_paths.json
+```
+
+Compare the result against `output/path_preview.svg`. Raise `velocity_scaling` only after motion
+is trusted.
 
 ## Session rules (PREFLIGHT §5)
 

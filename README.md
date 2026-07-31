@@ -47,6 +47,7 @@ intermediate command format, not motor-control output. See the
 | Understand the path schema | [Path format](docs/painting-paths-format.md) |
 | Build and run in RViz | [ROS 2 painter](ros2/robross_painter/README.md) |
 | Prepare a real-arm session | [Hardware preflight](ros2/robross_painter/PREFLIGHT.md) |
+| Run the staged real-arm workflow | [Hardware run guide](docs/hardware_run_guide.md) |
 | Review prototype requirements | [Prototype v1](docs/Rob_Ross_Prototype_v1.md) |
 | Work with CAD assemblies | [CAD assets](CAD/README.md) |
 

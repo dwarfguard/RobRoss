@@ -98,9 +98,10 @@ ros2 launch robross_painter paint.launch.py \
 
 ## 4. First contact
 
-**Current Phase 2 gate:** contact remains blocked on the pushed timing-instrumentation revisions.
-Complete `docs/hardware-first-run-guide.md` Step 5.5 and wait for acceptance-grade per-ServoJ-call
-telemetry and all formal Phase 2 gates to pass before using this section.
+**Current Phase 2 gate:** the reviewed driver provides per-ServoJ-call telemetry, but software
+completion alone does not authorize contact. Complete `docs/hardware_run_guide.md` Step 5.5 and
+wait for the stationary lifecycle, hover latency, telemetry, and all formal Phase 2 gates to pass
+review before using this section.
 
 - [ ] Clear the arm's whole reach sphere. Pen-up travel may use bounded
       joint-space planning when a straight path fails. It avoids modeled

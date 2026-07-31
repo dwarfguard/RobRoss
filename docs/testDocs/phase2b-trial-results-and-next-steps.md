@@ -106,9 +106,12 @@ latter before `t` is matched and measured; it now is).
    transient-tolerant streak pattern as the timing-mismatch latch. The periodic
    timing report's string formatting + `/rosout` publish move to an off-RT worker
    thread. Driver-only (`aubo_ros2_driver`); `aubo_ros2_driver` colcon test
-   15 passed. **Slice 2b — full-rate per-call telemetry (2.1)** is deferred: it
-   needs a transport decision (opt-in CSV vs. recorded topic) and feeds Slice 3,
-   not the immediate re-trial gate.
+   15 passed. **Slice 2b — full-rate per-call telemetry (2.1) [DONE,
+   uncommitted]:** opt-in CSV (`AUBO_SERVOJ_TELEMETRY_CSV` env var, off by
+   default) written by the Slice 2a off-RT worker — ROS/wall time, 6 commanded
+   joint positions, `t`, RPC duration, return code, retries, dropped flag per
+   cycle. This is the stream Slice 3 (2.3) consumes for per-cycle delay.
+   `aubo_ros2_driver` colcon test 16 passed.
 2. **Config authority + install staleness (2.8).** Reject a mismatched
    rate/`servoj_time` pair; ensure the installed Xacro forwards `servoj_time`.
 3. **Slice 3 — per-cycle delay (2.3),** consuming Slice 2's full-rate stream, so

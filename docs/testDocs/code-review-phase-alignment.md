@@ -33,9 +33,11 @@ Findings already closed:
   timing report's string formatting + `/rosout` publish move to an off-RT worker
   thread. Verified: `aubo_ros2_driver` colcon test 15 passed. Not committed. The
   motivating evidence is `robross_phase2_20260724_144321` — see
-  `docs/testDocs/phase2b-trial-results-and-next-steps.md`. **2.1 (full-rate
-  per-call telemetry) is deferred** — it needs a transport decision (CSV vs
-  topic) and feeds Slice 3, not the immediate re-trial gate.
+  `docs/testDocs/phase2b-trial-results-and-next-steps.md`.
+- **Slice 2b (2.1)** — full-rate opt-in CSV per-call telemetry (env var
+  `AUBO_SERVOJ_TELEMETRY_CSV`), off by default, written by the Slice 2a off-RT
+  worker; the input stream Slice 3 (2.3) will consume. `aubo_ros2_driver` colcon
+  test 16 passed. Not committed.
 
 The remaining open findings are mapped below.
 
@@ -51,7 +53,7 @@ The remaining open findings are mapped below.
 | 2.5 `servoj_time` accepts invalid input | **Phase 2A/2B** (§7) | "reject an obvious configuration mismatch" | **done** `9bba97a` |
 | 2.6 failed ServoJ writes reported OK | **Phase 2A** (§7) | "unexpected return codes must no longer be silently discarded" + Queue-full Policy | **done** Slice 2a |
 | 2.9 diagnostics run on the RT control thread | **Phase 2A** (§7) | "logging … throttled so diagnostics do not create additional timing load" | **done** Slice 2a |
-| 2.1 no full-rate per-call command telemetry | **Phase 2A** (§7) | "timestamped commanded joint positions for every ServoJ call … phase delay through each sine cycle" | open (Slice 2b; transport TBD) |
+| 2.1 no full-rate per-call command telemetry | **Phase 2A** (§7) | "timestamped commanded joint positions for every ServoJ call … phase delay through each sine cycle" | **done** Slice 2b (opt-in CSV) |
 | 2.8 launch does not pair rate with `servoj_time` | **Phase 2B** (§7) | "derive it from one authoritative controller period" | open |
 | 2.10 submodule commit not on remote | **§13/§14** cross-repo versioning | "changes spanning the two repositories … versioned together" | **done** |
 
@@ -125,13 +127,19 @@ Split into 2a (done) and 2b (deferred):
   bucketed as an "other" return code. Files: `aubo_hardware_interface.{h,cpp}`,
   `servo_timing_stats.h`, driver `test/`. Driver-only (no description change).
   Verified: `aubo_ros2_driver` colcon test 15 passed.
-- **Slice 2b — full-rate per-call telemetry (2.1) [deferred].** RT-safe
-  per-ServoJ-call command/timestamp capture handed to the (now existing) non-RT
-  worker, sufficient to compute per-cycle phase delay. Needs a transport
-  decision (opt-in CSV file vs. a recorded topic) before editing, since it adds a
-  data sink to the driver; it is the input for Slice 3 (2.3), not for the
-  immediate re-trial gate. If it later touches the description/launch, version
-  the two repos together (submodule first — the 2.10 lesson).
+- **Slice 2b — full-rate per-call telemetry (2.1) [done, uncommitted].**
+  RT-safe per-ServoJ-call capture (ROS time, wall time, 6 commanded joint
+  positions, `t`, RPC duration, return code, retries, dropped flag) pushed one
+  POD sample per cycle into a bounded, pre-reserved buffer under a brief lock;
+  the off-RT worker double-buffer-swaps it out and appends CSV rows. **Opt-in**
+  via the `AUBO_SERVOJ_TELEMETRY_CSV` env var (or a `servoj_telemetry_csv`
+  hardware parameter) — disabled by default, so nothing is captured and no file
+  is written unless asked; chosen over a recorded topic to avoid downsampling and
+  keep the RT thread publish-free, and env-var config sidesteps the `servoj_time`
+  install-staleness path. Row formatting is unit-tested. This is the input stream
+  Slice 3 (2.3) consumes for per-cycle delay. Driver-only so far; if enabling it
+  by default later needs a description/launch change, version the two repos
+  together (submodule first — the 2.10 lesson).
 
 ### Slice 3 — Phase 0 per-cycle delay (2.3)
 
