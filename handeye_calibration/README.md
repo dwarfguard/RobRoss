@@ -190,7 +190,7 @@ Demo v1 的目标是证明机器人能用笔在 A4 纸上画线稿，是开环�
 
 ## 机械臂通信 (JSON-RPC)
 
-- 端口: 8899
+- 端口: 30004
 - 协议: `rob1.MotionControl.moveLine([x,y,z,rx,ry,rz], a, v, blend, duration)`
 - API 参考: https://docs.aubo-robotics.cn/arcs_api/zh/
 

@@ -65,7 +65,7 @@ def main():
     parser.add_argument("--output", default="handeye_calib.txt",
                         help="输出文件 (默认 handeye_calib.txt)")
     parser.add_argument("--robot-ip", help="机械臂 IP (自动读取 TCP 坐标)")
-    parser.add_argument("--robot-port", type=int, default=8899)
+    parser.add_argument("--robot-port", type=int, default=30004)
     parser.add_argument("--manual", action="store_true",
                         help="手动输入基座坐标 (不用机械臂)")
     parser.add_argument("--dry-run", action="store_true", help="看流程")
