@@ -190,7 +190,7 @@ If the next phase aims to improve automation, the most valuable capabilities an 
 
 ## Robot Communication (JSON-RPC)
 
-- Port: 8899
+- Port: 30004
 - Protocol: `rob1.MotionControl.moveLine([x,y,z,rx,ry,rz], a, v, blend, duration)`
 - API Reference: https://docs.aubo-robotics.cn/arcs_api/en/
 

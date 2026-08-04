@@ -58,6 +58,7 @@ validation status, path/stroke counts) instead of opening files one by one.
 | Browse all generated runs | Run `python3 generate_output_gallery.py` → `output/index.html` |
 | Understand the path schema | [Path format](docs/painting-paths-format.md) |
 | Build and run in RViz | [ROS 2 painter](ros2/robross_painter/README.md) |
+| One-click painting (camera → paper pose → robot) | `./start_painting.sh` — see below |
 | Prepare a real-arm session | [Hardware preflight](ros2/robross_painter/PREFLIGHT.md) |
 | Review prototype requirements | [Prototype v1](docs/Rob_Ross_Prototype_v1.md) |
 | Work with CAD assemblies | [CAD assets](CAD/README.md) |
@@ -98,6 +99,33 @@ fake-hardware and RViz launch sequence.
 > hardware profile and a freshly taught canvas pose. Complete the
 > [hardware preflight](ros2/robross_painter/PREFLIGHT.md) before enabling motion.
 
+## One-Click Painting
+
+The repo-root `./start_painting.sh` chains the two halves of a real-arm run:
+detect the paper with the fixed camera (ArUco), then launch the ROS 2 painter
+with the generated canvas pose. It can be run from anywhere in the repository:
+
+```bash
+# Terminal 1 (keep running): robot driver
+ros2 launch aubo_ros2_driver aubo_control.launch.py aubo_type:=aubo_i5
+
+# Terminal 2 (keep running): MoveIt
+ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=aubo_i5
+
+# Terminal 3: place the paper, then
+./start_painting.sh \
+  --camera-id <ID> \
+  --paths-file output/demo_v1_a4_pen/painting_paths.json \
+  --calibration-file ros2/robross_painter/config/hardware_a4.yaml
+```
+
+It runs the same two commands as the `handeye_calibration/` script — ArUco
+detection with `--robross` (writing `/tmp/robross_canvas_calibration.yaml`),
+then `paint.launch.py` with that file as `canvas_file` — but resolves all
+camera/calibration files under `handeye_calibration/` automatically. Run
+`./start_painting.sh --help` for the full option list (camera ID, marker size,
+ROS 2 workspace path, etc.).
+
 ## Repository Layout
 
 ```text
@@ -111,6 +139,7 @@ generate_output_gallery.py       Builds output/index.html, a static preview of e
 webapp/                          Optional local control panel: upload a photo, run a route, browse the result
 firmware/                        ESP32 gripper firmware (USB + RS485 control) - see "Start Here" above
 handeye_calibration/             Camera-to-robot calibration tooling - see "Start Here" above
+start_painting.sh                One-click camera detection → ROS 2 painting (repo root)
 ```
 
 `webapp/` is an optional add-on (needs `pip install flask`) — see

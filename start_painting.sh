@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 #
-# start_painting.sh — 一键启动: ArUco 检测纸张 → ROS 2 画画
+# start_painting.sh (repo root) — 一键启动: ArUco 检测纸张 → ROS 2 画画
 #
 # 用法:
 #   ./start_painting.sh --camera-id 2 --paths-file /path/to/painting_paths.json
+#
+# 项目根目录版本: 从仓库任何位置运行都可。
+# 检测/标定代码位于 handeye_calibration/，此处自动引用。
 #
 # 前提 (已经在运行的):
 #   终端 1: ros2 launch aubo_ros2_driver aubo_control.launch.py aubo_type:=aubo_i5
@@ -16,12 +19,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+HAND_EYE_DIR="$SCRIPT_DIR/handeye_calibration"
 
 # ── 默认值 ──────────────────────────────────────────────────────
 CAMERA_ID=""
-CAMERA_CALIB="$SCRIPT_DIR/camera_calib.json"
-HANDEYE_CALIB="$SCRIPT_DIR/handeye_calib.txt"
+CAMERA_CALIB="$HAND_EYE_DIR/camera_calib.json"
+HANDEYE_CALIB="$HAND_EYE_DIR/handeye_calib.txt"
 MARKER_SIZE="0.02"
 ROBROSS_OUTPUT="/tmp/robross_canvas_calibration.yaml"
 CALIBRATION_FILE=""    # 留空则用 paint.launch.py 的默认值 (rviz_wall_a4.yaml, 仅仿真!)
@@ -135,7 +138,7 @@ echo "  摄像头 ID: $CAMERA_ID"
 echo "  输出:      $ROBROSS_OUTPUT"
 echo ""
 
-cd "$SCRIPT_DIR"
+cd "$HAND_EYE_DIR"
 
 ARUCO_ARGS=(
     --camera-id "$CAMERA_ID"

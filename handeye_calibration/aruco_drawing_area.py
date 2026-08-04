@@ -5,7 +5,7 @@ ArUco 绘制区域检测与 AUBO 机械臂定位
 
 相机检测 4 个 ArUco → 计算绘图区域 → 发送给机械臂
 
-通信使用 JSON-RPC over TCP (纯 socket，直连控制器 8899 端口)
+通信使用 JSON-RPC over TCP (纯 socket，直连控制器 30004 端口)
 
 ArUco 布局（从相机视角看）:
     +-----------------------+
@@ -331,7 +331,7 @@ class JsonRpcBackend(RobotBackend):
         self.sock: Optional[socket.socket] = None
         self._rpc_id = 0
 
-    def connect(self, ip: str, port: int = 8899) -> bool:
+    def connect(self, ip: str, port: int = 30004) -> bool:
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(5.0)
@@ -347,7 +347,8 @@ class JsonRpcBackend(RobotBackend):
             self.sock.close()
             self.sock = None
 
-    def _call(self, method: str, params: List[Any] = None) -> Optional[Any]:
+    def _call(self, method: str, params: List[Any] = None,
+              quiet: bool = False) -> Optional[Any]:
         if not self.sock:
             raise ConnectionError("未连接")
         self._rpc_id += 1
@@ -367,15 +368,22 @@ class JsonRpcBackend(RobotBackend):
                 except json.JSONDecodeError:
                     continue
             if "error" in data:
-                print(f"[✗] RPC 错误: {data['error']}")
+                if not quiet:
+                    print(f"[✗] RPC 错误: {data['error']}")
                 return None
             return data.get("result")
         except Exception as e:
-            print(f"[✗] RPC 失败 [{method}]: {e}")
+            if not quiet:
+                print(f"[✗] RPC 失败 [{method}]: {e}")
             return None
 
     def login(self) -> bool:
-        return self._call("robot_interface.login") is not None
+        # 不同控制器版本的登录方法名不同，甚至无需登录。
+        # 逐个尝试，全部不存在 (method not found) 时视为无需登录。
+        for method in ("robot_interface.login", "robot.login", "login"):
+            if self._call(method, quiet=True) is not None:
+                return True
+        return True
 
     def move_line(self, pose, a=0.3, v=0.2, blend=0.0, duration=0.0) -> bool:
         return self._call(f"{self.robot_name}.MotionControl.moveLine",
@@ -392,7 +400,7 @@ class JsonRpcBackend(RobotBackend):
         self._call(f"{self.robot_name}.MotionControl.setSpeedFraction", [fraction])
 
 
-def create_robot_backend(ip: str, port: int = 8899,
+def create_robot_backend(ip: str, port: int = 30004,
                          robot_name: str = "rob1") -> Optional[RobotBackend]:
     """创建 JSON-RPC 后端（通过 TCP 直连机械臂控制器）"""
     backend = JsonRpcBackend(robot_name)
@@ -632,8 +640,8 @@ def main():
                         help="标记边长/米 (默认 0.02)")
     parser.add_argument("--robot-ip",
                         help="机械臂控制器 IP")
-    parser.add_argument("--robot-port", type=int, default=8899,
-                        help="JSON-RPC 端口 (默认 8899)")
+    parser.add_argument("--robot-port", type=int, default=30004,
+                        help="JSON-RPC 端口 (默认 30004)")
     parser.add_argument("--camera-calib", default="camera_calib.json",
                         help="相机标定文件 (默认 camera_calib.json)")
     parser.add_argument("--handeye-calib", default="handeye_calib.txt",
