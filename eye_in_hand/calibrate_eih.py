@@ -25,38 +25,14 @@
 
 import argparse
 import os
-import sys
 import time
 
 import cv2
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "handeye_calibration"))
-from aruco_drawing_area import (
-    ArucoDetector, CameraCalib, create_robot_backend
+from eih_common import (
+    ArucoDetector, CameraCalib, create_robot_backend, pose_to_matrix,
 )
-
-
-def rpy_to_matrix(rx, ry, rz):
-    """RPY 欧拉角 (弧度) → 3×3 旋转矩阵 (ZYX 顺序, 与 getTcpPose 约定一致)"""
-    Rx = np.array([[1, 0, 0],
-                   [0, np.cos(rx), -np.sin(rx)],
-                   [0, np.sin(rx), np.cos(rx)]])
-    Ry = np.array([[np.cos(ry), 0, np.sin(ry)],
-                   [0, 1, 0],
-                   [-np.sin(ry), 0, np.cos(ry)]])
-    Rz = np.array([[np.cos(rz), -np.sin(rz), 0],
-                   [np.sin(rz), np.cos(rz), 0],
-                   [0, 0, 1]])
-    return Rz @ Ry @ Rx
-
-
-def pose_to_matrix(pose):
-    """[x,y,z,rx,ry,rz] → 4×4 齐次变换矩阵"""
-    T = np.eye(4)
-    T[:3, :3] = rpy_to_matrix(pose[3], pose[4], pose[5])
-    T[:3, 3] = pose[:3]
-    return T
 
 
 def rvec_tvec_to_matrix(rvec, tvec):
@@ -124,6 +100,56 @@ def solve_ax_xb(A_list, B_list):
     return X
 
 
+def check_pose_diversity(A_list, B_list):
+    """
+    检查位姿对的旋转轴多样性 — AX=XB 需要多个不同方向的旋转。
+
+    返回 (有效对数, 奇异值归一化分布)。若第一个奇异值占比 > 0.85,
+    说明旋转轴几乎都在同一方向，解算会退化、旋转误差大。
+    """
+    n = len(A_list)
+    axes = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            Aij = np.linalg.inv(A_list[i]) @ A_list[j]
+            rvec, _ = cv2.Rodrigues(Aij[:3, :3])
+            angle = np.linalg.norm(rvec)
+            if angle > 1e-6:  # 只统计有实际旋转的位姿对
+                axes.append((rvec / angle).flatten())  # (3,1) → (3,)
+    if not axes:
+        return 0, np.zeros(3)
+    M = np.vstack(axes)
+    s = np.linalg.svd(M, compute_uv=False)
+    s_norm = s / s.sum()
+    return len(axes), s_norm
+
+
+def live_quality_report(A_list, B_list):
+    """每次采集后实时计算标定质量 (简洁终端反馈)"""
+    n = len(A_list)
+    if n < 3:
+        return
+    _, s_norm = check_pose_diversity(A_list, B_list)
+    X = solve_ax_xb(A_list, B_list)
+    T_marks = [A_list[i] @ X @ B_list[i] for i in range(n)]
+    center = np.mean(T_marks, axis=0)
+    pos_errors = [np.linalg.norm(Tm[:3, 3] - center[:3, 3]) * 1000
+                  for Tm in T_marks]
+    rot_errors = []
+    for Tm in T_marks:
+        dR = center[:3, :3].T @ Tm[:3, :3]
+        rot_errors.append(np.degrees(np.linalg.norm(rotation_vector_of(dR))))
+
+    div_flag = "⚠ 退化" if s_norm[0] > 0.85 else "✓ 合理"
+    print(f"  ┌─ 实时质量 ({n} 组)")
+    print(f"  │  旋转轴分布: x={s_norm[0]:.2f} y={s_norm[1]:.2f} z={s_norm[2]:.2f}  {div_flag}")
+    print(f"  │  一致性误差: 位置 {np.mean(pos_errors):.1f} mm, "
+          f"旋转 {np.mean(rot_errors):.1f}°")
+    print(f"  └─")
+    if np.mean(rot_errors) > 5:
+        print(f"     ⚠ 旋转误差仍大 — 换个朝向 (倾斜/旋转) 再采一组")
+
+
 def load_camera_calib(path="camera_calib.json"):
     if not os.path.exists(path):
         print(f"[⚠] 未找到 {path}")
@@ -137,7 +163,7 @@ def main():
     parser = argparse.ArgumentParser(description="臂上相机手眼标定 (Eye-in-Hand, AX=XB)")
     parser.add_argument("--camera-id", type=int, default=0, help="摄像头 ID")
     parser.add_argument("--camera-calib", default="camera_calib.json",
-                        help="相机标定文件 (在 handeye_calibration/ 下)")
+                        help="相机标定文件 (默认 eye_in_hand/camera_calib.json)")
     parser.add_argument("--aruco-dict", default="4X4_50", help="ArUco 字典")
     parser.add_argument("--marker-size", type=float, default=0.02,
                         help="标记边长/米")
@@ -173,10 +199,10 @@ def main():
         print("[✗] 需要 --robot-ip <IP> (自动读取 TCP 位姿)")
         return
 
-    # 相机标定文件默认在 handeye_calibration/ 下
+    # 相机标定文件默认在本目录 (eye_in_hand/) 下
     if not os.path.exists(args.camera_calib):
-        fallback = os.path.join(os.path.dirname(__file__), "..",
-                                "handeye_calibration", args.camera_calib)
+        fallback = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                os.path.basename(args.camera_calib))
         if os.path.exists(fallback):
             args.camera_calib = fallback
     cmat, dist = load_camera_calib(args.camera_calib)
@@ -197,15 +223,11 @@ def main():
     A_list = []  # T_base_ee
     B_list = []  # T_cam_marker
 
-    # 缓存最后一次检测到的标记位姿 (机械臂可能挡住标记)
-    cached_rvec = None
-    cached_tvec = None
-    cached_mid = None
-
     # 实时 TCP 刷新 (限频)
     last_tcp_fetch = 0.0
     tcp_fetch_interval = 0.5
     current_pose = None
+    dump_path = args.output.replace(".txt", "_data.npz")
 
     print("\n" + "=" * 55)
     print("  臂上相机手眼标定 (Eye-in-Hand)")
@@ -218,6 +240,7 @@ def main():
     print("  操作:")
     print("    [Space]  采集 — 记录当前位姿 + 标记位姿")
     print("    [c]      标定完成并保存")
+    print("    [d]      保存当前采集数据 (供离线分析)")
     print("    [q]      退出")
     print()
 
@@ -244,9 +267,6 @@ def main():
             current_mid = ids[0]
             current_rvec = poses[0][0]
             current_tvec = poses[0][1].flatten()
-            cached_mid = current_mid
-            cached_rvec = current_rvec
-            cached_tvec = current_tvec
             cv2.drawFrameAxes(display, cmat, dist,
                               current_rvec, current_tvec,
                               args.marker_size * 0.6)
@@ -256,17 +276,12 @@ def main():
         if current_mid is not None:
             status = f"✓  ID:{current_mid}"
             status_color = (0, 220, 80)
-            cache_note = ""
-        elif cached_mid is not None:
-            status = f"◉  缓存 ID:{cached_mid}"
-            status_color = (0, 180, 255)
-            cache_note = "  (标记被遮挡，使用缓存)"
         else:
             status = "✗  未检测到"
             status_color = (0, 0, 230)
-            cache_note = ""
 
-        line1 = f"已采集: {n_history} 组  |  检测: {status}{cache_note}"
+        # eye-in-hand 中 A 和 B 必须同一时刻读取，标记被遮挡时不能采集!
+        line1 = f"已采集: {n_history} 组  |  检测: {status}"
         cv2.putText(display, line1, (10, 28),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, status_color, 2)
 
@@ -315,17 +330,14 @@ def main():
             break
 
         elif key == 32:
-            # 优先用当前检测，标记被遮挡时用缓存
-            if current_rvec is not None and current_tvec is not None:
-                rvec, tvec = current_rvec, current_tvec
-                mid = current_mid
-            elif cached_rvec is not None and cached_tvec is not None:
-                rvec, tvec = cached_rvec, cached_tvec
-                mid = cached_mid
-                print("\n  [i] 标记被遮挡，使用缓存的标记位姿")
-            else:
-                print("\n  [✗] 未检测到标记，也无法获取缓存")
+            # eye-in-hand: A (TCP) 和 B (标记) 必须同一时刻读取。
+            # 标记被遮挡时**不能**用旧数据配对，否则 AX=XB 方程被污染。
+            if current_rvec is None or current_tvec is None:
+                print("\n  [✗] 未实时检测到标记 — 请调整位姿让标记可见后再按 Space")
                 continue
+
+            rvec, tvec = current_rvec, current_tvec
+            mid = current_mid
 
             if current_pose is None:
                 pose = robot.get_tcp_pose()
@@ -342,11 +354,34 @@ def main():
                   f"{current_pose[2]:.4f})")
             print(f"          Marker: ({tvec[0]:.4f}, {tvec[1]:.4f}, {tvec[2]:.4f})")
             print(f"  [✓] 第 {len(A_list)} 组")
+            live_quality_report(A_list, B_list)
+
+        elif key == ord("d"):
+            if len(A_list) < 2:
+                print("\n  [✗] 至少 2 组才能保存分析")
+                continue
+            np.savez(dump_path,
+                     A_list=np.stack(A_list), B_list=np.stack(B_list))
+            print(f"\n  [✓] 数据已保存: {dump_path}")
+            print(f"      ({len(A_list)} 组位姿)")
 
         elif key == ord("c"):
             if len(A_list) < 3:
                 print(f"\n  [✗] 至少 3 个位姿，当前 {len(A_list)}")
                 continue
+
+            # 数据质量诊断: 旋转轴多样性
+            n_pairs, s_norm = check_pose_diversity(A_list, B_list)
+            print(f"\n  ┌─ 数据质量诊断")
+            print(f"  │  有效旋转位姿对: {n_pairs}  (共 {len(A_list)} 组位姿)")
+            print(f"  │  旋转轴分布 (奇异值占比): "
+                  f"x={s_norm[0]:.2f} y={s_norm[1]:.2f} z={s_norm[2]:.2f}")
+            if s_norm[0] > 0.85:
+                print(f"  │  ⚠ 旋转轴分布太集中! 所有位姿几乎绕同一方向旋转,")
+                print(f"  │    旋转分量解算不可靠。请增加不同方向(俯仰/侧倾/旋转)的位姿后重试")
+            else:
+                print(f"  │  ✓ 旋转轴分布合理")
+            print(f"  └─")
 
             X = solve_ax_xb(A_list, B_list)
 

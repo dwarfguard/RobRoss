@@ -47,7 +47,8 @@ A_i X B_i = 常数         (标记在基座中固定不动)
 3. 拖到不同位姿（角度、远近都要变化），使标记在画面中，**保持距离 10~25cm**
    （D405 最佳 7–30cm，太近会失焦、太远又回到 50cm 识别问题）
 4. 每个位姿按 `[Space]` 记录（自动读 TCP 位姿 + 标记位姿）
-5. 至少 3 个位姿，建议 **6~8 个**
+5. **每次采集后程序立即显示实时质量报告**——看到「旋转轴分布合理 +
+   旋转误差 < 2°」就可以按 `[c]` 完成（一般 6~8 组）
 6. 按 `[c]` 完成 → 得到 `eye_in_hand_calib.txt`
 
 ```bash
@@ -60,8 +61,42 @@ python3 eye_in_hand/calibrate_eih.py \
   --camera-id <ID>
 ```
 
-标记被机械臂遮挡时，程序会缓存最后一次检测到的标记位姿（画面显示黄色 `◉`），
-按 Space 时自动使用缓存——和固定相机版本的逻辑一致。
+> **注意：eye-in-hand 不能使用缓存！** A（TCP）和 B（标记位姿）必须是
+> **同一时刻**读取的。标记被机械臂遮挡时按 Space 会被拒绝——请调整位姿
+> 让标记重新可见再采集。固定相机版本可以用缓存，臂上相机不行。
+
+### 实时质量报告（每次采集后自动计算）
+
+采集满 3 组后，每次按 `[Space]` 程序都会立即重新求解并打印：
+
+```
+  ┌─ 实时质量 (4 组)
+  │  旋转轴分布: x=0.54 y=0.40 z=0.06  ✓ 合理
+  │  一致性误差: 位置 0.0 mm, 旋转 0.1°
+  └─
+```
+
+| 指标 | 健康信号 | 问题信号 |
+|---|---|---|
+| 旋转轴分布 | x/y/z 三个方向都有分量（如 0.4/0.3/0.3） | 第一项 > 0.85 = **退化**，旋转解不可信 |
+| 一致性误差 | 旋转 < 2° | > 5° 会提示「换个朝向再采一组」 |
+
+**旋转轴退化是最常见的标定失败原因**：位姿数量再多，如果相机始终几乎
+正对标记（只平移、只绕一个方向转），绕其他轴的旋转信息就缺失，解出的
+旋转误差可以到十几度。解决：故意让相机倾斜、旋转、俯仰，三个方向的
+奇异值都上来了再继续。
+
+### 数据保存与离线分析
+
+按 `[d]` 可把当前采集的 A/B 数据保存为 `eye_in_hand_calib_data.npz`，
+配合离线分析工具诊断：
+
+```bash
+python3 eye_in_hand/analyze_eih_data.py eye_in_hand_calib_data.npz
+```
+
+输出包括旋转轴分布、位姿覆盖范围（距离/角度变化）和一致性误差，
+帮助判断是数据退化、solvePnP 噪声还是 TCP 读数问题。
 
 ### 判断标定质量
 
@@ -78,6 +113,9 @@ python3 eye_in_hand/calibrate_eih.py \
 标定完成后，把纸放在桌面上（4 角贴 ArUco），机械臂移到纸上方：
 
 ```bash
+# 查看摄像头 ID
+python3 eye_in_hand/aruco_eih.py --list-cameras
+
 # 预览 (不保存)
 python3 eye_in_hand/aruco_eih.py \
   --robot-ip 192.168.1.100 \
@@ -106,8 +144,10 @@ T_base_cam = T_base_ee × T_ee_cam
 |---|---|
 | `README_EN.md` | 英文说明（与本文对应） |
 | `calibrate_eih.py` | AX=XB 标定 → `eye_in_hand_calib.txt` |
+| `analyze_eih_data.py` | 离线分析采集数据（npz）→ 诊断标定质量 |
 | `aruco_eih.py` | 实时检测画布 → RobRoss 画布 YAML |
-| `calibrate_camera.py` | 相机内参标定（与固定相机版本相同） |
+| `eih_common.py` | 本目录公共模块：检测器、标定加载、画布计算、机械臂通信 |
+| `calibrate_camera.py` | 相机内参标定（本目录独立） |
 | `read_realsense_intrinsics.py` | 读取 D405 出厂内参 |
 | `markers/` | 可打印的 ArUco 标记（4 角 + 标定用） |
 | `chessboard.png` | 棋盘格（相机标定用） |
@@ -117,8 +157,9 @@ T_base_cam = T_base_ee × T_ee_cam
 | `start_painting_eih.sh` | 一键启动：臂上相机检测 → ROS 2 画画 |
 | `eye_in_hand_calib.txt` | 标定输出（4×4 矩阵 `T_ee_cam`） |
 
-代码复用 `handeye_calibration/aruco_drawing_area.py` 中的检测器、相机内参
-加载、绘图区域计算和画布输出逻辑。
+本目录**完全自包含**：检测器、相机内参加载、绘图区域计算、机械臂通信
+（JSON-RPC）和画布输出逻辑都在 `eih_common.py` 中，不依赖
+`handeye_calibration/`，单独复制本文件夹即可运行。
 
 ### 一键启动（标定完成后）
 
@@ -138,7 +179,7 @@ cd eye_in_hand/
 
 ## 备注
 
-- 相机标定文件复用 `handeye_calibration/camera_calib.json`
+- 相机标定文件在本目录内（`camera_calib.json` 等），与固定相机版本互不影响
 - 机械臂通信走 JSON-RPC（与主项目一致，无 pyaubo_sdk 依赖）
 - 臂上相机只解决「相机靠近纸面」的问题；画画时机械臂仍需回到固定相机
   方案或由用户引导——当前版本只输出画布标定，不直接控制画画路径

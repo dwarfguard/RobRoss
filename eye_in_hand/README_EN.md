@@ -50,7 +50,9 @@ A_i X B_i = constant     (marker is fixed in base frame)
    in view at **10–25 cm** (D405 best 7–30 cm; too close blurs, too far
    reintroduces the 50 cm detection problem).
 4. Press `[Space]` at each pose (records TCP pose + marker pose automatically).
-5. At least 3 poses, ideally **6–8**.
+5. **A live quality report is printed after every capture** — press `[c]`
+   once the report shows "rotation axes OK + rotation error < 2°"
+   (typically 6–8 poses).
 6. Press `[c]` to finish → get `eye_in_hand_calib.txt`.
 
 ```bash
@@ -63,9 +65,46 @@ python3 eye_in_hand/calibrate_eih.py \
   --camera-id <ID>
 ```
 
-When the arm blocks the marker, the program caches the last detected marker
-pose (yellow `◉` on screen) and falls back to it on `[Space]` — same logic as
-the fixed-camera version.
+> **Note: eye-in-hand must NOT use cached data!** `A` (TCP) and `B` (marker
+> pose) must be read at the **same instant**. If the arm blocks the marker,
+> `[Space]` is rejected — adjust the pose so the marker is visible again.
+> Caching works for the fixed-camera version only, not for eye-in-hand.
+
+### Live quality report (after every capture)
+
+Once 3 poses are collected, every `[Space]` re-solves and prints:
+
+```
+  ┌─ Live quality (4 poses)
+  │  Rotation axes: x=0.54 y=0.40 z=0.06  ✓ OK
+  │  Consistency: position 0.0 mm, rotation 0.1°
+  └─
+```
+
+| Metric | Healthy | Problem |
+|---|---|---|
+| Rotation axes | Components in all three directions (e.g. 0.4/0.3/0.3) | First component > 0.85 = **degenerate**, rotation unreliable |
+| Consistency error | Rotation < 2° | > 5° triggers "collect another pose with a different orientation" |
+
+**Degenerate rotation axes are the most common calibration failure**: no
+matter how many poses, if the camera stays nearly face-on to the marker (only
+translating, or rotating about one direction), the rotation information about
+the other axes is missing and the solved rotation error can reach tens of
+degrees. Fix: deliberately tilt, rotate and pitch the camera until the
+singular values spread across all three directions.
+
+### Save data and offline analysis
+
+Press `[d]` to save the collected A/B data as `eye_in_hand_calib_data.npz`,
+then diagnose offline:
+
+```bash
+python3 eye_in_hand/analyze_eih_data.py eye_in_hand_calib_data.npz
+```
+
+It reports rotation-axis distribution, pose coverage (distance/angle ranges)
+and consistency errors, helping distinguish data degeneracy, solvePnP noise
+or TCP reading issues.
 
 ### Calibration quality
 
@@ -83,6 +122,9 @@ After calibration, place the paper on the table (ArUco markers on the 4
 corners) and move the arm above the paper:
 
 ```bash
+# List available cameras
+python3 eye_in_hand/aruco_eih.py --list-cameras
+
 # Preview (no save)
 python3 eye_in_hand/aruco_eih.py \
   --robot-ip 192.168.1.100 \
@@ -111,19 +153,23 @@ The generated YAML has the exact same format as the fixed-camera version
 | File | Purpose |
 |---|---|
 | `calibrate_eih.py` | AX=XB calibration → `eye_in_hand_calib.txt` |
+| `analyze_eih_data.py` | Offline analysis of captured data (npz) → diagnose quality |
 | `aruco_eih.py` | Live canvas detection → RobRoss canvas YAML |
-| `calibrate_camera.py` | Camera intrinsics calibration (same as fixed-camera version) |
+| `eih_common.py` | Shared local module: detector, calib loading, canvas math, robot comms |
+| `calibrate_camera.py` | Camera intrinsics calibration (self-contained) |
 | `read_realsense_intrinsics.py` | Read D405 factory intrinsics |
 | `markers/` | Printable ArUco markers |
 | `eye_in_hand_calib.txt` | Calibration output (4×4 matrix `T_ee_cam`) |
 
-Code reuses the detector, camera-calibration loading, drawing-area computation
-and canvas-output logic from `handeye_calibration/aruco_drawing_area.py`.
+This folder is **fully self-contained**: the detector, camera-calibration
+loading, drawing-area computation, robot communication (JSON-RPC) and
+canvas-output logic all live in `eih_common.py`. It has no dependency on
+`handeye_calibration/` — you can copy this folder alone and run it.
 
 ## Notes
 
-- Camera calibration files are shared with `handeye_calibration/`
-  (`camera_calib.json` etc.), also copied here for convenience.
+- Camera calibration files live in this folder (`camera_calib.json` etc.)
+  and are independent from the fixed-camera version.
 - Robot communication uses JSON-RPC over TCP, port **30004** (no pyaubo_sdk).
 - Eye-in-hand only solves "camera close to the paper"; during painting the arm
   still needs guidance from the fixed-camera flow or manual positioning — this

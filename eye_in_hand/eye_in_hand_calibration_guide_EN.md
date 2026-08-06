@@ -85,7 +85,25 @@ Each time, do the same thing:
       Robot: current TCP pose T_base_ee
       Camera: marker pose T_cam_marker
    → screen shows "pair 1" "pair 2" ...
+   → after 3 poses, a **live quality report** is printed after every capture
 ```
+
+**How to read the live quality report:**
+
+```
+  ┌─ Live quality (4 poses)
+  │  Rotation axes: x=0.54 y=0.40 z=0.06  ✓ OK
+  │  Consistency: position 0.0 mm, rotation 0.1°
+  └─
+```
+
+- **Rotation axes**: components in all three directions (e.g. 0.4/0.3/0.3)
+  mean the poses are diverse and the data is healthy. If the first component
+  is > 0.85 (e.g. x=1.00), all poses rotate about nearly the same axis — the
+  rotation solution is unreliable, and **collecting more similar poses won't
+  help**; change the orientation instead.
+- **Consistency error**: rotation < 2° and you are nearly done; > 5° the
+  program suggests collecting another pose with a different orientation.
 
 **Collection tips (determine calibration quality):**
 
@@ -101,6 +119,13 @@ Good spread example:
 ```
 Top-down view → right 45° → front-left 30° → near 12 cm
 Far 22 cm    → rotated 90° → high tilt   → low tilt
+```
+
+To inspect the data mid-way, press `d` to save to
+`eye_in_hand_calib_data.npz`, then analyze offline:
+
+```bash
+python3 analyze_eih_data.py eye_in_hand_calib_data.npz
 ```
 
 ### Step 3: Finish calibration
@@ -136,8 +161,10 @@ Confirm to save `eye_in_hand_calib.txt`.
 
 ### Q: The arm blocks the marker?
 
-No problem. The program caches the last detected marker pose (yellow `◉` on
-screen) and uses it on `[Space]`. The marker must not have moved.
+**Adjust the pose until the marker is visible again before pressing
+`[Space]`.** Eye-in-hand cannot use cached data — `A` (TCP) and `B` (marker
+pose) must be read at the same instant, otherwise the AX=XB equations are
+corrupted. Caching is a fixed-camera-only capability.
 
 ### Q: Too close to see / blurry image?
 
