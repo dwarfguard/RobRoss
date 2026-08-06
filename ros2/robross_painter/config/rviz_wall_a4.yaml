@@ -41,7 +41,7 @@ painting_executor:
     max_execution_tip_error_mm: 1.0
     max_execution_tip_orientation_error_deg: 1.0
     totg_path_tolerance: 0.01
-    controller_sample_dt: 0.005
+    controller_sample_dt: 0.008
     # Endpoint settling: require the arm to reach and HOLD the planned endpoint
     # at rest before accepting a move; contact moves use the shorter timeout and
     # a timeout fails closed. (Fake hardware settles near-instantly.)

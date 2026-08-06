@@ -33,7 +33,7 @@ painting_executor:
     canvas_backing_clearance_m: 0.005
     # Pen tip pose in ee_link (custom claw). Zero for the RViz demo:
     # ee_link is treated as the pen tip.
-    tool_offset_xyz: [0.0, 0.0, 0.0]
+    tool_offset_xyz: [0.001208, -0.06034, 0.090753]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     # Rotation of the claw about the pen axis, degrees. -90 reproduces the
     # wrist orientation of the earlier tool_rpy: [pi, 0, 0] setting.
@@ -70,7 +70,7 @@ painting_executor:
     max_execution_tip_error_mm: 1.0
     max_execution_tip_orientation_error_deg: 1.0
     totg_path_tolerance: 0.01
-    controller_sample_dt: 0.005
+    controller_sample_dt: 0.008
     # Endpoint settling: require the arm to reach and HOLD the planned endpoint
     # at rest before accepting a move. Contact moves use the shorter timeout; on
     # timeout the move fails closed. (Fake hardware settles near-instantly.)
