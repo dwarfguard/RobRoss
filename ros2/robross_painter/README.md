@@ -52,11 +52,50 @@ collision geometry. It then applies these fail-closed checks:
   (`controller_sample_dt`), so the controller's linear interpolation matches
   exactly what the validator checked;
 - MoveIt bounds and collision checks at interpolated trajectory samples;
-- measured pen-tip endpoint checks after execution.
+- endpoint settling after execution (below), then a one-shot collision check on
+  the settled measured pose.
+
+### Endpoint settling
+
+MoveIt reporting a trajectory "complete" only means the command stream finished;
+the measured `/joint_states` feedback trails the commanded setpoint by roughly
+88–120 ms on this arm, so the first post-completion sample can still show the arm
+moving toward the target. Instead of comparing that first sample, every move
+(pen-up and pen-down alike, in the single `executeTrajectory` path) waits for the
+arm to reach **and hold** the planned endpoint at rest before it is accepted.
+
+On every fresh feedback sample the executor checks, together: the measured
+endpoint is within tolerance (joint angle, pen-tip position and orientation),
+the maximum joint speed is below `endpoint_settle_velocity_tolerance`, and the
+feedback is fresh (finite position **and** velocity, no larger than
+`endpoint_settle_sample_max_age` old). The move settles only when all three hold
+continuously for `endpoint_settle_dwell` and across at least the derived minimum
+number of samples (`ceil(dwell / controller_sample_dt) + 1`). A stop at the wrong
+location (stationary but out of tolerance) and a right-location fly-through (in
+tolerance but still moving) therefore both fail to settle. Missing velocity
+feedback fails closed.
+
+On physical hardware, the AUBO driver also checks the underlying 500 Hz RTDE
+source rather than ROS publication time alone. If no new RTDE state packet
+arrives within `rtde_state_max_age` (driver launch default `0.05` s), it latches
+a hardware fault, invalidates velocity feedback, and disables further ServoJ
+writes until the driver is restarted. This prevents ros2_control from
+republishing cached state as qualifying settle samples. Keep this driver limit
+at or below `endpoint_settle_sample_max_age`.
+
+The motion kind selects only the budget and the recovery, never whether the
+check runs — contact moves (lowering, painting) use the shorter
+`endpoint_settle_contact_timeout`. If the arm does not settle within the budget
+the move **fails closed** (an endpoint-validation failure — the motion itself
+already completed): the executor commands a hold, logs the last and best
+measured samples, and stops the sequence. For a contact move it then attempts a
+bounded straight retreat, but only after a short recovery-stabilization wait
+confirms fresh, low-speed feedback; if the arm is still moving or feedback is
+stale it refuses the autonomous retreat and escalates (operator / protective
+stop required). Pen-up failures hold and require operator recovery.
 
 The executor does not move through an automatic home pose, switch elbow family,
-or retry an unconstrained IK goal. If contact-state execution becomes uncertain,
-it attempts only a measured straight retreat from the canvas.
+or retry an unconstrained IK goal.
 
 See [REFERENCE.md](REFERENCE.md) for the exact controls. Do not weaken a safety
 limit merely to make a rejected trajectory execute.
@@ -239,6 +278,8 @@ export AUBO_TYPE=aubo_i5_calibrated
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
   aubo_type:=$AUBO_TYPE robot_ip:=<robot-ip> use_fake_hardware:=false \
   controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008
+# controllers_file/servoj_time now default to this 125 Hz / 0.008 s pair, so
+# the two args above are optional. The 200 Hz / 0.005 s pair is disqualified.
 
 # Terminal 2
 source ~/robross_aubo_ws/install/setup.bash

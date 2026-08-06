@@ -137,10 +137,18 @@ ros2 launch aubo_ros2_driver aubo_control.launch.py \
   controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008
 ```
 
-The selected hardware profile is the explicit matched pair `125 Hz / 0.008 s`. Do not change
-only one value. The `200 Hz / 0.005 s` pair is retained for historical diagnostics only; valid
-stationary evidence showed approximately 20.4 percent queue-full drops, so it is not a painting
-profile. See the [current status](aubo-painting-current-status-2026-07-31.md).
+The selected hardware profile is the matched pair `125 Hz / 0.008 s`, and it is now the driver
+default: a bare `aubo_control.launch.py robot_ip:=<IP>` comes up on it, so the explicit
+`controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008` args above are optional (they
+just restate the defaults). Do not change only one value. The `200 Hz / 0.005 s` pair is
+disqualified — never a launch option — because valid stationary evidence showed approximately
+20.4 percent queue-full drops; `aubo_controllers.yaml` is retained on disk for historical
+diagnostics only. See the [current status](aubo-painting-current-status-2026-07-31.md).
+
+The driver launch argument `rtde_state_max_age` defaults to `0.05` seconds (allowed range
+`0.005`–`0.100`). If the source RTDE joint-state packet exceeds that age, the driver latches a
+hardware fault, invalidates velocity feedback, and refuses further ServoJ writes until restart.
+Keep it at or below the painter's `endpoint_settle_sample_max_age`.
 
 Terminal 2 (MoveIt):
 ```bash
@@ -369,10 +377,10 @@ The stationary qualification establishes the selected timing pair:
 
 | Status | Controller file | Update rate | Required `servoj_time` |
 | --- | --- | ---: | ---: |
-| Selected | `aubo_controllers_125hz.yaml` | 125 Hz | `0.008` s |
-| Rejected historical pair | `aubo_controllers.yaml` | 200 Hz | `0.005` s |
+| Default (125 Hz / 0.008 s) | `aubo_controllers_125hz.yaml` | 125 Hz | `0.008` s |
+| Disqualified | `aubo_controllers.yaml` | 200 Hz | `0.005` s |
 
-The 200 Hz pair does not need to be rerun for routine qualification. Before the hover checks
+The 200 Hz pair is disqualified and does not need to be rerun for routine qualification. Before the hover checks
 below, stop the stack used for Step 5 and confirm no `controller_manager`, MoveIt, or painting
 executor process remains. Start the bag before the fresh 125 Hz driver so it captures
 `servoj_config`.

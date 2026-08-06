@@ -71,6 +71,14 @@ painting_executor:
     max_execution_tip_orientation_error_deg: 1.0
     totg_path_tolerance: 0.01
     controller_sample_dt: 0.005
+    # Endpoint settling: require the arm to reach and HOLD the planned endpoint
+    # at rest before accepting a move. Contact moves use the shorter timeout; on
+    # timeout the move fails closed. (Fake hardware settles near-instantly.)
+    endpoint_settle_velocity_tolerance: 0.02   # rad/s "stationary" threshold
+    endpoint_settle_dwell: 0.15                # s continuous in-tolerance hold
+    endpoint_settle_timeout: 1.5               # s transit/lift budget
+    endpoint_settle_contact_timeout: 0.6       # s lowering/painting budget
+    endpoint_settle_sample_max_age: 0.05       # s max feedback age / sample gap
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
     # true = plan everything but do not execute.

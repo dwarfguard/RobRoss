@@ -31,6 +31,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <json/json.h>
@@ -51,6 +52,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Transform.h>
@@ -58,8 +60,18 @@
 #include <visualization_msgs/msg/marker.hpp>
 
 #include "cartesian_postprocess.hpp"
+#include "endpoint_settling.hpp"
 
 namespace {
+
+// Contact state of a single executed trajectory. Validation runs for every
+// kind; the kind only selects the settle timeout and the recovery policy.
+enum class MotionKind {
+    Transit,   // pen up, positioning move (no contact)
+    Lowering,  // descending to establish pen contact
+    Painting,  // pen down, drawing a stroke/path
+    Lifting    // leaving contact, raising the pen
+};
 
 moveit::planning_interface::MoveGroupInterface
 connectMoveGroup(const rclcpp::Node::SharedPtr &node)
@@ -269,6 +281,22 @@ public:
                                 state_validity_service_);
         node_->get_parameter_or("dry_run", dry_run_, dry_run_);
 
+        node_->get_parameter_or("endpoint_settle_velocity_tolerance",
+                                endpoint_settle_velocity_tolerance_,
+                                endpoint_settle_velocity_tolerance_);
+        node_->get_parameter_or("endpoint_settle_dwell", endpoint_settle_dwell_,
+                                endpoint_settle_dwell_);
+        node_->get_parameter_or("endpoint_settle_timeout",
+                                endpoint_settle_timeout_,
+                                endpoint_settle_timeout_);
+        node_->get_parameter_or("endpoint_settle_contact_timeout",
+                                endpoint_settle_contact_timeout_,
+                                endpoint_settle_contact_timeout_);
+        node_->get_parameter_or("endpoint_settle_sample_max_age",
+                                endpoint_settle_sample_max_age_,
+                                endpoint_settle_sample_max_age_);
+        validateSettleParameters();
+
         group_.setMaxVelocityScalingFactor(vel_scale_);
         group_.setMaxAccelerationScalingFactor(acc_scale_);
 
@@ -296,6 +324,21 @@ public:
                         std::lock_guard<std::mutex> lock(joint_state_mutex_);
                         joint_state_names_ = msg->name;
                         joint_state_positions_ = msg->position;
+                        // Velocity feeds the "stationary" settle condition.
+                        // Store it only when it lines up with the joints and is
+                        // finite; otherwise clear it so a stale velocity can
+                        // never be paired with newer positions (settling then
+                        // fails closed on that sample).
+                        if (msg->velocity.size() == msg->name.size() &&
+                            std::all_of(msg->velocity.begin(),
+                                        msg->velocity.end(),
+                                        [](double value) {
+                                            return std::isfinite(value);
+                                        })) {
+                            joint_state_velocities_ = msg->velocity;
+                        } else {
+                            joint_state_velocities_.clear();
+                        }
                         joint_state_received_at_ =
                             std::chrono::steady_clock::now();
                         ++joint_state_sequence_;
@@ -854,8 +897,9 @@ private:
                          "lower/lift before any move_to, refusing");
             return false;
         }
-        if (!moveCartesian({ makePose(cur_x_mm_, cur_y_mm_, z_off) },
-                           pen_down_ || z_off == 0.0)) {
+        const MotionKind kind =
+            (z_off == 0.0) ? MotionKind::Lowering : MotionKind::Lifting;
+        if (!moveCartesian({ makePose(cur_x_mm_, cur_y_mm_, z_off) }, kind)) {
             return false;
         }
         pen_down_ = (z_off == 0.0);
@@ -881,13 +925,14 @@ private:
                         "Stroke starts at (%.2f, %.2f) but pen is at "
                         "(%.2f, %.2f); dragging pen to the start point",
                         fx, fy, cur_x_mm_, cur_y_mm_);
-            if (!moveCartesian({ makePose(fx, fy, 0.0) })) {
+            if (!moveCartesian({ makePose(fx, fy, 0.0) },
+                               MotionKind::Painting)) {
                 return false;
             }
             cur_x_mm_ = fx;
             cur_y_mm_ = fy;
         }
-        if (!moveCartesian({ makePose(tx, ty, 0.0) })) {
+        if (!moveCartesian({ makePose(tx, ty, 0.0) }, MotionKind::Painting)) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Stroke rejected; refusing an automatic posture "
                          "change while painting");
@@ -942,7 +987,7 @@ private:
             waypoints.push_back(
                 makePose(points[i].first, points[i].second, 0.0));
         }
-        if (!moveCartesian(waypoints)) {
+        if (!moveCartesian(waypoints, MotionKind::Painting)) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Paint path rejected; refusing an automatic posture "
                          "change while painting");
@@ -966,9 +1011,23 @@ private:
         }
         RCLCPP_WARN(node_->get_logger(),
                     "Aborting with the pen down; retreating off the paper");
-        if (!refreshTrackedState()) {
+        // Only retreat from a known state: wait (bounded) for fresh, low-speed
+        // feedback. If the arm is still moving or feedback is stale, refuse the
+        // autonomous retreat and escalate to operator/protective-stop.
+        std::vector<std::string> stationary_names;
+        std::vector<double> stationary_positions;
+        if (!waitUntilStationary(endpoint_settle_contact_timeout_,
+                                 stationary_names, stationary_positions)) {
+            RCLCPP_FATAL(node_->get_logger(),
+                         "Robot did not reach a fresh, stationary state; "
+                         "refusing an autonomous retreat from an unknown state. "
+                         "Trigger a protective stop and clear the pen manually "
+                         "before the next run");
+            return;
+        }
+        if (!loadTrackedState(stationary_names, stationary_positions)) {
             RCLCPP_ERROR(node_->get_logger(),
-                         "Cannot read the current pose for straight retreat");
+                         "Cannot load the stationary pose for straight retreat");
             return;
         }
         const auto &current = tracked_state_->getGlobalLinkTransform(
@@ -987,7 +1046,7 @@ private:
         hover.orientation.y = orientation.y();
         hover.orientation.z = orientation.z();
         hover.orientation.w = orientation.w();
-        if (moveCartesian({ hover })) {
+        if (moveCartesian({ hover }, MotionKind::Lifting)) {
             pen_down_ = false;
             RCLCPP_INFO(node_->get_logger(), "Pen retreated to hover height");
             return;
@@ -1302,34 +1361,11 @@ private:
         return true;
     }
 
-    bool refreshTrackedState(std::uint64_t newer_than = 0,
-                             bool require_newer = false)
+    // Copy a measured joint sample into tracked_state_, verifying the group's
+    // joints are present and the result is within model bounds.
+    bool loadTrackedState(const std::vector<std::string> &names,
+                          const std::vector<double> &positions)
     {
-        if (dry_run_ && tracked_state_) {
-            return true;
-        }
-
-        std::vector<std::string> names;
-        std::vector<double> positions;
-        {
-            std::unique_lock<std::mutex> lock(joint_state_mutex_);
-            const auto fresh = [this, newer_than, require_newer]() {
-                return have_joint_state_ &&
-                       (!require_newer ||
-                        joint_state_sequence_ > newer_than) &&
-                       std::chrono::steady_clock::now() -
-                               joint_state_received_at_ <
-                           std::chrono::seconds(2);
-            };
-            if (!fresh() &&
-                !joint_state_cv_.wait_for(lock, std::chrono::seconds(5),
-                                          fresh)) {
-                return false;
-            }
-            names = joint_state_names_;
-            positions = joint_state_positions_;
-        }
-
         const auto *jmg =
             group_.getRobotModel()->getJointModelGroup(group_.getName());
         for (const auto &required : jmg->getVariableNames()) {
@@ -1361,50 +1397,237 @@ private:
         return true;
     }
 
+    bool refreshTrackedState(std::uint64_t newer_than = 0,
+                             bool require_newer = false)
+    {
+        if (dry_run_ && tracked_state_) {
+            return true;
+        }
+
+        std::vector<std::string> names;
+        std::vector<double> positions;
+        {
+            std::unique_lock<std::mutex> lock(joint_state_mutex_);
+            const auto fresh = [this, newer_than, require_newer]() {
+                return have_joint_state_ &&
+                       (!require_newer ||
+                        joint_state_sequence_ > newer_than) &&
+                       std::chrono::steady_clock::now() -
+                               joint_state_received_at_ <
+                           std::chrono::seconds(2);
+            };
+            if (!fresh() &&
+                !joint_state_cv_.wait_for(lock, std::chrono::seconds(5),
+                                          fresh)) {
+                return false;
+            }
+            names = joint_state_names_;
+            positions = joint_state_positions_;
+        }
+        return loadTrackedState(names, positions);
+    }
+
+    static double toSeconds(std::chrono::steady_clock::time_point tp)
+    {
+        return std::chrono::duration<double>(tp.time_since_epoch()).count();
+    }
+
+    static std::chrono::steady_clock::duration toDuration(double seconds)
+    {
+        if (seconds < 0.0) {
+            seconds = 0.0;
+        }
+        return std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double>(seconds));
+    }
+
+    // Minimum qualifying-sample count spanning the dwell, derived from the
+    // controller period (not separately configurable).
+    int requiredSettleSamples() const
+    {
+        return static_cast<int>(
+                   std::ceil(endpoint_settle_dwell_ / controller_sample_dt_)) +
+               1;
+    }
+
+    // Contact moves get the shorter budget: dwelling while the pen is
+    // compressed against the canvas carries risk.
+    double settleTimeout(MotionKind kind) const
+    {
+        return (kind == MotionKind::Lowering || kind == MotionKind::Painting)
+                   ? endpoint_settle_contact_timeout_
+                   : endpoint_settle_timeout_;
+    }
+
+    void validateSettleParameters() const
+    {
+        const auto positive = [](double v) {
+            return std::isfinite(v) && v > 0.0;
+        };
+        if (!positive(endpoint_settle_velocity_tolerance_) ||
+            !positive(endpoint_settle_dwell_) ||
+            !positive(endpoint_settle_timeout_) ||
+            !positive(endpoint_settle_contact_timeout_) ||
+            !positive(endpoint_settle_sample_max_age_) ||
+            !positive(controller_sample_dt_)) {
+            throw std::runtime_error(
+                "endpoint_settle_* parameters and controller_sample_dt must be "
+                "finite and positive");
+        }
+        if (endpoint_settle_sample_max_age_ < controller_sample_dt_) {
+            throw std::runtime_error(
+                "endpoint_settle_sample_max_age must be >= controller_sample_dt");
+        }
+        const double min_span =
+            (requiredSettleSamples() - 1) * controller_sample_dt_;
+        if (endpoint_settle_dwell_ >= endpoint_settle_timeout_ ||
+            endpoint_settle_dwell_ >= endpoint_settle_contact_timeout_ ||
+            min_span > endpoint_settle_timeout_ ||
+            min_span > endpoint_settle_contact_timeout_) {
+            throw std::runtime_error(
+                "endpoint_settle timeouts are too short for the settle dwell / "
+                "required sample count");
+        }
+    }
+
+    // Waits for the next joint sample newer than `newer_than` and no older than
+    // endpoint_settle_sample_max_age_. Returns false if none arrives in `budget`.
+    bool nextFreshSample(std::uint64_t newer_than,
+                         std::chrono::steady_clock::duration budget,
+                         std::vector<std::string> &names,
+                         std::vector<double> &positions,
+                         std::vector<double> &velocities, std::uint64_t &seq,
+                         std::chrono::steady_clock::time_point &received_at)
+    {
+        std::unique_lock<std::mutex> lock(joint_state_mutex_);
+        const auto fresh = [this, newer_than]() {
+            return have_joint_state_ && joint_state_sequence_ > newer_than &&
+                   std::chrono::steady_clock::now() - joint_state_received_at_ <
+                       toDuration(endpoint_settle_sample_max_age_);
+        };
+        if (!fresh() && !joint_state_cv_.wait_for(lock, budget, fresh)) {
+            return false;
+        }
+        names = joint_state_names_;
+        positions = joint_state_positions_;
+        velocities = joint_state_velocities_;
+        seq = joint_state_sequence_;
+        received_at = joint_state_received_at_;
+        return true;
+    }
+
+    bool samplePositionsValid(const trajectory_msgs::msg::JointTrajectory &jt,
+                              const std::vector<std::string> &names,
+                              const std::vector<double> &positions) const
+    {
+        if (positions.size() != names.size()) {
+            return false;
+        }
+        for (const auto &joint : jt.joint_names) {
+            const auto it = std::find(names.begin(), names.end(), joint);
+            if (it == names.end()) {
+                return false;
+            }
+            const std::size_t idx =
+                static_cast<std::size_t>(std::distance(names.begin(), it));
+            if (!std::isfinite(positions[idx])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // True if every trajectory joint has a finite position AND velocity in the
+    // sample; sets max_abs_velocity over those joints. A missing/short velocity
+    // vector fails closed and leaves max_abs_velocity unknown (NaN).
+    bool sampleValidity(const trajectory_msgs::msg::JointTrajectory &jt,
+                        const std::vector<std::string> &names,
+                        const std::vector<double> &positions,
+                        const std::vector<double> &velocities,
+                        double &max_abs_velocity) const
+    {
+        max_abs_velocity = std::numeric_limits<double>::quiet_NaN();
+        if (!samplePositionsValid(jt, names, positions) ||
+            velocities.size() != names.size()) {
+            return false;
+        }
+        double measured_max = 0.0;
+        for (const auto &joint : jt.joint_names) {
+            const auto it = std::find(names.begin(), names.end(), joint);
+            const std::size_t idx =
+                static_cast<std::size_t>(std::distance(names.begin(), it));
+            if (!std::isfinite(velocities[idx])) {
+                return false;
+            }
+            measured_max =
+                std::max(measured_max, std::abs(velocities[idx]));
+        }
+        max_abs_velocity = measured_max;
+        return true;
+    }
+
     std::uint64_t jointStateSequence()
     {
         std::lock_guard<std::mutex> lock(joint_state_mutex_);
         return joint_state_sequence_;
     }
 
-    bool endpointMatches(
-        const moveit_msgs::msg::RobotTrajectory &traj)
+    struct EndpointError {
+        bool within_limits = false;
+        double max_joint_deg = 0.0;
+        double tip_mm = 0.0;
+        double orient_deg = 0.0;
+        // Max normalized error (error / limit) across the gates; infinity when
+        // the sample violates bounds. Used to pick the "best" sample.
+        double ratio = std::numeric_limits<double>::infinity();
+    };
+
+    // Geometric endpoint check for one measured sample against the trajectory's
+    // final waypoint: per-joint angle (<= 2 deg), model/elbow bounds, and
+    // pen-tip position/orientation. Pure (no service call, no logging) so it can
+    // run on every feedback sample while settling.
+    EndpointError endpointError(const std::vector<std::string> &names,
+                                const std::vector<double> &positions,
+                                const moveit_msgs::msg::RobotTrajectory &traj)
     {
+        EndpointError result;
         const auto &jt = traj.joint_trajectory;
-        if (!tracked_state_ || jt.points.empty()) {
-            return false;
+        if (jt.points.empty() ||
+            jt.joint_names.size() != jt.points.back().positions.size()) {
+            return result;
         }
+        moveit::core::RobotState measured(group_.getRobotModel());
+        measured.setToDefaultValues();
+        try {
+            measured.setVariablePositions(names, positions);
+        } catch (const std::exception &) {
+            return result;
+        }
+        measured.update();
+
         constexpr double kEndpointToleranceDeg = 2.0;
+        double max_joint_deg = 0.0;
         for (std::size_t i = 0; i < jt.joint_names.size(); ++i) {
             const double error_deg =
-                std::abs(tracked_state_->getVariablePosition(jt.joint_names[i]) -
-                         jt.points.back().positions.at(i)) *
+                std::abs(measured.getVariablePosition(jt.joint_names[i]) -
+                         jt.points.back().positions[i]) *
                 180.0 / M_PI;
-            if (error_deg > kEndpointToleranceDeg) {
-                RCLCPP_ERROR(node_->get_logger(),
-                             "Executed endpoint for %s differs by %.2f deg "
-                             "(limit %.2f deg)",
-                             jt.joint_names[i].c_str(), error_deg,
-                             kEndpointToleranceDeg);
-                return false;
-            }
-        }
-        const auto *jmg =
-            group_.getRobotModel()->getJointModelGroup(group_.getName());
-        if (!tracked_state_->satisfiesBounds(jmg) ||
-            (elbow_up_enabled_ && !elbowInsideBand(*tracked_state_))) {
-            RCLCPP_ERROR(node_->get_logger(),
-                         "Measured endpoint violates joint or elbow bounds");
-            return false;
+            max_joint_deg = std::max(max_joint_deg, error_deg);
         }
 
-        moveit::core::RobotState expected(*tracked_state_);
+        const auto *jmg =
+            group_.getRobotModel()->getJointModelGroup(group_.getName());
+        const bool bounds_ok =
+            measured.satisfiesBounds(jmg) &&
+            (!elbow_up_enabled_ || elbowInsideBand(measured));
+
+        moveit::core::RobotState expected(measured);
         expected.setVariablePositions(jt.joint_names,
                                       jt.points.back().positions);
         expected.update();
         const auto to_tip = [this](const moveit::core::RobotState &state) {
-            const auto &transform = state.getGlobalLinkTransform(
-                group_.getEndEffectorLink());
+            const auto &transform =
+                state.getGlobalLinkTransform(group_.getEndEffectorLink());
             const Eigen::Quaterniond q(transform.rotation());
             return tf2::Transform(
                        tf2::Quaternion(q.x(), q.y(), q.z(), q.w()),
@@ -1413,36 +1636,251 @@ private:
                                     transform.translation().z())) *
                    tool_offset_;
         };
-        const tf2::Transform actual_tip = to_tip(*tracked_state_);
+        const tf2::Transform actual_tip = to_tip(measured);
         const tf2::Transform expected_tip = to_tip(expected);
-        const double tip_error_mm =
+        result.max_joint_deg = max_joint_deg;
+        result.tip_mm =
             (actual_tip.getOrigin() - expected_tip.getOrigin()).length() *
             1000.0;
-        const double orientation_error_deg =
-            actual_tip.getRotation().angleShortestPath(
-                expected_tip.getRotation()) *
-            180.0 / M_PI;
-        if (tip_error_mm > max_execution_tip_error_mm_ ||
-            orientation_error_deg > max_execution_tip_orientation_error_deg_) {
+        result.orient_deg = actual_tip.getRotation().angleShortestPath(
+                                expected_tip.getRotation()) *
+                            180.0 / M_PI;
+        result.within_limits =
+            bounds_ok && max_joint_deg <= kEndpointToleranceDeg &&
+            result.tip_mm <= max_execution_tip_error_mm_ &&
+            result.orient_deg <= max_execution_tip_orientation_error_deg_;
+        result.ratio =
+            bounds_ok
+                ? std::max({ max_joint_deg / kEndpointToleranceDeg,
+                             result.tip_mm / max_execution_tip_error_mm_,
+                             result.orient_deg /
+                                 max_execution_tip_orientation_error_deg_ })
+                : std::numeric_limits<double>::infinity();
+        return result;
+    }
+
+    struct SettleReport {
+        bool timed_out = false;
+        double best_error_ratio = std::numeric_limits<double>::infinity();
+        double last_max_velocity = std::numeric_limits<double>::quiet_NaN();
+        int samples_seen = 0;
+        int qualifying_samples = 0;
+        std::vector<std::string> last_names;
+        std::vector<double> last_positions;
+        std::vector<double> last_velocities;
+        std::vector<std::string> best_names;
+        std::vector<double> best_positions;
+        std::vector<double> best_velocities;
+    };
+
+    // Waits until the arm reaches AND holds the planned endpoint at rest.
+    // Endpoint tolerance, low velocity, and freshness are judged together on
+    // every fresh sample; only a continuous hold spanning the dwell (and at
+    // least requiredSettleSamples() samples) settles. A stop at the wrong place
+    // (stationary, out of tolerance) and a right-place fly-through (in
+    // tolerance, moving) both fail to settle. On success the settled sample is
+    // loaded into tracked_state_; on timeout it fails closed.
+    bool settleAtEndpoint(const moveit_msgs::msg::RobotTrajectory &traj,
+                          MotionKind kind,
+                          std::chrono::steady_clock::time_point completion_time,
+                          std::uint64_t completion_seq, SettleReport &report)
+    {
+        const auto &jt = traj.joint_trajectory;
+        robross_painter::SettleConfig cfg;
+        cfg.dwell = endpoint_settle_dwell_;
+        cfg.timeout = settleTimeout(kind);
+        cfg.sample_max_age = endpoint_settle_sample_max_age_;
+        cfg.required_samples = requiredSettleSamples();
+        robross_painter::SettleGate gate(cfg, toSeconds(completion_time),
+                                         completion_seq);
+
+        for (;;) {
+            const double now = toSeconds(std::chrono::steady_clock::now());
+            const double remaining =
+                cfg.timeout - (now - toSeconds(completion_time));
+            if (remaining <= 0.0) {
+                finishSettleReport(report, gate, true);
+                return false;
+            }
+
+            std::vector<std::string> names;
+            std::vector<double> positions;
+            std::vector<double> velocities;
+            std::uint64_t seq = 0;
+            std::chrono::steady_clock::time_point received_at;
+            if (!nextFreshSample(gate.lastSequence(), toDuration(remaining),
+                                 names, positions, velocities, seq,
+                                 received_at)) {
+                finishSettleReport(report, gate, true);
+                return false;
+            }
+
+            double max_vel = std::numeric_limits<double>::quiet_NaN();
+            const bool positions_valid =
+                samplePositionsValid(jt, names, positions);
+            const bool valid =
+                sampleValidity(jt, names, positions, velocities, max_vel);
+            const EndpointError err =
+                positions_valid ? endpointError(names, positions, traj)
+                                : EndpointError{};
+
+            robross_painter::SettleSample sample;
+            sample.sequence = seq;
+            sample.receipt_time = toSeconds(received_at);
+            sample.valid = valid;
+            sample.endpoint_ok = err.within_limits;
+            sample.stationary =
+                valid && max_vel <= endpoint_settle_velocity_tolerance_;
+            sample.error_ratio = err.ratio;
+
+            report.last_names = names;
+            report.last_positions = positions;
+            report.last_velocities = velocities;
+            report.last_max_velocity = max_vel;
+            if (err.ratio < report.best_error_ratio) {
+                report.best_error_ratio = err.ratio;
+                report.best_names = names;
+                report.best_positions = positions;
+                report.best_velocities = velocities;
+            }
+
+            const auto outcome = gate.offer(sample);
+            if (outcome == robross_painter::SettleOutcome::Settled) {
+                finishSettleReport(report, gate, false);
+                return loadTrackedState(names, positions);
+            }
+            if (outcome == robross_painter::SettleOutcome::TimedOut) {
+                finishSettleReport(report, gate, true);
+                return false;
+            }
+        }
+    }
+
+    void finishSettleReport(SettleReport &report,
+                            const robross_painter::SettleGate &gate,
+                            bool timed_out) const
+    {
+        report.timed_out = timed_out;
+        report.samples_seen = gate.samplesSeen();
+        report.qualifying_samples = gate.qualifyingSamples();
+        if (gate.bestErrorRatio() < report.best_error_ratio) {
+            report.best_error_ratio = gate.bestErrorRatio();
+        }
+    }
+
+    void logSample(const char *label, const std::vector<std::string> &names,
+                   const std::vector<double> &positions,
+                   const std::vector<double> &velocities) const
+    {
+        if (positions.empty()) {
+            return;
+        }
+        std::string line;
+        for (std::size_t i = 0; i < names.size() && i < positions.size(); ++i) {
+            line += " " + names[i] + "=" + std::to_string(positions[i]);
+            if (i < velocities.size()) {
+                line += "@" + std::to_string(velocities[i]);
+            }
+        }
+        RCLCPP_ERROR(node_->get_logger(), "%s (pos@vel):%s", label,
+                     line.c_str());
+    }
+
+    void logSettleFailure(const char *what, const SettleReport &report) const
+    {
+        if (std::isfinite(report.last_max_velocity)) {
             RCLCPP_ERROR(node_->get_logger(),
-                         "Measured pen-tip endpoint differs by %.3f mm and "
-                         "%.3f deg (limits %.3f mm, %.3f deg)",
-                         tip_error_mm, orientation_error_deg,
-                         max_execution_tip_error_mm_,
-                         max_execution_tip_orientation_error_deg_);
-            return false;
+                         "Endpoint failed to settle (%s): %d samples, %d "
+                         "qualifying, best error ratio %.2f, last max joint "
+                         "speed %.4f rad/s%s",
+                         what, report.samples_seen, report.qualifying_samples,
+                         report.best_error_ratio, report.last_max_velocity,
+                         report.timed_out ? " (timed out)" : "");
+        } else {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Endpoint failed to settle (%s): %d samples, %d "
+                         "qualifying, best error ratio %.2f, last joint speed "
+                         "unavailable%s",
+                         what, report.samples_seen, report.qualifying_samples,
+                         report.best_error_ratio,
+                         report.timed_out ? " (timed out)" : "");
         }
-        std::vector<double> measured_positions;
-        measured_positions.reserve(jt.joint_names.size());
-        for (const auto &joint : jt.joint_names) {
-            measured_positions.push_back(
-                tracked_state_->getVariablePosition(joint));
+        logSample("last measured endpoint", report.last_names,
+                  report.last_positions, report.last_velocities);
+        logSample("best measured endpoint", report.best_names,
+                  report.best_positions, report.best_velocities);
+    }
+
+    void markExecutionFailure(MotionKind kind)
+    {
+        // The command already completed from MoveIt's view; make the controller
+        // hold rather than drift, and flag possible contact so run() ->
+        // attemptRetreat() can recover.
+        group_.stop();
+        if (kind != MotionKind::Transit) {
+            pen_down_ = true;
         }
-        if (!stateIsValid(jt.joint_names, measured_positions,
-                          "Measured endpoint")) {
-            return false;
+    }
+
+    // Bounded recovery-stabilization wait used before a retreat: require the arm
+    // to reach a fresh, low-velocity state. Endpoint tolerance is deliberately
+    // NOT required -- the retreat starts from wherever the arm actually is.
+    // Returns false if it never stabilizes within the budget.
+    bool waitUntilStationary(double timeout_s,
+                             std::vector<std::string> &stationary_names,
+                             std::vector<double> &stationary_positions)
+    {
+        robross_painter::SettleConfig cfg;
+        cfg.dwell = endpoint_settle_dwell_;
+        cfg.timeout = timeout_s;
+        cfg.sample_max_age = endpoint_settle_sample_max_age_;
+        cfg.required_samples = requiredSettleSamples();
+        const auto start = std::chrono::steady_clock::now();
+        robross_painter::SettleGate gate(cfg, toSeconds(start),
+                                         jointStateSequence());
+
+        trajectory_msgs::msg::JointTrajectory group_jt;
+        group_jt.joint_names = group_.getRobotModel()
+                                   ->getJointModelGroup(group_.getName())
+                                   ->getVariableNames();
+
+        for (;;) {
+            const double now = toSeconds(std::chrono::steady_clock::now());
+            const double remaining = cfg.timeout - (now - toSeconds(start));
+            if (remaining <= 0.0) {
+                return false;
+            }
+            std::vector<std::string> names;
+            std::vector<double> positions;
+            std::vector<double> velocities;
+            std::uint64_t seq = 0;
+            std::chrono::steady_clock::time_point received_at;
+            if (!nextFreshSample(gate.lastSequence(), toDuration(remaining),
+                                 names, positions, velocities, seq,
+                                 received_at)) {
+                return false;
+            }
+            double max_vel = std::numeric_limits<double>::quiet_NaN();
+            const bool valid =
+                sampleValidity(group_jt, names, positions, velocities, max_vel);
+            robross_painter::SettleSample sample;
+            sample.sequence = seq;
+            sample.receipt_time = toSeconds(received_at);
+            sample.valid = valid;
+            sample.endpoint_ok = true;  // position not required for a retreat
+            sample.stationary =
+                valid && max_vel <= endpoint_settle_velocity_tolerance_;
+            sample.error_ratio = 0.0;
+            const auto outcome = gate.offer(sample);
+            if (outcome == robross_painter::SettleOutcome::Settled) {
+                stationary_names = std::move(names);
+                stationary_positions = std::move(positions);
+                return true;
+            }
+            if (outcome == robross_painter::SettleOutcome::TimedOut) {
+                return false;
+            }
         }
-        return true;
     }
 
     bool elbowInsideBand(const moveit::core::RobotState &state) const
@@ -1683,9 +2121,10 @@ private:
     }
 
     bool executeTrajectory(const moveit_msgs::msg::RobotTrajectory &traj,
-                           bool painting_motion, const char *what)
+                           MotionKind kind, const char *what)
     {
-        if (!validateTrajectory(traj, painting_motion, what)) {
+        const bool contact = kind != MotionKind::Transit;
+        if (!validateTrajectory(traj, contact, what)) {
             return false;
         }
         if (dry_run_) {
@@ -1693,28 +2132,37 @@ private:
             return true;
         }
         const auto execution_result = group_.execute(traj);
-        const std::uint64_t sequence_at_completion = jointStateSequence();
-        if (!refreshTrackedState(sequence_at_completion, true)) {
-            RCLCPP_ERROR(node_->get_logger(),
-                         "No fresh joint state received after execution");
-            if (painting_motion) {
-                pen_down_ = true;
-            }
-            return false;
-        }
+        const auto completion_time = std::chrono::steady_clock::now();
+        const std::uint64_t completion_seq = jointStateSequence();
         if (execution_result != moveit::core::MoveItErrorCode::SUCCESS) {
-            if (painting_motion) {
-                pen_down_ = true;
-            }
             RCLCPP_ERROR(node_->get_logger(),
-                         "Execution failed; contact state is uncertain");
+                         "Execution reported failure (%s); contact state is "
+                         "uncertain",
+                         what);
+            markExecutionFailure(kind);
             return false;
         }
-        const bool endpoint_ok = endpointMatches(traj);
-        if (!endpoint_ok && painting_motion) {
-            pen_down_ = true;
+        // Endpoint settling: wait for the arm to reach and hold the endpoint at
+        // rest before trusting the measured pose (feedback trails the command).
+        SettleReport report;
+        if (!settleAtEndpoint(traj, kind, completion_time, completion_seq,
+                              report)) {
+            logSettleFailure(what, report);
+            markExecutionFailure(kind);
+            return false;
         }
-        return endpoint_ok;
+        // Final one-shot collision check on the settled sample.
+        const auto &jt = traj.joint_trajectory;
+        std::vector<double> measured;
+        measured.reserve(jt.joint_names.size());
+        for (const auto &joint : jt.joint_names) {
+            measured.push_back(tracked_state_->getVariablePosition(joint));
+        }
+        if (!stateIsValid(jt.joint_names, measured, "Measured endpoint")) {
+            markExecutionFailure(kind);
+            return false;
+        }
+        return true;
     }
 
     double trajectoryJointTravel(
@@ -1782,12 +2230,12 @@ private:
                     "Selected shortest bounded joint-space candidate: %.1f "
                     "deg total joint travel",
                     best_travel * 180.0 / M_PI);
-        return executeTrajectory(best_plan.trajectory_, false,
+        return executeTrajectory(best_plan.trajectory_, MotionKind::Transit,
                                  "Joint-space");
     }
 
     bool moveCartesian(const std::vector<geometry_msgs::msg::Pose> &waypoints,
-                       bool contact_motion = false)
+                       MotionKind kind = MotionKind::Transit)
     {
         if (!refreshTrackedState()) {
             RCLCPP_ERROR(node_->get_logger(),
@@ -1811,8 +2259,8 @@ private:
                          fraction * 100.0);
             return false;
         }
-        const bool painting_motion = contact_motion || pen_down_;
-        if (!validateTrajectory(traj, painting_motion, "Cartesian IK")) {
+        const bool contact = kind != MotionKind::Transit;
+        if (!validateTrajectory(traj, contact, "Cartesian IK")) {
             return false;
         }
         // computeCartesianPath ignores the velocity scaling, so retime.
@@ -1849,7 +2297,7 @@ private:
         if (!validateCollisionFree(traj)) {
             return false;
         }
-        return executeTrajectory(traj, painting_motion, "Cartesian");
+        return executeTrajectory(traj, kind, "Cartesian");
     }
 
     void publishCanvasOutline()
@@ -1909,6 +2357,7 @@ private:
     std::condition_variable joint_state_cv_;
     std::vector<std::string> joint_state_names_;
     std::vector<double> joint_state_positions_;
+    std::vector<double> joint_state_velocities_;
     std::chrono::steady_clock::time_point joint_state_received_at_;
     std::uint64_t joint_state_sequence_{ 0 };
     bool have_joint_state_{ false };
@@ -1955,6 +2404,14 @@ private:
     double max_execution_tip_orientation_error_deg_{ 1.0 };
     double totg_path_tolerance_{ 0.01 };
     double controller_sample_dt_{ 0.005 };
+    // Endpoint settling: after execution completes, require the arm to reach and
+    // hold the planned endpoint at rest before accepting the move. See
+    // endpoint_settling.hpp and settleAtEndpoint().
+    double endpoint_settle_velocity_tolerance_{ 0.02 };  // rad/s
+    double endpoint_settle_dwell_{ 0.15 };               // s, continuous hold
+    double endpoint_settle_timeout_{ 1.5 };              // s, transit/lift budget
+    double endpoint_settle_contact_timeout_{ 0.6 };      // s, contact budget
+    double endpoint_settle_sample_max_age_{ 0.05 };      // s, freshness/gap bound
     bool dry_run_{ false };
     std::unique_ptr<moveit::core::RobotState> tracked_state_;
 

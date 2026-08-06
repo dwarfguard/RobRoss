@@ -10,9 +10,11 @@ the [hardware run guide](hardware_run_guide.md) governs the per-session procedur
 
 - Use the matched `125 Hz` controller and ServoJ `t=0.008 s` pair for hardware
   motion. It completed stationary, hover, and contact operation without queue
-  saturation.
-- Do not use the `200 Hz / 0.005 s` pair for painting. Valid stationary evidence
-  showed approximately 20.4 percent queue-full drops.
+  saturation, and is now the driver default (a bare `aubo_control.launch.py`
+  comes up on it).
+- The `200 Hz / 0.005 s` pair is disqualified — not a launch option and not for
+  painting. Valid stationary evidence showed approximately 20.4 percent
+  queue-full drops.
 - The current hover diagnostic set is direction, reversal, and alternating-curve
   motion. `sine_test_paths.json` is obsolete and intentionally removed.
 - Deliberate fixture repetitions are valid repeatability evidence. Record the

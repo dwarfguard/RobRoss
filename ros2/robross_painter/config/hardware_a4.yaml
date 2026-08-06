@@ -99,6 +99,18 @@ painting_executor:
     totg_path_tolerance: 0.01
     # Match the selected 125 Hz hardware controller period.
     controller_sample_dt: 0.008
+    # Endpoint settling: after a move completes, require the arm to reach and
+    # HOLD the planned endpoint at rest before accepting it (measured feedback
+    # trails the command by ~88-120 ms). Endpoint tolerance, low joint speed,
+    # and fresh feedback must all hold together, continuously, for the dwell.
+    # Contact moves use the shorter timeout (dwelling while the pen is pressed
+    # to the canvas carries risk). On timeout the move fails closed. Confirm the
+    # dwell/velocity threshold from analyze_tracking_bag.py telemetry.
+    endpoint_settle_velocity_tolerance: 0.02   # rad/s "stationary" threshold
+    endpoint_settle_dwell: 0.15                # s continuous in-tolerance hold
+    endpoint_settle_timeout: 1.5               # s transit/lift budget
+    endpoint_settle_contact_timeout: 0.6       # s lowering/painting budget
+    endpoint_settle_sample_max_age: 0.05       # s max feedback age / sample gap
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
     # Keep true for the first run: plans everything, executes nothing.
