@@ -29,7 +29,7 @@ dependencies; `python3-skimage` usually needs installing explicitly.)
 Config profile (configs/*.json)
   -> canny_edges.extract_strokes()   Canny edges -> skeleton -> traced centerline strokes
   -> path_ordering.order_strokes()   greedy nearest-neighbor travel order
-  -> generate_sketch_paths.py        -> output/<painting_paths_file> (+ preview SVG)
+  -> generate_sketch_paths.py        -> output/<config-name>/<painting_paths_file> (+ preview SVG)
 ```
 
 Unlike `mondrian/`, there is no intermediate `painting_plan.json` step —

@@ -1,0 +1,212 @@
+{
+  "project": "R.O.B Ross",
+  "style": "mondrian",
+  "version": "0.1",
+  "config": {
+    "profile_name": "demo_v1_a4_pen",
+    "source_file": "configs/demo_v1_a4_pen.json"
+  },
+  "source_file": "output/demo_v1_a4_pen/painting_plan.json",
+  "units": "mm",
+  "canvas": {
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "width_in": 8.2677,
+    "height_in": 11.6929,
+    "margin_mm": 10.0,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 1.0,
+    "stroke_overlap_ratio": 0.0,
+    "edge_inset_mm": 5.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "grid_line_4",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_4",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_4",
+      "x_mm": 48.53,
+      "y_mm": 10.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_4"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_4",
+      "color": "black",
+      "points_mm": [
+        [
+          48.53,
+          10.0
+        ],
+        [
+          48.53,
+          287.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_4"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_3",
+      "x_mm": 158.86,
+      "y_mm": 287.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_3"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_3",
+      "color": "black",
+      "points_mm": [
+        [
+          158.86,
+          287.0
+        ],
+        [
+          158.86,
+          10.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_3"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_2",
+      "x_mm": 48.53,
+      "y_mm": 130.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_2"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_2",
+      "color": "black",
+      "points_mm": [
+        [
+          48.53,
+          130.0
+        ],
+        [
+          10.0,
+          130.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_2"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_1",
+      "x_mm": 10.0,
+      "y_mm": 171.81
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_1"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_1",
+      "color": "black",
+      "points_mm": [
+        [
+          10.0,
+          171.81
+        ],
+        [
+          48.53,
+          171.81
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_1"
+    },
+    {
+      "command": "move_to",
+      "label": "border_top+border_left+border_bottom+border_right",
+      "x_mm": 200.0,
+      "y_mm": 287.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "border_top+border_left+border_bottom+border_right"
+    },
+    {
+      "command": "paint_path",
+      "label": "border_top+border_left+border_bottom+border_right",
+      "color": "black",
+      "points_mm": [
+        [
+          200.0,
+          287.0
+        ],
+        [
+          10.0,
+          287.0
+        ],
+        [
+          10.0,
+          10.0
+        ],
+        [
+          200.0,
+          10.0
+        ],
+        [
+          200.0,
+          287.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "border_top+border_left+border_bottom+border_right"
+    }
+  ],
+  "debug": {
+    "num_commands": 22,
+    "num_paint_stroke_commands": 0,
+    "num_paint_path_commands": 5,
+    "estimated_total_paint_distance_mm": 1565.06,
+    "estimated_total_travel_distance_mm": 555.0,
+    "num_fill_regions": 0,
+    "num_grid_lines": 8,
+    "num_select_tool_commands": 1,
+    "num_lift_tool_commands": 5,
+    "num_lower_tool_commands": 5,
+    "num_dip_paint_commands": 1,
+    "num_move_to_commands": 0
+  },
+  "validation": {
+    "passed": true,
+    "errors": [],
+    "warnings": []
+  }
+}

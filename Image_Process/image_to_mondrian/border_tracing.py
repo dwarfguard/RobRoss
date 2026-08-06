@@ -1,3 +1,5 @@
+# CANONICAL SOURCE for border_tracing — see file-top comment in the copy at
+# Image_Process/gemini_mondrian/border_tracing.py.
 """Classic Mondrian black grid lines: trace each kept region's own outline
 via cv2.findContours, one closed loop per outer boundary and per hole.
 

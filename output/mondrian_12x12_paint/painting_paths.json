@@ -1,0 +1,809 @@
+{
+  "project": "R.O.B Ross",
+  "style": "mondrian",
+  "version": "0.1",
+  "config": {
+    "profile_name": "mondrian_12x12_paint",
+    "source_file": "configs/mondrian_12x12_paint.json"
+  },
+  "source_file": "output/mondrian_12x12_paint/painting_plan.json",
+  "units": "mm",
+  "canvas": {
+    "width_mm": 304.8,
+    "height_mm": 304.8,
+    "width_in": 12.0,
+    "height_in": 12.0,
+    "margin_mm": 0.0,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 10.0,
+    "stroke_overlap_ratio": 0.25,
+    "edge_inset_mm": 3.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "blue_block_1",
+      "color": "#1d4ed8"
+    },
+    {
+      "command": "dip_paint",
+      "label": "blue_block_1",
+      "color": "#1d4ed8"
+    },
+    {
+      "command": "move_to",
+      "label": "blue_block_1",
+      "x_mm": 3.0,
+      "y_mm": 140.04
+    },
+    {
+      "command": "lower_tool",
+      "label": "blue_block_1"
+    },
+    {
+      "command": "paint_path",
+      "label": "blue_block_1",
+      "color": "#1d4ed8",
+      "points_mm": [
+        [
+          3.0,
+          140.04
+        ],
+        [
+          58.81,
+          140.04
+        ],
+        [
+          58.81,
+          147.54
+        ],
+        [
+          3.0,
+          147.54
+        ],
+        [
+          3.0,
+          155.04
+        ],
+        [
+          58.81,
+          155.04
+        ],
+        [
+          58.81,
+          162.54
+        ],
+        [
+          3.0,
+          162.54
+        ],
+        [
+          3.0,
+          170.04
+        ],
+        [
+          58.81,
+          170.04
+        ],
+        [
+          58.81,
+          170.05
+        ],
+        [
+          3.0,
+          170.05
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "blue_block_1"
+    },
+    {
+      "command": "select_tool",
+      "label": "red_block_1",
+      "color": "#d62828"
+    },
+    {
+      "command": "dip_paint",
+      "label": "red_block_1",
+      "color": "#d62828"
+    },
+    {
+      "command": "move_to",
+      "label": "red_block_1",
+      "x_mm": 241.81,
+      "y_mm": 296.8
+    },
+    {
+      "command": "lower_tool",
+      "label": "red_block_1"
+    },
+    {
+      "command": "paint_path",
+      "label": "red_block_1",
+      "color": "#d62828",
+      "points_mm": [
+        [
+          241.81,
+          296.8
+        ],
+        [
+          301.8,
+          296.8
+        ],
+        [
+          301.8,
+          293.0
+        ],
+        [
+          241.81,
+          293.0
+        ],
+        [
+          241.81,
+          285.5
+        ],
+        [
+          301.8,
+          285.5
+        ],
+        [
+          301.8,
+          278.0
+        ],
+        [
+          241.81,
+          278.0
+        ],
+        [
+          241.81,
+          270.5
+        ],
+        [
+          301.8,
+          270.5
+        ],
+        [
+          301.8,
+          263.0
+        ],
+        [
+          241.81,
+          263.0
+        ],
+        [
+          241.81,
+          255.5
+        ],
+        [
+          301.8,
+          255.5
+        ],
+        [
+          301.8,
+          248.0
+        ],
+        [
+          241.81,
+          248.0
+        ],
+        [
+          241.81,
+          240.5
+        ],
+        [
+          301.8,
+          240.5
+        ],
+        [
+          301.8,
+          233.0
+        ],
+        [
+          241.81,
+          233.0
+        ],
+        [
+          241.81,
+          225.5
+        ],
+        [
+          301.8,
+          225.5
+        ],
+        [
+          301.8,
+          218.0
+        ],
+        [
+          241.81,
+          218.0
+        ],
+        [
+          241.81,
+          210.5
+        ],
+        [
+          301.8,
+          210.5
+        ],
+        [
+          301.8,
+          203.0
+        ],
+        [
+          241.81,
+          203.0
+        ],
+        [
+          241.81,
+          195.5
+        ],
+        [
+          301.8,
+          195.5
+        ],
+        [
+          301.8,
+          188.0
+        ],
+        [
+          241.81,
+          188.0
+        ],
+        [
+          241.81,
+          180.5
+        ],
+        [
+          301.8,
+          180.5
+        ],
+        [
+          301.8,
+          173.0
+        ],
+        [
+          241.81,
+          173.0
+        ],
+        [
+          241.81,
+          165.5
+        ],
+        [
+          301.8,
+          165.5
+        ],
+        [
+          301.8,
+          158.0
+        ],
+        [
+          241.81,
+          158.0
+        ],
+        [
+          241.81,
+          150.5
+        ],
+        [
+          301.8,
+          150.5
+        ],
+        [
+          301.8,
+          143.0
+        ],
+        [
+          241.81,
+          143.0
+        ],
+        [
+          241.81,
+          135.5
+        ],
+        [
+          301.8,
+          135.5
+        ],
+        [
+          301.8,
+          128.0
+        ],
+        [
+          241.81,
+          128.0
+        ],
+        [
+          241.81,
+          120.5
+        ],
+        [
+          301.8,
+          120.5
+        ],
+        [
+          301.8,
+          113.0
+        ],
+        [
+          241.81,
+          113.0
+        ],
+        [
+          241.81,
+          105.5
+        ],
+        [
+          301.8,
+          105.5
+        ],
+        [
+          301.8,
+          98.0
+        ],
+        [
+          241.81,
+          98.0
+        ],
+        [
+          241.81,
+          90.5
+        ],
+        [
+          301.8,
+          90.5
+        ],
+        [
+          301.8,
+          83.0
+        ],
+        [
+          241.81,
+          83.0
+        ],
+        [
+          241.81,
+          75.5
+        ],
+        [
+          301.8,
+          75.5
+        ],
+        [
+          301.8,
+          68.0
+        ],
+        [
+          241.81,
+          68.0
+        ],
+        [
+          241.81,
+          60.5
+        ],
+        [
+          301.8,
+          60.5
+        ],
+        [
+          301.8,
+          53.0
+        ],
+        [
+          241.81,
+          53.0
+        ],
+        [
+          241.81,
+          45.5
+        ],
+        [
+          301.8,
+          45.5
+        ],
+        [
+          301.8,
+          38.0
+        ],
+        [
+          241.81,
+          38.0
+        ],
+        [
+          241.81,
+          30.5
+        ],
+        [
+          301.8,
+          30.5
+        ],
+        [
+          301.8,
+          23.0
+        ],
+        [
+          241.81,
+          23.0
+        ],
+        [
+          241.81,
+          15.5
+        ],
+        [
+          301.8,
+          15.5
+        ],
+        [
+          301.8,
+          8.0
+        ],
+        [
+          241.81,
+          8.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "red_block_1"
+    },
+    {
+      "command": "select_tool",
+      "label": "yellow_block_1",
+      "color": "#f7c600"
+    },
+    {
+      "command": "dip_paint",
+      "label": "yellow_block_1",
+      "color": "#f7c600"
+    },
+    {
+      "command": "move_to",
+      "label": "yellow_block_1",
+      "x_mm": 58.81,
+      "y_mm": 124.04
+    },
+    {
+      "command": "lower_tool",
+      "label": "yellow_block_1"
+    },
+    {
+      "command": "paint_path",
+      "label": "yellow_block_1",
+      "color": "#f7c600",
+      "points_mm": [
+        [
+          58.81,
+          124.04
+        ],
+        [
+          3.0,
+          124.04
+        ],
+        [
+          3.0,
+          120.5
+        ],
+        [
+          58.81,
+          120.5
+        ],
+        [
+          58.81,
+          113.0
+        ],
+        [
+          3.0,
+          113.0
+        ],
+        [
+          3.0,
+          105.5
+        ],
+        [
+          58.81,
+          105.5
+        ],
+        [
+          58.81,
+          98.0
+        ],
+        [
+          3.0,
+          98.0
+        ],
+        [
+          3.0,
+          90.5
+        ],
+        [
+          58.81,
+          90.5
+        ],
+        [
+          58.81,
+          83.0
+        ],
+        [
+          3.0,
+          83.0
+        ],
+        [
+          3.0,
+          75.5
+        ],
+        [
+          58.81,
+          75.5
+        ],
+        [
+          58.81,
+          68.0
+        ],
+        [
+          3.0,
+          68.0
+        ],
+        [
+          3.0,
+          60.5
+        ],
+        [
+          58.81,
+          60.5
+        ],
+        [
+          58.81,
+          53.0
+        ],
+        [
+          3.0,
+          53.0
+        ],
+        [
+          3.0,
+          45.5
+        ],
+        [
+          58.81,
+          45.5
+        ],
+        [
+          58.81,
+          38.0
+        ],
+        [
+          3.0,
+          38.0
+        ],
+        [
+          3.0,
+          30.5
+        ],
+        [
+          58.81,
+          30.5
+        ],
+        [
+          58.81,
+          23.0
+        ],
+        [
+          3.0,
+          23.0
+        ],
+        [
+          3.0,
+          15.5
+        ],
+        [
+          58.81,
+          15.5
+        ],
+        [
+          58.81,
+          8.0
+        ],
+        [
+          3.0,
+          8.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "yellow_block_1"
+    },
+    {
+      "command": "select_tool",
+      "label": "grid_line_4",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "grid_line_4",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_4",
+      "x_mm": 61.81,
+      "y_mm": 0.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_4"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_4",
+      "color": "black",
+      "points_mm": [
+        [
+          61.81,
+          0.0
+        ],
+        [
+          61.81,
+          304.8
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_4"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_1",
+      "x_mm": 61.81,
+      "y_mm": 178.05
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_1"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_1",
+      "color": "black",
+      "points_mm": [
+        [
+          61.81,
+          178.05
+        ],
+        [
+          0.0,
+          178.05
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_1"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_2",
+      "x_mm": 0.0,
+      "y_mm": 132.04
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_2"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_2",
+      "color": "black",
+      "points_mm": [
+        [
+          0.0,
+          132.04
+        ],
+        [
+          61.81,
+          132.04
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_2"
+    },
+    {
+      "command": "move_to",
+      "label": "grid_line_3",
+      "x_mm": 238.81,
+      "y_mm": 0.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "grid_line_3"
+    },
+    {
+      "command": "paint_path",
+      "label": "grid_line_3",
+      "color": "black",
+      "points_mm": [
+        [
+          238.81,
+          0.0
+        ],
+        [
+          238.81,
+          304.8
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "grid_line_3"
+    },
+    {
+      "command": "move_to",
+      "label": "border_top+border_left+border_bottom+border_right",
+      "x_mm": 304.8,
+      "y_mm": 304.8
+    },
+    {
+      "command": "lower_tool",
+      "label": "border_top+border_left+border_bottom+border_right"
+    },
+    {
+      "command": "paint_path",
+      "label": "border_top+border_left+border_bottom+border_right",
+      "color": "black",
+      "points_mm": [
+        [
+          304.8,
+          304.8
+        ],
+        [
+          0.0,
+          304.8
+        ],
+        [
+          0.0,
+          0.0
+        ],
+        [
+          304.8,
+          0.0
+        ],
+        [
+          304.8,
+          304.8
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "border_top+border_left+border_bottom+border_right"
+    }
+  ],
+  "debug": {
+    "num_commands": 40,
+    "num_paint_stroke_commands": 0,
+    "num_paint_path_commands": 8,
+    "estimated_total_paint_distance_mm": 6070.5,
+    "estimated_total_travel_distance_mm": 1146.05,
+    "num_fill_regions": 3,
+    "num_grid_lines": 8,
+    "num_select_tool_commands": 4,
+    "num_lift_tool_commands": 8,
+    "num_lower_tool_commands": 8,
+    "num_dip_paint_commands": 4,
+    "num_move_to_commands": 0
+  },
+  "validation": {
+    "passed": true,
+    "errors": [],
+    "warnings": []
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "project": "R.O.B Ross",
+  "style": "mondrian",
+  "version": "0.1",
+  "config": {
+    "profile_name": "demo_v1_a4_pen",
+    "source_file": "configs/demo_v1_a4_pen.json"
+  },
+  "canvas": {
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "width_in": 8.2677,
+    "height_in": 11.6929,
+    "margin_mm": 10.0,
+    "origin": "top-left"
+  },
+  "units": "mm",
+  "coordinate_system": {
+    "x_direction": "right",
+    "y_direction": "down"
+  },
+  "assumptions": [
+    "Canvas starts white.",
+    "All strokes stay at least 10.0 mm inside the canvas edge.",
+    "Colored rectangles are painted before black grid lines.",
+    "Black grid lines are painted last to clean up rectangle edges.",
+    "This is an intermediate painting plan, not final robot motor code."
+  ],
+  "operations": [
+    {
+      "operation": "paint_line",
+      "label": "grid_line_1",
+      "color": "black",
+      "from_mm": [
+        10.0,
+        171.81
+      ],
+      "to_mm": [
+        48.53,
+        171.81
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_2",
+      "color": "black",
+      "from_mm": [
+        10.0,
+        130.0
+      ],
+      "to_mm": [
+        48.53,
+        130.0
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_3",
+      "color": "black",
+      "from_mm": [
+        158.86,
+        10.0
+      ],
+      "to_mm": [
+        158.86,
+        287.0
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "grid_line_4",
+      "color": "black",
+      "from_mm": [
+        48.53,
+        10.0
+      ],
+      "to_mm": [
+        48.53,
+        287.0
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "border_top",
+      "color": "black",
+      "from_mm": [
+        10.0,
+        10.0
+      ],
+      "to_mm": [
+        200.0,
+        10.0
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "border_bottom",
+      "color": "black",
+      "from_mm": [
+        10.0,
+        287.0
+      ],
+      "to_mm": [
+        200.0,
+        287.0
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "border_left",
+      "color": "black",
+      "from_mm": [
+        10.0,
+        10.0
+      ],
+      "to_mm": [
+        10.0,
+        287.0
+      ],
+      "stroke_width_mm": 1.0
+    },
+    {
+      "operation": "paint_line",
+      "label": "border_right",
+      "color": "black",
+      "from_mm": [
+        200.0,
+        10.0
+      ],
+      "to_mm": [
+        200.0,
+        287.0
+      ],
+      "stroke_width_mm": 1.0
+    }
+  ],
+  "debug": {
+    "seed": 123,
+    "num_rectangles": 0,
+    "num_lines": 8,
+    "num_operations": 8,
+    "colors_used": []
+  }
+}

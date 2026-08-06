@@ -2,8 +2,17 @@
 __pycache__/
 *.pyc
 
+# macOS Finder metadata
+.DS_Store
+
 # output/ stays committed on purpose: seed-123 reference samples.
 #output/
+output/upload_*
+
+# Editor/IDE temp files
+~$*
+.idea/
+.vscode/
 
 # ROS 2 workspace outputs
 build/

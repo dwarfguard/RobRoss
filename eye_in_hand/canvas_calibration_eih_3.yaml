@@ -1,0 +1,8 @@
+# Canvas calibration from ArUco markers (eye-in-hand).
+# Drawing area: 184.1 x 280.1 mm
+# top_left      ID:0 = [-0.6965987504326039, -0.20660691431794842, -0.04816670111727206]
+# Pass to paint.launch.py as: canvas_file:=<this file>
+painting_executor:
+  ros__parameters:
+    canvas_origin_xyz: [-0.696599, -0.206607, -0.048167]
+    canvas_quat_xyzw: [0.709477, 0.7044, -0.012557, 0.017468]
