@@ -27,8 +27,8 @@ import numpy as np
 
 from eih_common import (
     ArucoDetector, CameraCalib, HandEyeCalib, compute_drawing_area,
-    create_robot_backend, list_available_cameras, pose_to_matrix,
-    save_robross_canvas,
+    create_robot_backend, list_available_cameras, open_camera,
+    pose_to_matrix, save_robross_canvas,
 )
 
 
@@ -105,14 +105,12 @@ def main():
         return
 
     detector = ArucoDetector(args.aruco_dict, args.marker_size, [0, 1, 2, 3])
+
+    cap, camera_calib = open_camera(args.camera_id, camera_calib)
+    if cap is None:
+        return
     cmat = camera_calib.camera_matrix
     dcoeff = camera_calib.dist_coeffs
-
-    cap = cv2.VideoCapture(args.camera_id)
-    if not cap.isOpened():
-        print(f"[✗] 无法打开摄像头 ID={args.camera_id}")
-        return
-    print(f"[✓] OpenCV 摄像头已打开 (ID={args.camera_id})")
 
     print("=" * 55)
     if args.robross:

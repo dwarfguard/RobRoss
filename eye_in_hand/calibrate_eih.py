@@ -32,6 +32,7 @@ import numpy as np
 
 from eih_common import (
     ArucoDetector, CameraCalib, create_robot_backend, pose_to_matrix,
+    open_camera,
 )
 
 
@@ -124,7 +125,7 @@ def check_pose_diversity(A_list, B_list):
     return len(axes), s_norm
 
 
-def live_quality_report(A_list, B_list):
+def live_quality_report(A_list, B_list, marker_size_m=0.02):
     """每次采集后实时计算标定质量 (简洁终端反馈)"""
     n = len(A_list)
     if n < 3:
@@ -149,14 +150,55 @@ def live_quality_report(A_list, B_list):
     if np.mean(rot_errors) > 5:
         print(f"     ⚠ 旋转误差仍大 — 换个朝向 (倾斜/旋转) 再采一组")
 
+    # 标记尺寸自检: 若一致性残差能通过缩放 B 大幅下降, 说明尺寸设错
+    s_opt, inferred_mm = estimate_marker_size(A_list, B_list, marker_size_m)
+    if abs(s_opt - 1.0) > 0.10:
+        print(f"  │  ⚠ 反推标记黑边 ≈ {inferred_mm:.0f} mm "
+              f"(当前参数 {marker_size_m*1000:.0f} mm)")
+        print(f"  │    请用尺子量黑色方块, 然后以 "
+              f"--marker-size {inferred_mm/1000:.4f} 重跑")
+
+
+def estimate_marker_size(A_list, B_list, nominal_m=0.02):
+    """
+    用一致性残差扫描 B 平移缩放因子, 反推实际标记黑边尺寸。
+
+    若 solvePnP 的标记尺寸设错 (代码用 nominal_m, 实际黑边不同),
+    残差会在某个缩放因子处出现明显最小值。
+    返回 (最优缩放, 反推黑边 mm)。
+    """
+    best = (1e9, 1.0)
+    for s in np.arange(0.8, 3.01, 0.05):
+        Bs = [Bm.copy() for Bm in B_list]
+        for Bm in Bs:
+            Bm[:3, 3] *= s
+        X = solve_ax_xb(A_list, Bs)
+        T = [A_list[i] @ X @ Bs[i] for i in range(len(A_list))]
+        c = np.mean(T, axis=0)
+        err = np.mean([np.linalg.norm(Tm[:3, 3] - c[:3, 3]) for Tm in T])
+        if err < best[0]:
+            best = (err, s)
+    return best[1], best[1] * nominal_m * 1000
+
+
+def _scaled_error(A_list, B_list, s):
+    """把 B 平移缩放 s 后的一致性位置误差 (mm)"""
+    Bs = [Bm.copy() for Bm in B_list]
+    for Bm in Bs:
+        Bm[:3, 3] *= s
+    X = solve_ax_xb(A_list, Bs)
+    T = [A_list[i] @ X @ Bs[i] for i in range(len(A_list))]
+    c = np.mean(T, axis=0)
+    return np.mean([np.linalg.norm(Tm[:3, 3] - c[:3, 3]) * 1000 for Tm in T])
+
 
 def load_camera_calib(path="camera_calib.json"):
     if not os.path.exists(path):
         print(f"[⚠] 未找到 {path}")
-        return None, None
+        return None
     calib = CameraCalib.load(path)
     print(f"[✓] 加载相机内参: fx={calib.camera_matrix[0,0]:.1f} fy={calib.camera_matrix[1,1]:.1f}")
-    return calib.camera_matrix, calib.dist_coeffs
+    return calib
 
 
 def main():
@@ -205,8 +247,8 @@ def main():
                                 os.path.basename(args.camera_calib))
         if os.path.exists(fallback):
             args.camera_calib = fallback
-    cmat, dist = load_camera_calib(args.camera_calib)
-    if cmat is None:
+    calib = load_camera_calib(args.camera_calib)
+    if calib is None:
         return
 
     robot = create_robot_backend(args.robot_ip, args.robot_port)
@@ -215,10 +257,10 @@ def main():
 
     detector = ArucoDetector(args.aruco_dict, args.marker_size, target_ids=None)
 
-    cap = cv2.VideoCapture(args.camera_id)
-    if not cap.isOpened():
-        print(f"[✗] 无法打开摄像头 ID={args.camera_id}")
+    cap, calib = open_camera(args.camera_id, calib)
+    if cap is None:
         return
+    cmat, dist = calib.camera_matrix, calib.dist_coeffs
 
     A_list = []  # T_base_ee
     B_list = []  # T_cam_marker
@@ -239,6 +281,7 @@ def main():
     print()
     print("  操作:")
     print("    [Space]  采集 — 记录当前位姿 + 标记位姿")
+    print("    [Backspace] 删除最后一组 (误采或质量差的组)")
     print("    [c]      标定完成并保存")
     print("    [d]      保存当前采集数据 (供离线分析)")
     print("    [q]      退出")
@@ -319,7 +362,7 @@ def main():
                             (list_x + 8, 48 + i * 18),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.35, (160, 200, 230), 1)
 
-        cv2.putText(display, "[Space] 采集    [c] 完成    [q] 退出",
+        cv2.putText(display, "[Space] 采集  [Backspace] 删除  [c] 完成  [q] 退出",
                     (10, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     (200, 200, 200), 1)
 
@@ -339,22 +382,26 @@ def main():
             rvec, tvec = current_rvec, current_tvec
             mid = current_mid
 
-            if current_pose is None:
-                pose = robot.get_tcp_pose()
-                if pose is None:
-                    print("\n  [✗] 读取 TCP 失败，再试一次")
-                    continue
-                current_pose = pose
+            # 按下瞬间重新读取 TCP (不用 0.5s 前的缓存)，确保 A/B 同一时刻
+            pose = robot.get_tcp_pose()
+            if pose is None:
+                print("\n  [✗] 读取 TCP 失败，再试一次")
+                continue
+            current_pose = pose
 
             A = pose_to_matrix(current_pose)
             B = rvec_tvec_to_matrix(rvec, tvec)
             A_list.append(A)
             B_list.append(B)
+            dist_m = float(np.linalg.norm(tvec))
+            if dist_m < 0.07 or dist_m > 0.30:
+                print(f"  [⚠] 相机距标记 {dist_m*1000:.0f}mm — 超出建议范围 "
+                      f"100~250mm，建议用 Backspace 删除后重摆")
             print(f"\n  ID:{mid}  TCP: ({current_pose[0]:.4f}, {current_pose[1]:.4f}, "
                   f"{current_pose[2]:.4f})")
             print(f"          Marker: ({tvec[0]:.4f}, {tvec[1]:.4f}, {tvec[2]:.4f})")
             print(f"  [✓] 第 {len(A_list)} 组")
-            live_quality_report(A_list, B_list)
+            live_quality_report(A_list, B_list, args.marker_size)
 
         elif key == ord("d"):
             if len(A_list) < 2:
@@ -364,6 +411,14 @@ def main():
                      A_list=np.stack(A_list), B_list=np.stack(B_list))
             print(f"\n  [✓] 数据已保存: {dump_path}")
             print(f"      ({len(A_list)} 组位姿)")
+
+        elif key in (8, 127):  # Backspace / Delete
+            if A_list:
+                A_list.pop()
+                B_list.pop()
+                print(f"\n  [i] 已删除最后一组 (剩余 {len(A_list)} 组)")
+            else:
+                print("\n  [i] 没有可删除的组")
 
         elif key == ord("c"):
             if len(A_list) < 3:
@@ -382,6 +437,20 @@ def main():
             else:
                 print(f"  │  ✓ 旋转轴分布合理")
             print(f"  └─")
+
+            # 标记尺寸自检
+            s_opt, inferred_mm = estimate_marker_size(
+                A_list, B_list, args.marker_size)
+            if abs(s_opt - 1.0) > 0.10:
+                print(f"  ┌─ 标记尺寸自检")
+                print(f"  │  ⚠ 反推黑边 ≈ {inferred_mm:.0f} mm "
+                      f"(当前参数 {args.marker_size*1000:.0f} mm)")
+                print(f"  │    一致性残差可通过缩放 B 降到 "
+                      f"{_scaled_error(A_list, B_list, s_opt):.1f} mm — "
+                      f"很可能标定标记不是 {args.marker_size*1000:.0f} mm!")
+                print(f"  │    建议: 量黑边后用 "
+                      f"--marker-size {inferred_mm/1000:.4f} 重跑")
+                print(f"  └─")
 
             X = solve_ax_xb(A_list, B_list)
 

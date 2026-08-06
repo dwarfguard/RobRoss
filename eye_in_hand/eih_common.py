@@ -532,6 +532,117 @@ def save_robross_canvas(area: DrawingArea, output_path: str):
 #  摄像头枚举
 # ══════════════════════════════════════════════════════════════════════
 
+class RealsenseStream:
+    """
+    用 pyrealsense2 SDK 打开 RealSense 相机 (默认 1280×720)。
+
+    相比 OpenCV UVC (cv2.VideoCapture):
+      - 强制使用相机原生 1280×720 彩色流，不再出现 640×480 裁剪模式
+        与内参不匹配的问题;
+      - 内参直接从当前流的 profile 读取 (fx/fy/cx/cy + 出厂畸变系数),
+        与标定文件完全一致;
+
+    接口与 cv2.VideoCapture 兼容: read() / release()。
+    """
+
+    def __init__(self, width: int = 1280, height: int = 720):
+        import pyrealsense2 as rs
+
+        self.rs = rs
+        self.pipe = rs.pipeline()
+        cfg = rs.config()
+        cfg.enable_stream(rs.stream.color, width, height, rs.format.bgr8, 30)
+        self.profile = self.pipe.start(cfg)
+
+        # 跳过自动曝光/白平衡热启动帧
+        for _ in range(10):
+            self.pipe.wait_for_frames()
+
+        intr = (self.profile.get_stream(rs.stream.color)
+                .as_video_stream_profile().get_intrinsics())
+        self.calib = CameraCalib(
+            camera_matrix=np.array([
+                [intr.fx, 0.0, intr.ppx],
+                [0.0, intr.fy, intr.ppy],
+                [0.0, 0.0, 1.0],
+            ]),
+            dist_coeffs=np.array([list(intr.coeffs[:5])]),
+            img_size=(intr.width, intr.height),
+        )
+        self.width, self.height = intr.width, intr.height
+
+    def read(self):
+        frames = self.pipe.wait_for_frames()
+        color = frames.get_color_frame()
+        if color is None:
+            return False, None
+        return True, np.asanyarray(color.get_data())
+
+    def release(self):
+        try:
+            self.pipe.stop()
+        except Exception:
+            pass
+
+
+def open_camera(camera_id: int, camera_calib: CameraCalib):
+    """
+    打开摄像头并确保内参与实际视频流分辨率匹配。
+
+    返回 (cap, camera_calib)。若实际流分辨率与标定分辨率不同，
+    会按比例缩放 fx/fy/cx/cy 并打印提示——否则 solvePnP 的 3D 位姿
+    会带系统性误差 (距离/旋转全错)。
+
+    优先用 pyrealsense2 SDK 打开 RealSense 相机 (强制 1280×720 + 实时
+    内参，推荐，最准确); SDK 不可用时回退 OpenCV UVC (分辨率可能被
+    裁剪成 640×480，内参只能近似缩放)。
+    """
+    # ── 优先: pyrealsense2 SDK (D405 原生 1280×720 + 精确内参) ──
+    try:
+        stream = RealsenseStream(width=1280, height=720)
+        print(f"[✓] 使用 pyrealsense2 SDK 打开 D405 "
+              f"({stream.width}×{stream.height}, 实时内参)")
+        print(f"    fx={stream.calib.camera_matrix[0,0]:.1f} "
+              f"fy={stream.calib.camera_matrix[1,1]:.1f} "
+              f"畸变={stream.calib.dist_coeffs.flatten().tolist()}")
+        return stream, stream.calib
+    except Exception:
+        print("[i] pyrealsense2 不可用或未连接 D405，回退 OpenCV UVC")
+
+    # ── 回退: OpenCV UVC ──
+    cap = cv2.VideoCapture(camera_id)
+    if not cap.isOpened():
+        print(f"[✗] 无法打开摄像头 ID={camera_id}")
+        return None, camera_calib
+
+    # 尝试把流设成标定分辨率 (D405 出厂内参为 1280×720)
+    calib_w, calib_h = camera_calib.img_size
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, calib_w)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, calib_h)
+
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"[✓] OpenCV 摄像头已打开 (ID={camera_id}, 分辨率 {w}×{h})")
+
+    if (w, h) == (calib_w, calib_h):
+        return cap, camera_calib
+
+    # 等比缩放内参到实际分辨率
+    sx, sy = w / calib_w, h / calib_h
+    K = camera_calib.camera_matrix.copy()
+    K[0, 0] *= sx
+    K[1, 1] *= sy
+    K[0, 2] *= sx
+    K[1, 2] *= sy
+    scaled = CameraCalib(camera_matrix=K,
+                         dist_coeffs=camera_calib.dist_coeffs,
+                         img_size=(w, h))
+    print(f"[i] 视频流 {w}×{h} ≠ 标定分辨率 {calib_w}×{calib_h}，"
+          f"内参已按比例缩放 (fx={scaled.camera_matrix[0,0]:.1f})")
+    print(f"    ⚠ 若要最高精度，请用 1280×720 的内参并在同一分辨率下标定")
+    return cap, scaled
+
+
 def list_available_cameras(max_id: int = 10):
     """枚举系统上所有可用摄像头设备"""
     devnull = os.open(os.devnull, os.O_WRONLY)

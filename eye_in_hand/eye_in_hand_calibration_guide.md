@@ -58,8 +58,13 @@ python3 calibrate_eih.py --robot-ip 192.168.32.101 --dry-run
 ### 第 1 步：运行标定程序
 
 ```bash
-python3 calibrate_eih.py --robot-ip 192.168.32.101 --camera-id <ID>
+python3 calibrate_eih.py --robot-ip 192.168.32.101 --camera-id <ID> --marker-size 0.048
 ```
+
+> **必须传 `--marker-size`！** 标定用的是**大标记**，黑边实测约 48mm，
+> 所以传 `--marker-size 0.048`。默认值 0.02（20mm）是给画布检测时
+> 纸上 4 角的小标记用的——标定阶段如果忘记传这个参数，位置误差会
+> 有十几毫米（程序会自动反推并警告）。
 
 如果只是看流程：
 

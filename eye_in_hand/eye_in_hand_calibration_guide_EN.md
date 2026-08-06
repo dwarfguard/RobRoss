@@ -59,8 +59,14 @@ Robot communication uses JSON-RPC over TCP, **port 30004** (not 8899).
 ### Step 1: Run the calibration program
 
 ```bash
-python3 calibrate_eih.py --robot-ip 192.168.32.101 --camera-id <ID>
+python3 calibrate_eih.py --robot-ip 192.168.32.101 --camera-id <ID> --marker-size 0.048
 ```
+
+> **You must pass `--marker-size`!** Calibration uses the **big marker** whose
+> black square measures ~48 mm, so pass `--marker-size 0.048`. The default
+> 0.02 (20 mm) is for the four small corner markers used later in canvas
+> detection. Forgetting this parameter during calibration causes position
+> errors of a centimetre or more (the program auto-estimates and warns).
 
 To only preview the procedure:
 
