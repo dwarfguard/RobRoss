@@ -1,8 +1,8 @@
 # RobRoss hardware profile: A4 paper on any taught surface (wall, table,
-# ground, slanted stand), pen held by the custom claw. Source of truth for
-# the measured tool offset and claw collision box (2026-07-16 hardware
-# session) - keep the sim profiles' copies of those values identical, and
-# re-verify every measured value before running with dry_run: false.
+# ground, slanted stand), pen held by the custom claw. This is a dry-run
+# template with 2026-07-16 seed measurements, not a qualified contact profile.
+# Keep `rviz_wall_a4.yaml` and `rviz_taught_a4.yaml` tool/claw copies identical,
+# and re-verify every measured value before running with dry_run: false.
 #
 # The canvas pose itself does NOT live here. Teach it on the real setup:
 #   1. Run teach_canvas.py with the same tool_offset_xyz as below and
@@ -12,8 +12,8 @@
 #      ~/record_sample at ~5-9 interior points spread across the paper
 #      (recorded in the saved YAML as a flatness diagnostic — the executor
 #      does NOT apply a correction surface during motion; see
-#      docs/aubo-painting-tracking-remediation-plan.md Section 4), then
-#      ~/save (full loop: package README / PREFLIGHT section 2).
+#      docs/aubo-painting-current-status-2026-07-31.md), then
+#      ~/save (full loop: docs/hardware_run_guide.md Step 4).
 #   2. Launch with both files:
 #        ros2 launch robross_painter paint.launch.py \
 #          calibration_file:=<this file> \
@@ -44,10 +44,10 @@ painting_executor:
     canvas_backing_margin_m: 0.05
 
     # Pen tip position (and axis, if angled) in ee_link. Calibrate with a sharp
-    # pin via teach_tcp.py (pivot method: docs/hardware-first-run-guide.md
-    # Step 3.5 / package README "Teach The Pen-Tip TCP") — far more accurate
-    # than a ruler. Re-calibrate after any pen or claw change, keep all four
-    # profiles identical, and re-teach the canvas (it is taught in tip
+    # pin via teach_tcp.py (pivot method: docs/hardware_run_guide.md Step 3.5 /
+    # package README "Teach The Pen-Tip TCP") — far more accurate
+    # than a ruler. Re-calibrate after any pen or claw change, keep the hardware,
+    # rviz_wall, and rviz_taught profiles identical, and re-teach the canvas (it is taught in tip
     # coordinates). Values below are the 2026-07-16 hand-measured seed.
     tool_offset_xyz: [0.0, -0.0595, 0.0514]
     tool_offset_rpy: [0.0, 0.0, 0.0]
@@ -88,7 +88,7 @@ painting_executor:
     # Verify the trajectory after time parameterization still follows the
     # requested pen-tip path and orientation. Cartesian trajectories are sent
     # position-only at controller_sample_dt so the controller interpolates
-    # linearly — exactly what the validator checks (remediation plan Phase 1).
+    # linearly — exactly what the validator checks.
     # The canvas-normal limit is much tighter than the tangential one: normal
     # excursions rip or gap the paper.
     max_cartesian_deviation_mm: 2.0
@@ -97,7 +97,8 @@ painting_executor:
     max_execution_tip_error_mm: 1.0
     max_execution_tip_orientation_error_deg: 1.0
     totg_path_tolerance: 0.01
-    controller_sample_dt: 0.005
+    # Match the selected 125 Hz hardware controller period.
+    controller_sample_dt: 0.008
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
     # Keep true for the first run: plans everything, executes nothing.

@@ -75,7 +75,7 @@ These guards supplement the Cartesian jump detector; they do not replace it.
 | `max_execution_tip_error_mm` | Maximum measured endpoint position error after execution. |
 | `max_execution_tip_orientation_error_deg` | Maximum measured endpoint orientation error after execution. |
 | `totg_path_tolerance` | Time-Optimal Trajectory Generation path tolerance. |
-| `controller_sample_dt` | Cartesian trajectory sample interval in seconds; match the joint trajectory controller period. Cartesian trajectories are sent position-only at this interval so the controller interpolates linearly — the same model the validator checks (remediation plan Phase 1). |
+| `controller_sample_dt` | Cartesian trajectory sample interval in seconds; match the joint trajectory controller period. Cartesian trajectories are sent position-only at this interval so the controller interpolates linearly, matching the validator's model. |
 
 Validation runs after TOTG and before execution. It interpolates between
 trajectory knots and checks pen-tip FK, model bounds, elbow posture, guarded
@@ -92,5 +92,6 @@ must also satisfy model, collision, posture, and endpoint checks.
 | `config/hardware_a4.yaml` | Real-arm template, any taught surface | No (`dry_run: true`) |
 
 Treat shipped values as reviewed starting points, not proof that physical
-geometry has been measured. Follow [PREFLIGHT.md](PREFLIGHT.md) before every
-real-arm session.
+geometry has been measured. Follow the
+[hardware run guide](../../docs/hardware_run_guide.md) before every real-arm
+session.

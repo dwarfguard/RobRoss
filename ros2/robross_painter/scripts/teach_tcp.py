@@ -45,9 +45,10 @@ just-touch approach):
        ros2 service call /teach_tcp/record_axis_vertical std_srvs/srv/Trigger
   5. ros2 service call /teach_tcp/save std_srvs/srv/Trigger
 
-After saving: copy tool_offset_xyz / tool_offset_rpy into ALL FOUR config
-profiles (hardware_a4.yaml, rviz_wall_a4.yaml, rviz_taught_a4.yaml,
-demo_v1_rviz.yaml) so they stay identical, re-pick tool_spin_deg by eye for
+After saving: copy tool_offset_xyz / tool_offset_rpy into the three profiles
+that model physical tool geometry (hardware_a4.yaml, rviz_wall_a4.yaml, and
+rviz_taught_a4.yaml) so they stay identical. Keep demo_v1_rviz.yaml as the
+explicitly simplified zero-tool profile. Re-pick tool_spin_deg by eye for
 claw/cable clearance, and RE-TEACH THE CANVAS (any existing canvas_calibration
 was recorded with the old offset and is now stale).
 """
@@ -491,8 +492,8 @@ class TeachTcp(Node):
             f"# pen axis: {result['axis_method']}, tilt {result['axis_tilt_deg']:.2f} "
             f"deg vs ee +Z, axis fit {axis_rms}\n"
             "# ACTIONS after applying:\n"
-            "#   1. Copy tool_offset_xyz/rpy into ALL FOUR profiles (hardware_a4,\n"
-            "#      rviz_wall_a4, rviz_taught_a4, demo_v1_rviz) — keep identical.\n"
+            "#   1. Copy tool_offset_xyz/rpy into hardware_a4, rviz_wall_a4,\n"
+            "#      and rviz_taught_a4; keep those three identical.\n"
             "#   2. Re-pick tool_spin_deg by eye for claw/cable clearance.\n"
             "#   3. RE-TEACH the canvas — the old canvas_calibration used the old\n"
             "#      offset and is now stale.\n"

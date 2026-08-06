@@ -56,9 +56,8 @@ Workflow:
 
      These are fit into a smooth Z-correction surface recorded in the
      saved YAML as a flatness DIAGNOSTIC only — the executor does NOT
-     apply it during motion (the tracking remediation plan,
-     docs/aubo-painting-tracking-remediation-plan.md Section 4, forbids
-     position-dependent Z compensation). The fit measures the
+     apply it during motion. The current status document retains the decision
+     not to apply position-dependent Z compensation. The fit measures the
      reach-dependent, NON-planar contact error that a single flat plane
      cannot represent. save reports the out-of-plane error before and
      after the fitted surface and refuses when too much remains.
@@ -244,8 +243,8 @@ def compute_canvas_calibration(tl, tr, bl, br, samples=(), plane_bias_mm=0.0):
     but the plane NORMAL is the least-squares best fit through every touched
     point (corners + samples). corr_coeffs is a quadratic surface (mm) fitted
     to the out-of-plane residuals as a flatness diagnostic; the executor does
-    NOT apply it during motion (the remediation plan forbids position-dependent
-    Z compensation). origin is the top-left
+    NOT apply it during motion; the current hardware decision prohibits using
+    position-dependent Z compensation to hide tracking. origin is the top-left
     corner shifted plane_bias_mm along the fitted +z normal (the pen preload).
     max_resid_before_mm is the worst out-of-plane error the flat model would
     leave; max_resid_after_mm is what would remain if the surface were applied.
@@ -491,11 +490,11 @@ class TeachCanvas(Node):
 
         warnings = []
         # 3.8 mm is the pen spring's full travel: a negative bias draws in
-        # the air, a bias past full travel bottoms the spring out.
-        if bias_mm < 0.0 or bias_mm > 3.8:
+        # the air, and reaching full travel bottoms the spring out.
+        if bias_mm < 0.0 or bias_mm >= 3.8:
             warnings.append(
                 f"plane_bias_mm {bias_mm:.1f} is outside the pen spring's "
-                "0-3.8 mm travel — check the sign/value"
+                "safe [0, 3.8) mm bias range — check the sign/value"
             )
         warn_flat_mm = float(self.get_parameter("flatness_warn_mm").value)
         if resid_after_mm > warn_flat_mm:
@@ -559,7 +558,7 @@ class TeachCanvas(Node):
             "# canvas_z_correction_coeffs [a,b,c,d,e,f]: quadratic surface "
             "z(x,y)=a+b*x+c*y+d*x*y+e*x^2+f*y^2 (mm, x/y in canvas mm).\n"
             "# Measured flatness record only — NOT applied by the executor "
-            "(see docs/aubo-painting-tracking-remediation-plan.md Section 4).\n"
+            "(see docs/aubo-painting-current-status-2026-07-31.md).\n"
             f"# plane_bias_mm: {bias_mm} (origin sits this far behind the "
             "raw top_left, along the canvas normal into the wall)\n"
             f"# top_left:     {tl.tolist()}\n"

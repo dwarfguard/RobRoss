@@ -9,7 +9,7 @@ fake-hardware testing in RViz and calibrated real-arm operation.
 | --- | --- |
 | This README | Build context, RViz workflow, and canvas teaching |
 | [Configuration reference](REFERENCE.md) | Profiles, parameters, collision model, and motion checks |
-| [Hardware preflight](PREFLIGHT.md) | Required real-arm procedure and abort rules |
+| [Hardware run guide](../../docs/hardware_run_guide.md) | Required real-arm procedure and abort rules |
 | [Path format](../../docs/painting-paths-format.md) | Canvas coordinates and command schema |
 
 The repository [root README](../../README.md) contains the workspace import and
@@ -50,7 +50,7 @@ collision geometry. It then applies these fail-closed checks:
   tangential deviation;
 - Cartesian trajectories sent position-only at the controller period
   (`controller_sample_dt`), so the controller's linear interpolation matches
-  exactly what the validator checked (remediation plan Phase 1);
+  exactly what the validator checked;
 - MoveIt bounds and collision checks at interpolated trajectory samples;
 - measured pen-tip endpoint checks after execution.
 
@@ -67,8 +67,8 @@ limit merely to make a rejected trajectory execute.
 | --- | --- |
 | `config/rviz_wall_a4.yaml` | Default fake-hardware A4 wall. Simulation only. |
 | `config/rviz_taught_a4.yaml` | Fake-hardware tests with a taught canvas on any plane (slanted, ground). No ground collision plane, auto-sized backing patch, relaxed base-axis guards. Simulation only. |
-| `config/demo_v1_rviz.yaml` | Earlier fake-hardware horizontal-paper setup. |
-| `config/hardware_a4.yaml` | Real-arm profile for any taught surface. Source of truth for the measured tool offset and claw collision box; the sim profiles must carry the same values. |
+| `config/demo_v1_rviz.yaml` | Earlier simplified fake-hardware setup. Its zero tool/claw geometry is not hardware-representative. |
+| `config/hardware_a4.yaml` | Dry-run real-arm template for any taught surface. Its seed geometry must be measured before contact; copy measured tool geometry only to the two hardware-representative RViz profiles above. |
 
 `paint.launch.py` defaults to `rviz_wall_a4.yaml`. Never use that default on a
 real arm. A real-arm launch must explicitly pass both `calibration_file` and a
@@ -186,9 +186,10 @@ ros2 service call /teach_tcp/save std_srvs/srv/Trigger
 `tool_offset_xyz` / `tool_offset_rpy` and a report (touch count, scatter, pin
 point, axis tilt). Then:
 
-1. Copy both values into **all four** profiles (`hardware_a4.yaml`,
-   `rviz_wall_a4.yaml`, `rviz_taught_a4.yaml`, `demo_v1_rviz.yaml`) — they must
-   stay identical.
+1. Copy both values into the three hardware-geometry profiles
+   (`hardware_a4.yaml`, `rviz_wall_a4.yaml`, and `rviz_taught_a4.yaml`) so they
+   stay identical. Keep `demo_v1_rviz.yaml` as the explicitly simplified,
+   zero-tool legacy profile.
 2. **Re-pick `tool_spin_deg`** by eye for claw/cable clearance (it is a separate
    clearance choice, not calibrated here).
 3. **Re-teach the canvas** — any existing `canvas_calibration.yaml` was recorded
@@ -198,7 +199,7 @@ Other services: `~/record_axis_point`, `~/clear` (reset all touches).
 
 ## Teach A Real Canvas
 
-Complete the [hardware preflight](PREFLIGHT.md) in order; this section only
+Complete the [hardware run guide](../../docs/hardware_run_guide.md) in order; this section only
 documents the teaching tool.
 
 1. Calibrate the robot model as described by the maintained Aubo driver.
@@ -206,7 +207,8 @@ documents the teaching tool.
    `dry_run: true` for the initial full-artwork plan:
 
 ```bash
-cp "$(ros2 pkg prefix robross_painter)/share/robross_painter/config/hardware_a4.yaml" \
+test -f "$HOME/hardware_a4.yaml" || \
+  cp "$(ros2 pkg prefix robross_painter)/share/robross_painter/config/hardware_a4.yaml" \
   "$HOME/hardware_a4.yaml"
 grep -n "dry_run: true" "$HOME/hardware_a4.yaml"
 ```
@@ -235,7 +237,8 @@ Start the real stack in separate terminals before teaching or painting:
 source ~/robross_aubo_ws/install/setup.bash
 export AUBO_TYPE=aubo_i5_calibrated
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
-  aubo_type:=$AUBO_TYPE robot_ip:=<robot-ip> use_fake_hardware:=false
+  aubo_type:=$AUBO_TYPE robot_ip:=<robot-ip> use_fake_hardware:=false \
+  controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008
 
 # Terminal 2
 source ~/robross_aubo_ws/install/setup.bash
@@ -270,17 +273,17 @@ ros2 run robross_painter teach_canvas.py --ros-args \
 # (not `ros2 run`) so its MoveGroupInterface gets the robot_description/SRDF;
 # aubo_type must match the running stack.
 ros2 launch robross_painter teach_nudge.launch.py \
-  aubo_type:=aubo_i5 \
+  aubo_type:=$AUBO_TYPE \
   tool_offset_rpy:="[<r>, <p>, <y>]"
 ```
 
 Teach at **just-touch**: the recorded point is the free-length virtual pen
 tip, so any spring compression at record time pushes the taught plane that
 far behind the paper — the drawing preload is applied in software by
-`plane_bias_mm` instead (see PREFLIGHT.md section 2). Touch the **physical
+`plane_bias_mm` instead (see the hardware run guide, Step 4). Touch the **physical
 paper corners**, not the artwork-margin corners. Keep the current 1.0 mm bias
-while direction-dependent tracking remediation remains open; do not increase
-preload to hide tracking error. For each corner:
+for the demonstrated supervised setup; do not increase preload to hide tracking
+error. For each corner:
 
 1. Enable pendant freedrive and bring the pen tip to hover a few mm off
    the corner, roughly perpendicular to the paper — the i5's freedrive
@@ -323,9 +326,9 @@ behind the paper along the canvas normal), `canvas_quat_xyzw`, and
 (so no single noisy corner tips the plane); the interior samples fit a smooth
 quadratic Z-correction surface that is **recorded as a flatness diagnostic
 only — the executor does NOT apply it during motion**
-(`docs/aubo-painting-tracking-remediation-plan.md` Section 4 forbids
-position-dependent Z compensation; the executor always uses the flat taught
-plane). The fit measures the reach-dependent, non-planar contact error a
+([the current status](../../docs/aubo-painting-current-status-2026-07-31.md) retains the decision not to
+apply position-dependent Z compensation; the executor always uses the flat
+taught plane). The fit measures the reach-dependent, non-planar contact error a
 single plane cannot represent. `save` reports the out-of-plane error before
 and after the fitted surface,
 warns above `flatness_warn_mm` (0.3 mm), and **refuses** above
@@ -357,16 +360,16 @@ ros2 launch robross_painter paint.launch.py \
   paths_file:=$ROBROSS_REPO/output/painting_paths.json
 ```
 
-Dry-run success alone does not authorize contact. The reviewed driver provides full-rate
-per-ServoJ-call telemetry, but its stationary lifecycle, hover latency, telemetry, and formal
-Phase 2 gates still require hardware evidence. Follow `docs/hardware_run_guide.md` Step 5.5 and
-keep `dry_run: true` until that evidence passes review. When contact is approved, run
-`output/test_line_paths.json` first at the preflight speeds with an operator on the e-stop.
+Dry-run success alone does not authorize contact. The July 31 stationary, repeated-hover, and
+supervised-contact evidence is recorded in
+[the current status](../../docs/aubo-painting-current-status-2026-07-31.md). Follow the
+[hardware run guide](../../docs/hardware_run_guide.md), Step 5.5, on a new setup and after relevant
+source, calibration, tool, or motion-profile changes. Run `output/test_line_paths.json` first with
+an operator on the e-stop. Unattended contact remains unapproved.
 
 ## Offline Tracking-Bag Analysis
 
-`scripts/analyze_tracking_bag.py` is the Phase 0 tool from
-`docs/aubo-painting-tracking-remediation-plan.md`: it turns a recorded painting
+`scripts/analyze_tracking_bag.py` is the offline analysis tool. It turns a recorded painting
 run into per-command tracking metrics so every timing/interpolation change can
 be compared against the same baseline. It is strictly read-only — it never
 initializes ROS, creates no node, and publishes nothing; it only reads the bag
@@ -378,7 +381,7 @@ ros2 run robross_painter analyze_tracking_bag.py <bag_dir> \
   --calibration-file $HOME/hardware_a4.yaml \
   --plane-bias-mm 1.0 \
   --csv tracking.csv \
-  --servoj-csv servoj.csv   # optional; only meaningful for Phase 2 driver bags
+  --servoj-csv servoj.csv   # optional; only meaningful for driver diagnostic bags
 ```
 
 Required bag topics: `/joint_trajectory_controller/controller_state` (reference
@@ -391,12 +394,10 @@ spring compression (`plane_bias_mm + actual canvas z`), per-joint errors
 (max/mean/RMS), and publication rate/jitter for controller state and joint
 states. `--csv` exports per-sample rows for offline plotting.
 
-### Phase delay & normal oscillation (Phase 2)
+### Phase delay and normal oscillation
 
-Motivated by the July 23 above-paper finding (§2.6 of the remediation plan:
-movement-synchronized wrist oscillation reaching ~2.4 mm peak-to-peak while the
-controller reference stayed planar), the summary also reports a **Phase delay &
-normal oscillation** section computed from the bagged controller state:
+The summary also reports a **Phase delay & normal oscillation** diagnostic
+section computed from the bagged controller state:
 
 - **Instantaneous-direction normal error** — each command's normal error split
   by the direction of motion *at each sample*, so a reversal or curve is
@@ -404,57 +405,44 @@ normal oscillation** section computed from the bagged controller state:
   net-displacement direction.
 - **Command-to-feedback phase delay** — per moving joint, the lag by which
   feedback trails the reference, found by best-correlation search on the
-  resampled joint signals. It is reported only for oscillatory/curved
-  references (e.g. the sine fixture); a monotonic stroke's delay is
+  resampled joint signals. It is reported only for reversal/curved
+  references; a monotonic stroke's delay is
   mathematically undefined and shows as `n/a`.
 - **Per-cycle canvas-normal peak-to-peak** plus segment peak-to-peak and RMS,
-  the objective proxy for the operator's "visible wrist oscillation" check.
+  retained as a diagnostic for references with repeated reversals.
 
-It ends with a **Phase 2B tracking gate** (delay median < 30 ms / p95 < 50 ms,
-actual `|normal|` ≤ 0.25 mm), the tracking half of the Section 7 gate; the
-ServoJ-timing half is below. This section renders from any bag with tracking
-segments, including ones without driver ServoJ diagnostics. The gate reports
-one of three states: **PASS** (all criteria met), **FAIL** (a measured
-criterion is out of tolerance), or **INCOMPLETE**. Delay is a *mandatory*
-criterion, so a bag that never exercises an oscillatory/curved path (no delay
-estimate at all) reads INCOMPLETE, not PASS — record a sine/curve fixture to
-certify the delay gate. Only PASS authorizes moving past the gate.
+It also prints a **Historical global tracking screen**. Do not use that single line as the
+current acceptance decision: it pools travel, approach, painting, and retreat, and it derives
+delay from the approximately 62.5 Hz controller-state stream. Current review separates command
+types, reports deliberate repetitions independently, and distinguishes simultaneous temporal
+offset from time-aligned geometric error. See the
+[current status](../../docs/aubo-painting-current-status-2026-07-31.md).
 
-### ServoJ timing (Phase 2)
+### ServoJ timing
 
 When the bag also carries the Aubo driver's ServoJ diagnostics — the
-`aubo_servoj_diag` `/rosout` lines emitted by the Phase 2A instrumentation
+`aubo_servoj_diag` `/rosout` lines emitted by the driver instrumentation
 (`servoj_config` once at activation, one `servoj_stats` line per report window)
 — the summary automatically gains a **ServoJ timing** section: the effective
 control-loop rate (and its percentage of the configured rate), `servoJoint`
 RPC and whole-`Servoj` durations, late-cycle runs, queue-full events/retries,
 and the servoJoint return-code breakdown, aggregated across the whole bag. It
-ends with a **Phase 2B timing gate** line summarizing the plan's Section 7
-checks (loop rate ≥ 95% of configured, no queue-full, no non-OK return
-codes/exceptions, no latched timing fault). Like the tracking gate it reports
+ends with a **ServoJ timing screen** line summarizing historical checks
+(loop rate ≥ 95% of configured, no queue-full, no non-OK return
+codes/exceptions, no latched timing fault). Like the historical tracking screen it reports
 PASS / FAIL / **INCOMPLETE**: a bag lacking the `servoj_config` line cannot
 prove which rate it ran at, so its rate check is unverifiable and the gate reads
 INCOMPLETE rather than dropping the check and passing. Queue-full and non-OK
 return-code *warnings* (including any in the trailing window after the last
 `servoj_stats` report) are folded into the gate so a late fault still fails it.
-The joint-delay half of the Section 7 gate lives in the Phase delay section
-above; both halves must pass.
-`--servoj-csv` writes the per-window timing series, which is
-the easiest way to compare two candidate timing trials (e.g. 125 Hz / t=0.008
-vs 200 Hz / t=0.005). Bags recorded before Phase 2A, or on fake hardware, carry
+`--servoj-csv` writes the per-window timing series. Use it to review the selected
+`125 Hz / t=0.008` pair; the historical 200 Hz pair is rejected for painting because it
+saturated the queue. Bags recorded before this instrumentation, or on fake hardware, carry
 no such lines and the section is simply omitted.
 
-Acceptance gate (run on the robot host where the July 22 baseline bags live):
-
-```bash
-ros2 run robross_painter analyze_tracking_bag.py \
-  ~/robross_aubo_ws/rosbag2_2026_07_22-20_32_44 \
-  --canvas-file <the taught canvas yaml used that day> \
-  --calibration-file <the hardware_a4.yaml used that day> --plane-bias-mm 1.0
-```
-
-The reported mean normal errors must match the remediation plan's Section 2
-tables within 0.05 mm and the joint maxima within 0.05 deg.
+Use [the current status](../../docs/aubo-painting-current-status-2026-07-31.md)
+for current analysis rules and the [hardware run guide](../../docs/hardware_run_guide.md),
+Step 5.5, for the recording and review procedure.
 
 ## Troubleshooting
 

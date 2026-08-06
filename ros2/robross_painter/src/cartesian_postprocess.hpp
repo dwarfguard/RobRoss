@@ -14,7 +14,7 @@ namespace robross_painter
 // joint_trajectory_controller fall back to LINEAR interpolation between
 // samples — the same model validateCartesianPath checks. Leaving TOTG's
 // velocities/accelerations in place would make the controller execute
-// unvalidated quintic splines (remediation plan Section 2.3).
+// unvalidated quintic splines.
 inline void stripDerivatives(trajectory_msgs::msg::JointTrajectory &jt)
 {
     for (auto &point : jt.points) {

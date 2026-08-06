@@ -304,7 +304,7 @@ def test_analysis_never_touches_the_ros_graph(tmp_path):
         assert forbidden not in source
 
 
-# --- ServoJ timing diagnostics (Phase 2A instrumentation) ------------------
+# --- ServoJ timing diagnostics ----------------------------------------------
 
 def test_parse_kv_line_flattens_groups():
     d = analyze_tracking_bag._parse_kv_line(
@@ -351,7 +351,7 @@ def test_parse_servoj_diag_aggregates_and_gate_fails():
     summary = analyze_tracking_bag.render_summary([], {}, servoj)
     assert "ServoJ timing (aubo_servoj_diag)" in summary
     # rate < 95%, a queue-full event, and a busy return code each fail the gate.
-    assert "Phase 2B timing gate: FAIL" in summary
+    assert "ServoJ timing screen: FAIL" in summary
 
 
 def test_servoj_gate_passes_on_clean_window():
@@ -366,7 +366,7 @@ def test_servoj_gate_passes_on_clean_window():
             (2 * S, _diag_log(clean))]
     servoj = analyze_tracking_bag.parse_servoj_diag(msgs)
     summary = analyze_tracking_bag.render_summary([], {}, servoj)
-    assert "Phase 2B timing gate: PASS" in summary
+    assert "ServoJ timing screen: PASS" in summary
 
 
 def test_servoj_csv_export(tmp_path):
@@ -390,7 +390,7 @@ def test_analyze_surfaces_servoj_end_to_end(tmp_path):
     assert servoj["warnings"]["mismatch"] == 1
 
 
-# --- Phase delay / oscillation / instantaneous direction (Phase 2 §2.6) ----
+# --- Phase delay / oscillation / instantaneous direction --------------------
 
 def test_direction_resolved_splits_reversal():
     # +Y for the first half, -Y for the second, with opposite normal errors.
@@ -455,13 +455,13 @@ def test_segment_metrics_includes_phase_and_oscillation_keys(tmp_path):
         row_a["direction_resolved"]["+Y"]["mean_mm"], 0.5, atol=1e-6)
     summary = analyze_tracking_bag.render_summary(metrics, {}, None)
     assert "Phase delay & normal oscillation" in summary
-    assert "Phase 2B tracking gate" in summary
+    assert "Historical global tracking screen" in summary
 
 
-# --- Phase 0 analyzer-honesty fixes (code review 2.2/2.4/2.7/2.11) ----------
+# --- Analyzer result-state and geometry regression tests --------------------
 
-def test_normal_pp_per_cycle_on_real_sine_fixture_geometry():
-    # generate_curve_test.py's sine squiggle advances X ~90 mm monotonically
+def test_normal_pp_per_cycle_on_oscillating_curve_geometry():
+    # An oscillating curve can advance X ~90 mm monotonically
     # while Y oscillates ~48 mm pp. Selecting argmax(range) would pick monotonic
     # X, find no reversals, and report zero cycles; the oscillating Y axis must
     # be chosen instead so the fixture that most needs per-cycle analysis works.
@@ -510,20 +510,20 @@ def test_tracking_gate_incomplete_without_delay():
     # bag) -> INCOMPLETE, never a silent PASS.
     text = "\n".join(analyze_tracking_bag._render_tracking(
         [_tracking_metric("linear", 0.0, 0.1)]))
-    assert "Phase 2B tracking gate: INCOMPLETE" in text
-    assert "tracking gate: PASS" not in text
+    assert "Historical global tracking screen: INCOMPLETE" in text
+    assert "Historical global tracking screen: PASS" not in text
 
 
 def test_tracking_gate_pass_with_delay_and_low_normal():
     text = "\n".join(analyze_tracking_bag._render_tracking(
-        [_tracking_metric("sine", -0.1, 0.1, delays={"j1": 10.0})]))
-    assert "Phase 2B tracking gate: PASS" in text
+        [_tracking_metric("curve", -0.1, 0.1, delays={"j1": 10.0})]))
+    assert "Historical global tracking screen: PASS" in text
 
 
 def test_tracking_gate_fail_on_large_normal():
     text = "\n".join(analyze_tracking_bag._render_tracking(
         [_tracking_metric("bad", 0.0, 0.5, delays={"j1": 10.0})]))
-    assert "Phase 2B tracking gate: FAIL" in text
+    assert "Historical global tracking screen: FAIL" in text
 
 
 _CLEAN_WINDOW = ("servoj_stats cycles=100 "
@@ -541,8 +541,8 @@ def test_servoj_gate_incomplete_without_config():
     msgs = [(2 * S, _diag_log(_CLEAN_WINDOW))]
     servoj = analyze_tracking_bag.parse_servoj_diag(msgs)
     summary = analyze_tracking_bag.render_summary([], {}, servoj)
-    assert "Phase 2B timing gate: INCOMPLETE" in summary
-    assert "timing gate: PASS" not in summary
+    assert "ServoJ timing screen: INCOMPLETE" in summary
+    assert "ServoJ timing screen: PASS" not in summary
 
 
 def test_servoj_gate_fails_on_late_queue_full_warning():
@@ -553,4 +553,4 @@ def test_servoj_gate_fails_on_late_queue_full_warning():
             (3 * S, _diag_log("servoj queue-full: dropping oldest command"))]
     servoj = analyze_tracking_bag.parse_servoj_diag(msgs)
     summary = analyze_tracking_bag.render_summary([], {}, servoj)
-    assert "Phase 2B timing gate: FAIL" in summary
+    assert "ServoJ timing screen: FAIL" in summary

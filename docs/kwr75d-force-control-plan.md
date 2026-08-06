@@ -179,6 +179,7 @@ termination/supervision support. See the
   is its supported Z-refinement interface.
 - Existing MoveIt collision, joint-family, path-deviation, and endpoint checks
   remain unchanged.
-- Contact remains prohibited until both the existing Phase 2 motion gates and
-  the new force-control commissioning gates pass.
+- Force-controlled contact remains prohibited until the applicable
+  [hardware-run qualification](hardware_run_guide.md) and the new force-control
+  commissioning gates pass.
 - Sensor selection or calibration is never silently overwritten at startup.

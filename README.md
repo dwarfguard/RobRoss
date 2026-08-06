@@ -46,8 +46,8 @@ intermediate command format, not motor-control output. See the
 | Generate artwork and paths | [Mondrian pipeline](Image_Process/mondrian/README.md) |
 | Understand the path schema | [Path format](docs/painting-paths-format.md) |
 | Build and run in RViz | [ROS 2 painter](ros2/robross_painter/README.md) |
-| Prepare a real-arm session | [Hardware preflight](ros2/robross_painter/PREFLIGHT.md) |
-| Run the staged real-arm workflow | [Hardware run guide](docs/hardware_run_guide.md) |
+| Prepare and run a real-arm session | [Hardware run guide](docs/hardware_run_guide.md) |
+| Review current Aubo hardware status | [July 31 current status](docs/aubo-painting-current-status-2026-07-31.md) |
 | Review prototype requirements | [Prototype v1](docs/Rob_Ross_Prototype_v1.md) |
 | Work with CAD assemblies | [CAD assets](CAD/README.md) |
 
@@ -128,7 +128,7 @@ fake-hardware and RViz launch sequence.
 > **Real hardware:** Never rely on the painter's default calibration; it is an
 > RViz-only virtual wall. A real-arm launch must explicitly provide a reviewed
 > hardware profile and a freshly taught canvas pose. Complete the
-> [hardware preflight](ros2/robross_painter/PREFLIGHT.md) before enabling motion.
+> [hardware run guide](docs/hardware_run_guide.md) before enabling motion.
 
 ## Repository Layout
 
@@ -159,6 +159,3 @@ limits belong in `ros2/robross_painter`, not in artwork profiles.
 Keep artwork generation, path generation, validation, and robot execution
 separate. Update the relevant guide when behavior changes. Coding agents should
 also read [AGENTS.md](AGENTS.md).
-
-Product ideas and earlier design discussion are retained in
-[docs/Rob_Ross_Discuss.md](docs/Rob_Ross_Discuss.md).

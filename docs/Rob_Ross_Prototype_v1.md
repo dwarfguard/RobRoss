@@ -1,7 +1,7 @@
 # Prototype v1: A4 Pen Demo / 第一版原型：A4 纸笔绘图测试
 
 **Status:** Active prototype specification  
-**Last updated:** 2026-07-07  
+**Last updated:** 2026-07-31
 **Primary audience:** Human collaborators, software contributors, hardware contributors, and LLM coding agents  
 **Current target:** Aubo i5 hardware test using A4 paper and a pen
 
@@ -32,7 +32,7 @@ The guiding principle is:
 | First style | Mondrian-inspired geometric line drawing / sketch outline tracing |
 | Path generation | Preprocessed, deterministic path instructions |
 | Robot target | Aubo i5 robot arm |
-| Robot execution | Future step; current repo outputs intermediate path files |
+| Robot execution | Implemented through `robross_painter`; supervised A4 contact artwork demonstrated on 2026-07-31 |
 
 当前第一版原型使用 A4 纸、黑色笔、预设图案和预处理路径。重点是验证机械臂绘图流程，而不是完整绘画表现。
 
@@ -74,7 +74,11 @@ Prototype v1 is successful if the team can demonstrate the following:
    - scale,
    - pen contact,
    - and safe motion.
-7. The robot can eventually draw a simple Mondrian-style line composition without human correction during the run.
+7. The robot can draw a simple line composition without human correction during a supervised run.
+
+The July 31 hardware demonstration satisfies this supervised execution milestone. Current Aubo
+evidence and remaining unattended-operation work are recorded in the
+[current status](aubo-painting-current-status-2026-07-31.md).
 
 The minimum successful hardware demo is:
 
@@ -253,7 +257,9 @@ Important:
 
 > `painting_paths.json` is not direct Aubo i5 motor code.
 
-A future adapter must convert these canvas-space commands into real robot poses and motion commands.
+`ros2/robross_painter` is the implemented adapter that converts these canvas-space commands into
+MoveIt trajectories for the Aubo i5. Artwork and path-generation code must remain independent of
+the robot driver.
 
 ---
 
@@ -342,8 +348,8 @@ Generate this line as a real path file with:
 python3 Image_Process/mondrian/generate_test_line.py
 ```
 
-so the first stroke uses the same `painting_paths.json` format (and
-future robot adapter) as the full artwork. Output:
+so the first stroke uses the same `painting_paths.json` format and
+`robross_painter` execution path as the full artwork. Output:
 `output/test_line_paths.json` and `output/test_line_preview.svg`.
 
 Check:
@@ -397,7 +403,7 @@ The first prototype should prioritize safety and reliability over visual polish.
 | Area | Responsibility |
 | --- | --- |
 | Project coordination | Keep the prototype scope clear, document decisions, track risks and next steps. |
-| Software | Generate artwork plans, generate path commands, validate path data, prepare future robot adapter requirements. |
+| Software | Generate artwork plans, validate path data, maintain `robross_painter`, and preserve reproducible hardware evidence. |
 | Hardware | Prepare Aubo i5, pen mount, paper fixture, robot calibration, safety setup, and physical testing. |
 | Testing | Compare expected vs. actual robot behavior and record issues clearly. |
 
@@ -413,13 +419,13 @@ When working on this repo:
 - Use `configs/demo_v1_a4_pen.json` by default.
 - Do not assume the current prototype uses a 12-inch canvas.
 - Do not assume the current prototype uses color or paint.
-- Do not add Aubo SDK integration unless explicitly requested.
+- Do not add direct Aubo SDK integration to artwork or path-generation scripts.
 - Do not place robot calibration data inside artwork configs.
 - Preserve the separation between:
   - artwork generation,
   - path generation,
   - path validation,
-  - and future robot execution.
+  - and robot execution.
 - Keep code simple and readable.
 - Use Python standard library unless a dependency is clearly necessary.
 - Update Markdown when requirements or behavior change.
@@ -440,21 +446,18 @@ configs/demo_v1_a4_pen.json
 
 The following questions still need hardware testing or team decisions:
 
-1. What pen type works best with the Aubo i5 end effector?
-2. What is the safest and most reliable pen mounting method?
-3. What contact Z height gives consistent lines without damaging paper?
-4. What robot speed is safe and visually clean for pen strokes?
-5. Should Demo v1 draw only grid lines, or include simple outline tracing later?
-6. Should the generated first hardware test use a very small fixed path instead of a full Mondrian composition?
-7. What file or script should eventually translate `painting_paths.json` into Aubo i5 movement commands?
-8. What format should the future robot calibration config use?
+1. What pen and spring-compression envelope should be approved for repeated use?
+2. What velocity and acceleration scaling give the best corner and endpoint quality?
+3. How much of the measured downstream ServoJ delay can or should be reduced?
+4. What endpoint settling window and controller tolerances are appropriate?
+5. What continuous contact guard and straight-retreat behavior are required before unattended use?
+6. Should Demo v1 remain line-only or add simple outline tracing later?
 
 ---
 
 ## 16. Current Next Step / 当前下一步
 
-The next practical milestone is:
+The supervised A4 contact milestone has been demonstrated. The next practical milestone is:
 
-> Generate an A4 line-only path, review the SVG previews, calibrate the Aubo i5 to the paper, and draw one correctly oriented 50 mm test line.
-
-Once that succeeds, the team can move toward running a small subset of the generated Mondrian paths.
+> Reproduce the accepted Demo v1 drawing from preserved inputs, then harden endpoint settling and
+> continuous contact monitoring without regressing the supervised result.

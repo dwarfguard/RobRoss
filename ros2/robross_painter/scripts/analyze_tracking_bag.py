@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""Offline analysis of painting tracking rosbag2 recordings (Phase 0 of
-docs/aubo-painting-tracking-remediation-plan.md).
+"""Offline analysis of painting tracking rosbag2 recordings.
+
+The current interpretation rules live in
+docs/aubo-painting-current-status-2026-07-31.md. The rendered historical global
+tracking screen is retained for comparison and is not the current run verdict.
 
 Reads a rosbag2 SQLite recording WITHOUT replaying it onto the live ROS
 graph (nothing initialized, no node, no publishers), reconstructs reference and
@@ -22,10 +25,10 @@ Conventions (must match painting_executor.cpp):
   - Estimated spring compression = plane_bias_mm + actual_canvas_z_mm
     (the taught origin already sits plane_bias_mm behind the raw touch).
 
-When the bag also carries the Aubo driver's ServoJ diagnostics (Phase 2A:
+When the bag also carries the Aubo driver's ServoJ diagnostics (
 aubo_servoj_diag /rosout lines), the summary gains a ServoJ timing section
 with the effective loop rate, RPC/queue-full/return-code stats, and a
-Phase 2B timing-gate check; --servoj-csv writes the per-window series.
+ServoJ timing screen; --servoj-csv writes the per-window series.
 """
 
 import argparse
@@ -47,8 +50,8 @@ COMMAND_START_RE = re.compile(r"^\[(\d+)/(\d+)\] (\S+) \((.*)\)$")
 COMMAND_FAIL_RE = re.compile(r"^Command (\d+) \(.*\) failed, aborting$")
 PAINTING_FINISHED_RE = re.compile(r"^Painting finished \((\d+) commands\)$")
 
-# ServoJ timing diagnostics emitted by the Aubo hardware interface's diag node
-# (Phase 2A instrumentation). The driver logs one "servoj_config" line at
+# ServoJ timing diagnostics emitted by the Aubo hardware interface's diag node.
+# The driver logs one "servoj_config" line at
 # activation and one "servoj_stats" key=value line per report window, plus
 # throttled "servoj_mismatch"/"servoj_rc"/queue-full warnings.
 SERVOJ_NODE = "aubo_servoj_diag"
@@ -360,7 +363,7 @@ def parse_servoj_diag(rosout_msgs):
 
 
 def _aggregate_servoj(config, reports):
-    """Roll per-window reports into one bag-level summary + Phase 2B gate."""
+    """Roll per-window reports into one bag-level timing summary."""
     if not reports:
         return None
     total_cycles = sum(r.get("cycles", 0) for r in reports)
@@ -519,7 +522,7 @@ def estimate_phase_delay_s(t_s, ref, act, max_lag_s=0.3, min_std=1e-4):
         return None
     # A near-straight-line reference (a monotonic stroke) correlates equally
     # well at every lag, so its command-to-feedback delay is undefined. Only
-    # oscillatory/curved references (e.g. the sine fixture) yield a meaningful
+    # reversal/curved references yield a meaningful
     # lag; reject signals whose nonlinear component is negligible.
     resid = r - np.polyval(np.polyfit(grid, r, 1), grid)
     if resid.std() < 0.05 * r.std():
@@ -572,7 +575,7 @@ def _reversal_indices(pos, min_step):
 
 def normal_pp_per_cycle(tangential_xy_mm, normal_err_mm, min_step_mm=0.05):
     """Per-cycle peak-to-peak of the canvas-normal error for an oscillating
-    fixture (e.g. the sine path). A cycle spans two reversals of the dominant
+    fixture. A cycle spans two reversals of the dominant
     tangential axis; falls back to the whole segment under one full cycle."""
     xy = np.asarray(tangential_xy_mm, dtype=float)
     ne = np.asarray(normal_err_mm, dtype=float)
@@ -581,8 +584,8 @@ def normal_pp_per_cycle(tangential_xy_mm, normal_err_mm, min_step_mm=0.05):
     if n < 3:
         return {"n_cycles": 0, "pp_mean_mm": whole, "pp_max_mm": whole}
     # Pick the OSCILLATING tangential axis (the one that actually reverses),
-    # not the axis with the greatest total travel. The real sine fixture
-    # advances ~90 mm monotonically in X while oscillating ~48 mm in Y, so
+    # not the axis with the greatest total travel. An oscillating curve may
+    # advance ~90 mm monotonically in X while oscillating ~48 mm in Y, so
     # argmax(range) would pick monotonic X, find no reversals, and report
     # zero cycles. Compare each axis's reversal count and fall back to the
     # widest axis only on a tie (e.g. neither axis reverses).
@@ -798,8 +801,7 @@ def render_summary(metrics_list, rates, servoj=None):
 
 
 def _tracking_gate(metrics_list):
-    """Global command-to-feedback delay + canvas-normal summary (Phase 2B
-    tracking portion of the §7 gate)."""
+    """Historical pooled command-to-feedback and canvas-normal summary."""
     delays = []
     for m in metrics_list:
         delays.extend(m.get("joint_delay_ms", {}).values())
@@ -849,10 +851,9 @@ def _render_tracking(metrics_list):
             f"{cyc['pp_mean_mm']:.2f}/{cyc['pp_max_mm']:.2f} mm "
             f"({cyc['n_cycles']} cyc), rms {m['normal_err_rms_mm']:.3f} mm")
     g = _tracking_gate(metrics_list)
-    # Command-to-feedback delay is a MANDATORY Phase 2B criterion. Linear-only
-    # bags produce no delay estimate (a monotonic ramp correlates at every lag),
-    # so absence of a delay measurement must read INCOMPLETE, never PASS -
-    # absence of evidence is not evidence the gate was met.
+    # Preserve the historical screen's missing-delay behavior for comparison.
+    # Current acceptance rules are documented separately and do not use this
+    # pooled result as the run verdict.
     delay_available = g["delay_median_ms"] is not None
     checks = []
     if delay_available:
@@ -871,7 +872,7 @@ def _render_tracking(metrics_list):
         detail_parts.insert(
             0, "delay: MISSING (mandatory; need an oscillatory/curved path)")
     detail = ", ".join(detail_parts)
-    lines.append(f"Phase 2B tracking gate: {status} ({detail})")
+    lines.append(f"Historical global tracking screen: {status} ({detail})")
     dmed = ("n/a" if g["delay_median_ms"] is None
             else f"{g['delay_median_ms']:.0f}/{g['delay_p95_ms']:.0f} ms")
     lines.append(
@@ -919,8 +920,9 @@ def _render_servoj(servoj):
         f"log warnings: mismatch {warn['mismatch']}, rc {warn['rc']}, "
         f"queue-full {warn['queue_full']}; fault latched: "
         f"{'YES' if warn['fault_latched'] else 'no'}")
-    # The configured rate is a MANDATORY input: without a servoj_config line the
-    # bag cannot prove it ran at the intended rate, so the gate reads INCOMPLETE
+    # The configured rate is a mandatory timing input: without a servoj_config
+    # line the bag cannot prove it ran at the intended rate, so the screen reads
+    # INCOMPLETE
     # (never a silent PASS with the rate check dropped). Queue-full and non-OK
     # return-code WARNINGS are folded in alongside the per-window stats counts so
     # events in the trailing, never-reported window still fail the gate.
@@ -945,10 +947,10 @@ def _render_servoj(servoj):
     if not rate_known:
         detail_parts.insert(0, "rate: UNKNOWN (no servoj_config in bag)")
     detail = ", ".join(detail_parts)
-    lines.append(f"Phase 2B timing gate: {status} ({detail})")
+    lines.append(f"ServoJ timing screen: {status} ({detail})")
     lines.append(
-        "  (joint-delay gate <30 ms median / <50 ms p95 is assessed separately "
-        "from controller_state cross-correlation.)")
+        "  (Historical joint-delay targets <30 ms median / <50 ms p95 are "
+        "reported separately from controller_state cross-correlation.)")
     return lines
 
 

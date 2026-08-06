@@ -170,6 +170,6 @@ commands. Before execution:
 1. Confirm generation completed without validation errors.
 2. Inspect both path previews for unexpected travel or ordering.
 3. Follow the [robross_painter guide](../../ros2/robross_painter/README.md) for RViz.
-4. For a real arm, complete the [hardware preflight](../../ros2/robross_painter/PREFLIGHT.md) in order.
+4. For a real arm, complete the [hardware run guide](../../docs/hardware_run_guide.md) in order.
 
 Do not place robot calibration data in an artwork profile.

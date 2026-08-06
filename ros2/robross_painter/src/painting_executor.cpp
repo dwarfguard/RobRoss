@@ -1840,8 +1840,8 @@ private:
         // Strip derivatives BEFORE validation and execution so every check
         // below sees exactly the message the controller receives, and the
         // Humble spline controller interpolates positions linearly instead
-        // of executing unvalidated quintic splines (remediation plan
-        // Section 2.3). Joint-space travel keeps its derivatives.
+        // of executing unvalidated quintic splines. Joint-space travel keeps
+        // its derivatives.
         robross_painter::stripDerivatives(traj.joint_trajectory);
         if (!validateCartesianPath(traj, waypoints)) {
             return false;

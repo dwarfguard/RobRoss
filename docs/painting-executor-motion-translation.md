@@ -599,8 +599,7 @@ the velocity, acceleration, and effort arrays before validating or sending the
 trajectory: with position-only points, the ROS 2 Humble spline controller
 falls back to LINEAR interpolation between samples — the same model the
 post-retiming validator checks. With derivatives present it would execute
-quintic splines the validator never sees (remediation plan Section 2.3 /
-Phase 1). Joint-space travel trajectories are not modified and keep their
+quintic splines the validator never sees. Joint-space travel trajectories are not modified and keep their
 planner-side derivatives.
 
 There is no direct painting speed in mm/s. Travel and painting use the same
