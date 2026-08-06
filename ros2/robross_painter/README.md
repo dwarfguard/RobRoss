@@ -155,10 +155,10 @@ Terminal 3, run the full artwork with the default virtual wall
 ```bash
 ros2 launch robross_painter paint.launch.py \
   aubo_type:=aubo_i5 \
-  paths_file:=$ROBROSS_REPO/output/painting_paths.json
+  paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json
 ```
 
-Use `output/test_line_paths.json` instead for the 50 mm line, or
+Use `output/demo_v1_a4_pen/test_line_paths.json` instead for the 50 mm line, or
 `output/curve_test_paths.json` for the post-contact curves and corners test.
 Add an RViz `Marker` display on `robross_markers` to see the paper outline and
 completed strokes.
@@ -169,7 +169,7 @@ argument to the Terminal 3 launch:
 ```bash
 ros2 launch robross_painter paint.launch.py \
   aubo_type:=aubo_i5 \
-  paths_file:=$ROBROSS_REPO/output/painting_paths.json \
+  paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json \
   calibration_file:=$(ros2 pkg prefix robross_painter)/share/robross_painter/config/demo_v1_rviz.yaml
 ```
 
@@ -398,15 +398,16 @@ ros2 launch robross_painter paint.launch.py \
   aubo_type:=$AUBO_TYPE \
   calibration_file:=$HOME/hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
-  paths_file:=$ROBROSS_REPO/output/painting_paths.json
+  paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json
 ```
 
 Dry-run success alone does not authorize contact. The July 31 stationary, repeated-hover, and
 supervised-contact evidence is recorded in
 [the current status](../../docs/aubo-painting-current-status-2026-07-31.md). Follow the
 [hardware run guide](../../docs/hardware_run_guide.md), Step 5.5, on a new setup and after relevant
-source, calibration, tool, or motion-profile changes. Run `output/test_line_paths.json` first with
-an operator on the e-stop. Unattended contact remains unapproved.
+source, calibration, tool, or motion-profile changes. Only after that succeeds should a reviewed
+profile set `dry_run: false` and run `output/demo_v1_a4_pen/test_line_paths.json` at the preflight
+speeds with an operator on the e-stop. Unattended contact remains unapproved.
 
 ## Offline Tracking-Bag Analysis
 

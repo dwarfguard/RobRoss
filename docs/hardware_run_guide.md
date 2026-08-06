@@ -897,12 +897,12 @@ ros2 launch robross_painter paint.launch.py \
   aubo_type:=$AUBO_TYPE \
   calibration_file:=$HOME/hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
-  paths_file:=$ROBROSS_REPO/output/test_line_paths.json
+  paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/test_line_paths.json
 ```
 
 **Gate:** ~50 mm horizontal line at (80,140)→(130,140), uniform darkness (fading toward one side
 means the taught plane is tilted → re-teach), pen never bottoms out audibly, paper undamaged.
-Compare against `output/test_line_preview.svg`.
+Compare against `output/demo_v1_a4_pen/test_line_preview.svg`.
 
 ## Step 7 — Curves and corners
 
@@ -931,10 +931,10 @@ ros2 launch robross_painter paint.launch.py \
   aubo_type:=$AUBO_TYPE \
   calibration_file:=$HOME/hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
-  paths_file:=$ROBROSS_REPO/output/painting_paths.json
+  paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json
 ```
 
-Compare the result against `output/path_preview.svg`. Raise `velocity_scaling` only after motion
+Compare the result against `output/demo_v1_a4_pen/path_preview.svg`. Raise `velocity_scaling` only after motion
 is trusted.
 
 ## Session rules

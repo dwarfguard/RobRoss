@@ -788,7 +788,7 @@ executor attempts a retreat rather than silently finishing.
 
 ## 21. Worked Example
 
-The beginning of `output/painting_paths.json` is effectively:
+The beginning of `output/demo_v1_a4_pen/painting_paths.json` is effectively:
 
 ```text
 select_tool black

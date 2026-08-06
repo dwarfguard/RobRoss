@@ -5,7 +5,7 @@ import numpy as np
 
 from face_protection import detect_protected_face_mask
 
-LENNA_PATH = context.MODULE_DIR.parent / "sketch" / "assets" / "lenna.png"
+LENNA_PATH = context.MODULE_DIR.parent / "assets" / "lenna.png"
 
 
 def _mediapipe_available() -> bool:

@@ -15,7 +15,7 @@ def make_valid_config() -> dict:
             "origin": "top-left",
         },
         "source_image": {
-            "path": "Image_Process/image_to_mondrian/assets/sample.jpg",
+            "path": "Image_Process/assets/sample.jpg",
             "blur_kernel_size": 5,
             "blur_sigma": 0,
             "downscale_max_dimension_px": 400,
