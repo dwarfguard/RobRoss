@@ -19,40 +19,17 @@
 import argparse
 import json
 import os
-import sys
 import time
 from typing import Optional
 
 import cv2
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "handeye_calibration"))
-from aruco_drawing_area import (
+from eih_common import (
     ArucoDetector, CameraCalib, HandEyeCalib, compute_drawing_area,
-    create_robot_backend, save_robross_canvas
+    create_robot_backend, list_available_cameras, open_camera,
+    pose_to_matrix, save_robross_canvas,
 )
-
-
-def rpy_to_matrix(rx, ry, rz):
-    """RPY 欧拉角 (弧度) → 3×3 旋转矩阵 (ZYX 顺序)"""
-    Rx = np.array([[1, 0, 0],
-                   [0, np.cos(rx), -np.sin(rx)],
-                   [0, np.sin(rx), np.cos(rx)]])
-    Ry = np.array([[np.cos(ry), 0, np.sin(ry)],
-                   [0, 1, 0],
-                   [-np.sin(ry), 0, np.cos(ry)]])
-    Rz = np.array([[np.cos(rz), -np.sin(rz), 0],
-                   [np.sin(rz), np.cos(rz), 0],
-                   [0, 0, 1]])
-    return Rz @ Ry @ Rx
-
-
-def pose_to_matrix(pose):
-    """[x,y,z,rx,ry,rz] → 4×4"""
-    T = np.eye(4)
-    T[:3, :3] = rpy_to_matrix(pose[3], pose[4], pose[5])
-    T[:3, 3] = pose[:3]
-    return T
 
 
 def build_dynamic_handeye(tcp_pose, T_ee_cam):
@@ -85,22 +62,26 @@ def main():
                         help="RobRoss 画布标定输出路径")
     parser.add_argument("--start-from", default="0",
                         help="起始绘制点: 0|1|2|3 (ArUco ID) 或 center")
+    parser.add_argument("--list-cameras", action="store_true",
+                        help="列出所有可用摄像头设备")
     args = parser.parse_args()
+
+    if args.list_cameras:
+        list_available_cameras()
+        return
 
     if not args.robot_ip:
         print("[✗] 臂上相机模式必须连接机械臂 (--robot-ip)，用于实时读取末端位姿")
         return
 
-    # 标定文件默认在当前目录或 handeye_calibration/ 下
-    _eih_dir = os.path.join(os.path.dirname(__file__), "..", "handeye_calibration")
-    if not os.path.exists(args.camera_calib):
-        fallback = os.path.join(_eih_dir, os.path.basename(args.camera_calib))
-        if os.path.exists(fallback):
-            args.camera_calib = fallback
-    if not os.path.exists(args.handeye_calib):
-        fallback = os.path.join(_eih_dir, os.path.basename(args.handeye_calib))
-        if os.path.exists(fallback):
-            args.handeye_calib = fallback
+    # 标定文件默认在本目录 (eye_in_hand/) 下
+    _eih_dir = os.path.dirname(os.path.abspath(__file__))
+    for arg_name in ("camera_calib", "handeye_calib"):
+        path = getattr(args, arg_name)
+        if not os.path.exists(path):
+            candidate = os.path.join(_eih_dir, os.path.basename(path))
+            if os.path.exists(candidate):
+                setattr(args, arg_name, candidate)
 
     if not os.path.exists(args.camera_calib):
         print(f"[⚠] 未找到相机内参文件: {args.camera_calib}")
@@ -124,14 +105,12 @@ def main():
         return
 
     detector = ArucoDetector(args.aruco_dict, args.marker_size, [0, 1, 2, 3])
+
+    cap, camera_calib = open_camera(args.camera_id, camera_calib)
+    if cap is None:
+        return
     cmat = camera_calib.camera_matrix
     dcoeff = camera_calib.dist_coeffs
-
-    cap = cv2.VideoCapture(args.camera_id)
-    if not cap.isOpened():
-        print(f"[✗] 无法打开摄像头 ID={args.camera_id}")
-        return
-    print(f"[✓] OpenCV 摄像头已打开 (ID={args.camera_id})")
 
     print("=" * 55)
     if args.robross:

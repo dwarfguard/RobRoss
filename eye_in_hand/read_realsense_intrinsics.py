@@ -38,7 +38,10 @@ def main():
             [0.0,              round(intr.fy, 4),  round(intr.ppy, 4)],
             [0.0,              0.0,                1.0],
         ],
-        "dist_coeffs": [[0.0, 0.0, 0.0, 0.0, 0.0]],
+        # RealSense 出厂畸变系数 (modified Brown-Conrady)。
+        # 前 5 个系数按 OpenCV 的 [k1,k2,p1,p2,k3] 顺序写入；
+        # 模型略有差异，但远比全零更接近真实镜头，近距离标定精度更高。
+        "dist_coeffs": [[float(c) for c in intr.coeffs[:5]]],
         "img_size": [intr.width, intr.height],
     }
 
@@ -54,7 +57,7 @@ def main():
     print(f"\n  fx={intr.fx:.2f}  fy={intr.fy:.2f}")
     print(f"  cx={intr.ppx:.2f}  cy={intr.ppy:.2f}")
     print(f"  分辨率: {intr.width}×{intr.height}")
-    print(f"  畸变系数: 全零 (RealSense 硬件校正)")
+    print(f"  畸变系数: {[float(c) for c in intr.coeffs[:5]]}")
     print(f"\n拷贝 camera_calib.json 到 aubo-aruco 目录即可")
 
 

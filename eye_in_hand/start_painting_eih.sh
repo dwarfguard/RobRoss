@@ -99,7 +99,7 @@ if [[ -z "$CAMERA_ID" ]]; then
     error "必须指定 --camera-id"
     echo ""
     echo "可用摄像头:"
-    python3 "$SCRIPT_DIR/../handeye_calibration/aruco_drawing_area.py" --list-cameras 2>/dev/null || true
+    python3 "$SCRIPT_DIR/aruco_eih.py" --list-cameras 2>/dev/null || true
     exit 1
 fi
 
