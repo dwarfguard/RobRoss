@@ -37,6 +37,16 @@ then convert pen-tip targets into `ee_link` targets.
 
 ## Safety Model
 
+Before any motion, the node preflights the whole `painting_paths.json`: it
+checks every command's structure **and** simulates the pen-state machine over
+the command list (`move_to` only with the pen up, `lower_tool`/`lift_tool` only
+after a `move_to` has positioned the pen, `paint_stroke`/`paint_path` only with
+the pen down, and the file must end with the pen up). A malformed sequence is
+rejected up front instead of aborting partway through — after the arm has
+already moved and lowered the pen. Unknown command types are forward-compatible:
+they pass preflight and are skipped with a warning during execution (the file is
+not rejected), matching the path-format validator.
+
 Before execution, the node adds the configured ground, canvas backing, and claw
 collision geometry. It then applies these fail-closed checks:
 

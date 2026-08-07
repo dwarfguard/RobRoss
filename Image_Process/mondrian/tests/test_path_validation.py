@@ -5,7 +5,11 @@ from context import CONFIGS_DIR
 
 from config_loader import load_config
 from generate_test_line import build_test_line_paths
-from path_validation import validate_command, validate_painting_paths
+from path_validation import (
+    validate_command,
+    validate_command_sequence,
+    validate_painting_paths,
+)
 
 A4_CANVAS = {"width_mm": 210.0, "height_mm": 297.0, "origin": "top-left"}
 
@@ -120,6 +124,97 @@ class TestValidatePaintingPaths(unittest.TestCase):
         result = validate_painting_paths(paths)
         self.assertTrue(result["passed"], result["errors"])
         self.assertEqual(result["warnings"], [])
+
+    def test_illegal_sequence_fails_full_validation(self):
+        # move_to -> lower_tool -> move_to used to pass; it must now fail.
+        result = validate_painting_paths(
+            {
+                "canvas": A4_CANVAS,
+                "commands": [
+                    {"command": "move_to", "x_mm": 10.0, "y_mm": 10.0},
+                    {"command": "lower_tool"},
+                    {"command": "move_to", "x_mm": 50.0, "y_mm": 50.0},
+                ],
+            }
+        )
+        self.assertFalse(result["passed"])
+        self.assertTrue(any("move_to" in e and "pen is down" in e for e in result["errors"]))
+
+
+def _good_sequence():
+    return [
+        {"command": "select_tool", "color": "black"},
+        {"command": "move_to", "x_mm": 10.0, "y_mm": 10.0},
+        {"command": "lower_tool"},
+        {"command": "paint_path", "color": "black", "points_mm": [[10.0, 10.0], [50.0, 50.0]]},
+        {"command": "lift_tool"},
+    ]
+
+
+class TestValidateCommandSequence(unittest.TestCase):
+    def test_good_sequence_has_no_errors_or_warnings(self):
+        errors, warnings = validate_command_sequence(_good_sequence())
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+
+    def test_move_to_with_pen_down_is_an_error(self):
+        errors, _ = validate_command_sequence(
+            [
+                {"command": "move_to", "x_mm": 10.0, "y_mm": 10.0},
+                {"command": "lower_tool"},
+                {"command": "move_to", "x_mm": 50.0, "y_mm": 50.0},
+                {"command": "lift_tool"},
+            ]
+        )
+        self.assertTrue(any("move_to" in e and "pen is down" in e for e in errors))
+
+    def test_paint_with_pen_up_is_an_error(self):
+        errors, _ = validate_command_sequence(
+            [
+                {"command": "move_to", "x_mm": 10.0, "y_mm": 10.0},
+                {"command": "paint_path", "points_mm": [[10.0, 10.0], [50.0, 50.0]]},
+            ]
+        )
+        self.assertTrue(any("paint_path" in e and "pen is up" in e for e in errors))
+
+    def test_lower_before_move_is_an_error(self):
+        errors, _ = validate_command_sequence([{"command": "lower_tool"}])
+        self.assertTrue(any("lower_tool" in e and "before any move_to" in e for e in errors))
+
+    def test_lift_before_move_is_an_error(self):
+        errors, _ = validate_command_sequence([{"command": "lift_tool"}])
+        self.assertTrue(any("lift_tool" in e and "before any move_to" in e for e in errors))
+
+    def test_ending_with_pen_down_is_an_error(self):
+        errors, _ = validate_command_sequence(
+            [
+                {"command": "move_to", "x_mm": 10.0, "y_mm": 10.0},
+                {"command": "lower_tool"},
+                {"command": "paint_path", "points_mm": [[10.0, 10.0], [50.0, 50.0]]},
+            ]
+        )
+        self.assertTrue(any("ends with the pen down" in e for e in errors))
+
+    def test_unknown_command_is_a_skipped_no_op(self):
+        commands = _good_sequence()
+        commands.insert(1, {"command": "wash_brush"})
+        errors, warnings = validate_command_sequence(commands)
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+
+    def test_redundant_lower_and_lift_are_warnings(self):
+        errors, warnings = validate_command_sequence(
+            [
+                {"command": "move_to", "x_mm": 10.0, "y_mm": 10.0},
+                {"command": "lower_tool"},
+                {"command": "lower_tool"},
+                {"command": "paint_path", "points_mm": [[10.0, 10.0], [50.0, 50.0]]},
+                {"command": "lift_tool"},
+                {"command": "lift_tool"},
+            ]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(len(warnings), 2)
 
 
 if __name__ == "__main__":
