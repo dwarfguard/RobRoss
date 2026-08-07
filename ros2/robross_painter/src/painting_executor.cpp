@@ -25,9 +25,14 @@
 #include <exception>
 #include <fstream>
 #include <future>
+#include <filesystem>
+#include <iomanip>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -45,6 +50,7 @@
 #include <moveit_msgs/msg/constraints.hpp>
 #include <moveit_msgs/msg/joint_constraint.hpp>
 #include <moveit_msgs/srv/get_state_validity.hpp>
+#include <moveit_msgs/srv/get_cartesian_path.hpp>
 #include <shape_msgs/msg/solid_primitive.hpp>
 #include <moveit/trajectory_processing/time_optimal_trajectory_generation.h>
 #include <moveit_msgs/action/execute_trajectory.hpp>
@@ -60,6 +66,7 @@
 #include <visualization_msgs/msg/marker.hpp>
 
 #include "cartesian_postprocess.hpp"
+#include "cartesian_failure_diagnostics.hpp"
 #include "endpoint_settling.hpp"
 
 namespace {
@@ -71,6 +78,12 @@ enum class MotionKind {
     Lowering,  // descending to establish pen contact
     Painting,  // pen down, drawing a stroke/path
     Lifting    // leaving contact, raising the pen
+};
+
+enum class RetreatOutcome {
+    NotNeeded,
+    Succeeded,
+    Failed
 };
 
 moveit::planning_interface::MoveGroupInterface
@@ -228,6 +241,9 @@ public:
                                 claw_size_);
         node_->get_parameter_or("claw_collision_offset_xyz", claw_offset_,
                                 claw_offset_);
+        claw_touch_links_ = { group_.getEndEffectorLink(), "wrist3_Link" };
+        node_->get_parameter_or("claw_touch_links", claw_touch_links_,
+                                claw_touch_links_);
         node_->get_parameter_or("velocity_scaling", vel_scale_, vel_scale_);
         node_->get_parameter_or("acceleration_scaling", acc_scale_,
                                 acc_scale_);
@@ -280,6 +296,12 @@ public:
                                 state_validity_service_,
                                 state_validity_service_);
         node_->get_parameter_or("dry_run", dry_run_, dry_run_);
+        node_->get_parameter_or("cartesian_failure_artifact_dir",
+                                cartesian_failure_artifact_dir_,
+                                cartesian_failure_artifact_dir_);
+        node_->get_parameter_or("cartesian_capture_command_index",
+                                cartesian_capture_command_index_,
+                                cartesian_capture_command_index_);
 
         node_->get_parameter_or("endpoint_settle_velocity_tolerance",
                                 endpoint_settle_velocity_tolerance_,
@@ -349,6 +371,9 @@ public:
         state_validity_client_ =
             state_node_->create_client<moveit_msgs::srv::GetStateValidity>(
                 state_validity_service_);
+        cartesian_path_client_ =
+            state_node_->create_client<moveit_msgs::srv::GetCartesianPath>(
+                "/compute_cartesian_path");
         state_executor_ =
             std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
         state_executor_->add_node(state_node_);
@@ -407,6 +432,11 @@ public:
             ++index;
             const std::string type = cmd["command"].asString();
             const std::string label = cmd.get("label", "").asString();
+            active_command_index_ = index;
+            active_command_type_ = type;
+            active_command_label_ = label;
+            active_cartesian_call_ordinal_ = 0;
+            pending_cartesian_failures_.clear();
             RCLCPP_INFO(node_->get_logger(), "[%d/%d] %s (%s)", index,
                         static_cast<int>(commands.size()), type.c_str(),
                         label.c_str());
@@ -432,9 +462,11 @@ public:
                 RCLCPP_ERROR(node_->get_logger(),
                              "Command %d ('%s', label '%s') failed, aborting",
                              index, type.c_str(), label.c_str());
-                attemptRetreat();
+                const RetreatOutcome retreat = attemptRetreat();
+                processPendingCartesianFailures(retreat);
                 return false;
             }
+            pending_cartesian_failures_.clear();
         }
 
         if (pen_down_) {
@@ -704,9 +736,7 @@ private:
         aco.link_name = group_.getEndEffectorLink();
         // Links the claw is allowed to touch: it is bolted to the flange,
         // so contact with the mounting link and wrist is not a collision.
-        std::vector<std::string> touch{ aco.link_name, "wrist3_Link" };
-        node_->get_parameter_or("claw_touch_links", touch, touch);
-        aco.touch_links = touch;
+        aco.touch_links = claw_touch_links_;
         aco.object.header.frame_id = aco.link_name;
         aco.object.id = "pen_claw";
 
@@ -872,6 +902,8 @@ private:
         } else {
             ok = moveCartesian({ target });
             if (!ok) {
+                processPendingCartesianFailures(RetreatOutcome::NotNeeded);
+                pending_cartesian_failures_.clear();
                 // The pen is up, so a collision-checked joint-space path
                 // is a safe alternative when the straight line needs an
                 // IK configuration change (or is blocked).
@@ -956,14 +988,14 @@ private:
                          "paint_path needs a points_mm array of >= 2 points");
             return false;
         }
-        std::vector<std::pair<double, double>> points;
+        std::vector<robross_painter::CanvasPoint> points;
         points.reserve(pts.size());
         for (const auto &p : pts) {
             const double x = p[0].asDouble(), y = p[1].asDouble();
             if (!checkBounds(x, y)) {
                 return false;
             }
-            points.emplace_back(x, y);
+            points.push_back({ x, y });
         }
         if (!pen_down_) {
             RCLCPP_ERROR(node_->get_logger(),
@@ -973,19 +1005,18 @@ private:
 
         std::vector<geometry_msgs::msg::Pose> waypoints;
         waypoints.reserve(points.size());
-        if (std::hypot(points[0].first - cur_x_mm_,
-                       points[0].second - cur_y_mm_) > 0.5) {
+        if (std::hypot(points[0].x_mm - cur_x_mm_,
+                       points[0].y_mm - cur_y_mm_) > 0.5) {
             RCLCPP_WARN(node_->get_logger(),
                         "Path starts at (%.2f, %.2f) but pen is at "
                         "(%.2f, %.2f); dragging pen to the start point",
-                        points[0].first, points[0].second, cur_x_mm_,
+                        points[0].x_mm, points[0].y_mm, cur_x_mm_,
                         cur_y_mm_);
-            waypoints.push_back(
-                makePose(points[0].first, points[0].second, 0.0));
         }
-        for (std::size_t i = 1; i < points.size(); ++i) {
-            waypoints.push_back(
-                makePose(points[i].first, points[i].second, 0.0));
+        const auto targets = robross_painter::selectPaintPathTargets(
+            points, cur_x_mm_, cur_y_mm_);
+        for (const auto &target : targets) {
+            waypoints.push_back(makePose(target.x_mm, target.y_mm, 0.0));
         }
         if (!moveCartesian(waypoints, MotionKind::Painting)) {
             RCLCPP_ERROR(node_->get_logger(),
@@ -994,20 +1025,26 @@ private:
             return false;
         }
         for (std::size_t i = 1; i < points.size(); ++i) {
-            publishStroke(points[i - 1].first, points[i - 1].second,
-                          points[i].first, points[i].second);
+            publishStroke(points[i - 1].x_mm, points[i - 1].y_mm,
+                          points[i].x_mm, points[i].y_mm);
         }
-        cur_x_mm_ = points.back().first;
-        cur_y_mm_ = points.back().second;
+        cur_x_mm_ = points.back().x_mm;
+        cur_y_mm_ = points.back().y_mm;
         return true;
     }
 
     // Best-effort straight retreat after an abort with the pen on the paper.
     // A joint-space fallback is deliberately forbidden while in contact.
-    void attemptRetreat()
+    RetreatOutcome attemptRetreat()
     {
-        if (dry_run_ || !pen_down_ || !have_position_) {
-            return;
+        if (dry_run_ || !pen_down_) {
+            return RetreatOutcome::NotNeeded;
+        }
+        if (!have_position_) {
+            RCLCPP_FATAL(node_->get_logger(),
+                         "Pen contact is possible but the canvas position is "
+                         "unknown; refusing an autonomous retreat");
+            return RetreatOutcome::Failed;
         }
         RCLCPP_WARN(node_->get_logger(),
                     "Aborting with the pen down; retreating off the paper");
@@ -1023,12 +1060,12 @@ private:
                          "refusing an autonomous retreat from an unknown state. "
                          "Trigger a protective stop and clear the pen manually "
                          "before the next run");
-            return;
+            return RetreatOutcome::Failed;
         }
         if (!loadTrackedState(stationary_names, stationary_positions)) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Cannot load the stationary pose for straight retreat");
-            return;
+            return RetreatOutcome::Failed;
         }
         const auto &current = tracked_state_->getGlobalLinkTransform(
             group_.getEndEffectorLink());
@@ -1046,15 +1083,16 @@ private:
         hover.orientation.y = orientation.y();
         hover.orientation.z = orientation.z();
         hover.orientation.w = orientation.w();
-        if (moveCartesian({ hover }, MotionKind::Lifting)) {
+        if (moveCartesian({ hover }, MotionKind::Lifting, false)) {
             pen_down_ = false;
             RCLCPP_INFO(node_->get_logger(), "Pen retreated to hover height");
-            return;
+            return RetreatOutcome::Succeeded;
         }
         RCLCPP_ERROR(node_->get_logger(),
                      "Straight retreat failed: refusing a joint-space move "
-                     "with the pen down. Jog it clear manually before the "
-                     "next run");
+                      "with the pen down. Jog it clear manually before the "
+                      "next run");
+        return RetreatOutcome::Failed;
     }
 
     bool initializeMotionPolicy()
@@ -1076,6 +1114,28 @@ private:
             !std::isfinite(elbow_up_max_deg_) ||
             elbow_up_min_deg_ >= elbow_up_max_deg_) {
             RCLCPP_ERROR(node_->get_logger(), "Invalid elbow-up joint band");
+            return false;
+        }
+        if (!cartesian_failure_artifact_dir_.empty()) {
+            std::error_code filesystem_error;
+            const std::filesystem::path artifact_dir(
+                cartesian_failure_artifact_dir_);
+            if (!std::filesystem::is_directory(artifact_dir,
+                                               filesystem_error)) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "cartesian_failure_artifact_dir is not an "
+                             "existing directory: '%s'",
+                             cartesian_failure_artifact_dir_.c_str());
+                return false;
+            }
+        }
+        if (cartesian_capture_command_index_ < 0 ||
+            (cartesian_capture_command_index_ > 0 &&
+             (!dry_run_ || cartesian_failure_artifact_dir_.empty()))) {
+            RCLCPP_ERROR(
+                node_->get_logger(),
+                "cartesian_capture_command_index requires dry_run=true and "
+                "a cartesian_failure_artifact_dir");
             return false;
         }
         if (guarded_joints_.empty()) {
@@ -2234,13 +2294,255 @@ private:
                                  "Joint-space");
     }
 
+    void captureSceneSnapshot(
+        robross_painter::CartesianFailureRecord &record)
+    {
+        const std::string frame = record.planning_frame;
+        if (ground_enabled_) {
+            robross_painter::SceneBox box;
+            box.id = "ground_plane";
+            box.frame_id = frame;
+            box.dimensions = { 4.0, 4.0, 0.1 };
+            box.pose.orientation.w = 1.0;
+            box.pose.position.z = ground_z_ - 0.05;
+            record.scene_boxes.push_back(std::move(box));
+        } else {
+            record.removed_world_objects.push_back("ground_plane");
+        }
+
+        if (backing_enabled_) {
+            double size_x = backing_size_xy_.at(0);
+            double size_y = backing_size_xy_.at(1);
+            if (size_x == 0.0 && size_y == 0.0) {
+                size_x = canvas_w_mm_ / 1000.0 + 2.0 * backing_margin_;
+                size_y = canvas_h_mm_ / 1000.0 + 2.0 * backing_margin_;
+            }
+            constexpr double thickness = 0.05;
+            const tf2::Vector3 center = canvas_.toBaseVec(
+                canvas_w_mm_ / 2.0, canvas_h_mm_ / 2.0,
+                -(backing_clearance_ + thickness / 2.0));
+            const tf2::Quaternion q = canvas_.orientation();
+            robross_painter::SceneBox box;
+            box.id = "canvas_backing";
+            box.frame_id = frame;
+            box.dimensions = { size_x, size_y, thickness };
+            box.pose.position.x = center.x();
+            box.pose.position.y = center.y();
+            box.pose.position.z = center.z();
+            box.pose.orientation.x = q.x();
+            box.pose.orientation.y = q.y();
+            box.pose.orientation.z = q.z();
+            box.pose.orientation.w = q.w();
+            record.scene_boxes.push_back(std::move(box));
+        } else {
+            record.removed_world_objects.push_back("canvas_backing");
+        }
+
+        const bool claw_enabled =
+            std::any_of(claw_size_.begin(), claw_size_.end(),
+                        [](double value) { return value != 0.0; });
+        if (claw_enabled) {
+            robross_painter::SceneBox box;
+            box.id = "pen_claw";
+            box.frame_id = record.end_effector_link;
+            box.attached = true;
+            box.link_name = record.end_effector_link;
+            box.touch_links = claw_touch_links_;
+            box.dimensions = claw_size_;
+            box.pose.orientation.w = 1.0;
+            box.pose.position.x = claw_offset_.at(0);
+            box.pose.position.y = claw_offset_.at(1);
+            box.pose.position.z = claw_offset_.at(2);
+            record.scene_boxes.push_back(std::move(box));
+        } else {
+            record.removed_world_objects.push_back("pen_claw");
+            record.removed_attached_objects.push_back("pen_claw");
+        }
+
+    }
+
+    void captureUnexpectedSceneObjects(
+        robross_painter::CartesianFailureRecord &record)
+    {
+        const std::set<std::string> known_world{
+            "ground_plane", "canvas_backing", "pen_claw"
+        };
+        for (const auto &entry : scene_.getObjects()) {
+            if (known_world.count(entry.first) == 0) {
+                record.unexpected_world_objects.push_back(entry.first);
+            }
+        }
+        const std::set<std::string> known_attached{ "pen_claw" };
+        for (const auto &entry : scene_.getAttachedObjects()) {
+            if (known_attached.count(entry.first) == 0) {
+                record.unexpected_attached_objects.push_back(entry.first);
+            }
+        }
+    }
+
+    robross_painter::CartesianFailureRecord makeCartesianFailureRecord(
+        const moveit::core::RobotState &start,
+        const std::vector<geometry_msgs::msg::Pose> &waypoints,
+        const robross_painter::CartesianAttemptSummary &normal)
+    {
+        robross_painter::CartesianFailureRecord record;
+        record.command_index = active_command_index_;
+        record.command = active_command_type_;
+        record.label = active_command_label_;
+        record.cartesian_call_ordinal = active_cartesian_call_ordinal_;
+        record.planning_group = group_.getName();
+        record.planning_frame = group_.getPoseReferenceFrame();
+        if (record.planning_frame.empty()) {
+            record.planning_frame = group_.getPlanningFrame();
+        }
+        record.end_effector_link = group_.getEndEffectorLink();
+        record.joint_names = start.getVariableNames();
+        record.joint_positions_rad.reserve(record.joint_names.size());
+        for (const auto &name : record.joint_names) {
+            record.joint_positions_rad.push_back(start.getVariablePosition(name));
+        }
+        record.waypoints = waypoints;
+        record.eef_step_m = eef_step_;
+        record.jump_threshold = jump_threshold_;
+        record.normal = normal;
+        record.source = "painting_executor_exact";
+        captureSceneSnapshot(record);
+        return record;
+    }
+
+    static const char *retreatOutcomeName(RetreatOutcome outcome)
+    {
+        switch (outcome) {
+        case RetreatOutcome::NotNeeded:
+            return "not_needed";
+        case RetreatOutcome::Succeeded:
+            return "succeeded";
+        case RetreatOutcome::Failed:
+            return "failed";
+        }
+        return "unknown";
+    }
+
+    std::string artifactPath(
+        const robross_painter::CartesianFailureRecord &record,
+        const char *prefix) const
+    {
+        const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   std::chrono::system_clock::now()
+                                       .time_since_epoch())
+                                   .count();
+        std::ostringstream name;
+        name << prefix << "_" << timestamp << "_cmd" << std::setw(4)
+             << std::setfill('0') << record.command_index << "_call"
+             << std::setw(2) << record.cartesian_call_ordinal << ".json";
+        return (std::filesystem::path(cartesian_failure_artifact_dir_) /
+                name.str())
+            .string();
+    }
+
+    void processPendingCartesianFailures(RetreatOutcome retreat)
+    {
+        for (auto &record : pending_cartesian_failures_) {
+            record.retreat_status = retreatOutcomeName(retreat);
+            if (retreat == RetreatOutcome::Failed) {
+                record.no_jump.error =
+                    "diagnostics skipped because autonomous retreat failed";
+                record.no_jump_no_collision.error = record.no_jump.error;
+                record.classification =
+                    robross_painter::CartesianFailureClass::Inconclusive;
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Cartesian failure diagnostics skipped because "
+                             "the robot did not retreat safely");
+            } else {
+                captureUnexpectedSceneObjects(record);
+                record.no_jump = robross_painter::runCartesianRequest(
+                    cartesian_path_client_,
+                    robross_painter::makeCartesianRequest(record, 0.0, true));
+                record.no_jump_no_collision =
+                    robross_painter::runCartesianRequest(
+                        cartesian_path_client_,
+                        robross_painter::makeCartesianRequest(record, 0.0,
+                                                               false));
+                record.classification =
+                    robross_painter::classifyCartesianFailure(
+                        record.normal, record.no_jump,
+                        record.no_jump_no_collision);
+                RCLCPP_ERROR(
+                    node_->get_logger(),
+                    "Cartesian failure classified as %s: normal %.3f (%zu "
+                    "points), no-jump %.3f (%zu), no-jump/no-collision %.3f "
+                    "(%zu)",
+                    robross_painter::cartesianFailureClassName(
+                        record.classification),
+                    record.normal.fraction, record.normal.point_count,
+                    record.no_jump.fraction, record.no_jump.point_count,
+                    record.no_jump_no_collision.fraction,
+                    record.no_jump_no_collision.point_count);
+            }
+
+            if (!cartesian_failure_artifact_dir_.empty()) {
+                const std::string path = artifactPath(record,
+                                                      "cartesian_failure");
+                std::string error;
+                if (robross_painter::writeCartesianFailureRecord(record, path,
+                                                                  error)) {
+                    RCLCPP_INFO(node_->get_logger(),
+                                "Cartesian failure artifact written to %s",
+                                path.c_str());
+                } else {
+                    RCLCPP_ERROR(node_->get_logger(), "%s", error.c_str());
+                }
+            }
+        }
+    }
+
+    robross_painter::CartesianAttemptSummary computeCartesianRequest(
+        const robross_painter::CartesianFailureRecord &record,
+        moveit_msgs::msg::RobotTrajectory &trajectory)
+    {
+        robross_painter::CartesianAttemptSummary summary;
+        summary.error_code = moveit_msgs::msg::MoveItErrorCodes::FAILURE;
+        constexpr auto timeout = std::chrono::seconds(10);
+        try {
+            if (!cartesian_path_client_->wait_for_service(timeout)) {
+                summary.error = "/compute_cartesian_path service unavailable";
+                return summary;
+            }
+            auto request = std::make_shared<
+                moveit_msgs::srv::GetCartesianPath::Request>(
+                robross_painter::makeCartesianRequest(
+                    record, record.jump_threshold, true));
+            auto future = cartesian_path_client_->async_send_request(request);
+            if (future.wait_for(timeout) != std::future_status::ready) {
+                cartesian_path_client_->remove_pending_request(future);
+                summary.error = "/compute_cartesian_path request timed out";
+                return summary;
+            }
+            const auto response = future.get();
+            summary.fraction = response->fraction;
+            summary.error_code = response->error_code.val;
+            summary.point_count =
+                response->solution.joint_trajectory.points.size();
+            trajectory = response->solution;
+        } catch (const std::exception &exception) {
+            summary.error = std::string("/compute_cartesian_path exception: ") +
+                            exception.what();
+        }
+        return summary;
+    }
+
     bool moveCartesian(const std::vector<geometry_msgs::msg::Pose> &waypoints,
-                       MotionKind kind = MotionKind::Transit)
+                       MotionKind kind = MotionKind::Transit,
+                       bool capture_failure = true)
     {
         if (!refreshTrackedState()) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Cannot refresh current state for Cartesian planning");
             return false;
+        }
+        const moveit::core::RobotState planning_start(*tracked_state_);
+        if (capture_failure) {
+            ++active_cartesian_call_ordinal_;
         }
         setPlanStartState();
         moveit_msgs::msg::RobotTrajectory traj;
@@ -2250,14 +2552,52 @@ private:
         // sweeps the arm through unchecked space (through itself, the
         // ground, or the wall). A nonzero threshold rejects such flips so
         // they surface as a planning failure instead of a dangerous motion.
-        const double fraction = group_.computeCartesianPath(
-            waypoints, eef_step_, jump_threshold_, traj);
-        if (fraction < 0.999) {
-            RCLCPP_ERROR(node_->get_logger(),
-                         "Cartesian path only %.1f%% feasible (obstacle or "
-                         "IK configuration flip)",
-                         fraction * 100.0);
+        auto request_record = makeCartesianFailureRecord(
+            planning_start, waypoints, {});
+        const auto normal = computeCartesianRequest(request_record, traj);
+        const double fraction = normal.fraction;
+        if (!robross_painter::cartesianAttemptSucceeded(normal) ||
+            fraction < robross_painter::kRequiredCartesianFraction) {
+            if (!robross_painter::cartesianAttemptSucceeded(normal)) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Cartesian path request failed: %s (MoveIt code "
+                             "%d)",
+                             normal.error.empty() ? "service rejected request"
+                                                  : normal.error.c_str(),
+                             normal.error_code);
+            } else {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Cartesian path only %.1f%% feasible (obstacle or "
+                             "IK configuration flip)",
+                             fraction * 100.0);
+            }
+            if (capture_failure) {
+                request_record.normal = normal;
+                pending_cartesian_failures_.push_back(
+                    std::move(request_record));
+            }
             return false;
+        }
+        if (capture_failure && dry_run_ &&
+            active_command_index_ == cartesian_capture_command_index_) {
+            auto record = std::move(request_record);
+            record.normal = normal;
+            record.classification =
+                robross_painter::CartesianFailureClass::None;
+            record.retreat_status = "not_needed";
+            captureUnexpectedSceneObjects(record);
+            const std::string path = artifactPath(record,
+                                                  "cartesian_request");
+            std::string error;
+            if (robross_painter::writeCartesianFailureRecord(record, path,
+                                                              error)) {
+                RCLCPP_INFO(node_->get_logger(),
+                            "Cartesian request artifact written to %s",
+                            path.c_str());
+            } else {
+                RCLCPP_ERROR(node_->get_logger(), "%s", error.c_str());
+                return false;
+            }
         }
         const bool contact = kind != MotionKind::Transit;
         if (!validateTrajectory(traj, contact, "Cartesian IK")) {
@@ -2350,6 +2690,8 @@ private:
         joint_state_sub_;
     rclcpp::Client<moveit_msgs::srv::GetStateValidity>::SharedPtr
         state_validity_client_;
+    rclcpp::Client<moveit_msgs::srv::GetCartesianPath>::SharedPtr
+        cartesian_path_client_;
     std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> state_executor_;
     std::thread state_thread_;
     visualization_msgs::msg::Marker strokes_;
@@ -2380,6 +2722,7 @@ private:
     double backing_margin_{ 0.05 };
     std::vector<double> claw_size_{ 0.0, 0.0, 0.0 };
     std::vector<double> claw_offset_{ 0.0, 0.0, 0.0 };
+    std::vector<std::string> claw_touch_links_;
     double vel_scale_{ 0.3 };
     double acc_scale_{ 0.3 };
     double eef_step_{ 0.005 };
@@ -2413,7 +2756,16 @@ private:
     double endpoint_settle_contact_timeout_{ 0.6 };      // s, contact budget
     double endpoint_settle_sample_max_age_{ 0.05 };      // s, freshness/gap bound
     bool dry_run_{ false };
+    std::string cartesian_failure_artifact_dir_;
+    int cartesian_capture_command_index_{ 0 };
     std::unique_ptr<moveit::core::RobotState> tracked_state_;
+
+    int active_command_index_{ 0 };
+    std::string active_command_type_;
+    std::string active_command_label_;
+    int active_cartesian_call_ordinal_{ 0 };
+    std::vector<robross_painter::CartesianFailureRecord>
+        pending_cartesian_failures_;
 
     double canvas_w_mm_{ 0.0 };
     double canvas_h_mm_{ 0.0 };

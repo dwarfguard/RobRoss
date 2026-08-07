@@ -41,6 +41,20 @@ def test_require_file_rejects_missing_path(tmp_path):
         paint_launch.require_file(str(missing), "calibration_file")
 
 
+def test_require_directory_accepts_empty_and_rejects_file(tmp_path):
+    assert paint_launch.require_directory("", "artifact_dir") == ""
+    file_path = tmp_path / "not_a_directory"
+    file_path.write_text("x", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="is not a directory"):
+        paint_launch.require_directory(str(file_path), "artifact_dir")
+
+
+@pytest.mark.parametrize("value", ["-1", "bad"])
+def test_capture_command_index_must_be_nonnegative(value):
+    with pytest.raises(RuntimeError, match="must be a non-negative integer"):
+        paint_launch.nonnegative_integer(value, "capture_command")
+
+
 def test_calibration_rejects_pose_only_yaml(tmp_path):
     path = write_parameter_file(
         tmp_path / "canvas.yaml",
@@ -102,6 +116,27 @@ def test_shipped_hardware_profile_is_dry_run():
     parameters = yaml.safe_load(path.read_text(encoding="utf-8"))
 
     assert parameters["painting_executor"]["ros__parameters"]["dry_run"] is True
+
+
+def test_hardware_representative_profiles_share_tool_geometry():
+    geometry_keys = (
+        "tool_offset_xyz",
+        "tool_offset_rpy",
+        "tool_spin_deg",
+        "claw_collision_size_xyz",
+        "claw_collision_offset_xyz",
+    )
+    profiles = {}
+    for name in ("hardware_a4.yaml", "rviz_wall_a4.yaml", "rviz_taught_a4.yaml"):
+        path = PACKAGE_ROOT / "config" / name
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        profiles[name] = data["painting_executor"]["ros__parameters"]
+
+    hardware = profiles["hardware_a4.yaml"]
+    for name, parameters in profiles.items():
+        assert {key: parameters[key] for key in geometry_keys} == {
+            key: hardware[key] for key in geometry_keys
+        }, name
 
 
 def test_shipped_profiles_use_controller_period_interpolation():

@@ -1,0 +1,94 @@
+{
+  "project": "R.O.B Ross",
+  "style": "line_art_line_39_repro",
+  "version": "0.1",
+  "config": {
+    "profile_name": "demo_v1_a4_pen",
+    "source_file": "output/robot_path.json",
+    "source_command_range": "155-158"
+  },
+  "units": "mm",
+  "canvas": {
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "width_in": 8.2677,
+    "height_in": 11.6929,
+    "margin_mm": 10.0,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 1.0,
+    "stroke_overlap_ratio": 0.0,
+    "edge_inset_mm": 5.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "line_art_line_39_repro",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "line_art_line_39_repro",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_39",
+      "x_mm": 145.42,
+      "y_mm": 74.29
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_39"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_39",
+      "color": "black",
+      "points_mm": [
+        [
+          145.42,
+          74.29
+        ],
+        [
+          145.17,
+          74.54
+        ],
+        [
+          142.36,
+          74.54
+        ],
+        [
+          142.11,
+          74.29
+        ],
+        [
+          140.58,
+          74.29
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_39"
+    }
+  ],
+  "debug": {
+    "num_commands": 6,
+    "num_paint_path_commands": 1,
+    "num_path_points": 5,
+    "estimated_total_paint_distance_mm": 5.0471,
+    "source_command_indices": [
+      155,
+      156,
+      157,
+      158
+    ]
+  },
+  "validation": {
+    "passed": true,
+    "errors": [],
+    "warnings": []
+  }
+}

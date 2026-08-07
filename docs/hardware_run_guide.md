@@ -693,6 +693,7 @@ cp $HOME/canvas_hover_10mm.yaml $PHASE2_SESSION/hover_canvas.yaml
 cp $HOME/hardware_hover_a4.yaml $PHASE2_SESSION/hover_hardware.yaml
 cp src/aubo_ros2_driver/aubo_ros2_driver/config/aubo_controllers_125hz.yaml \
   $PHASE2_SESSION/hover_controller_profile.yaml
+mkdir -p $PHASE2_SESSION/cartesian_failures
 {
   printf 'aubo_type=%s\n' "$AUBO_TYPE"
   printf 'controllers_file=aubo_controllers_125hz.yaml\n'
@@ -729,6 +730,7 @@ for repeat in $(seq 1 "$HOVER_REPEATS"); do
         aubo_type:=$AUBO_TYPE \
         calibration_file:=$HOME/hardware_hover_a4.yaml \
         canvas_file:=$HOME/canvas_hover_10mm.yaml \
+        cartesian_failure_artifact_dir:=$PHASE2_SESSION/cartesian_failures \
         paths_file:=$ROBROSS_REPO/output/$fixture 2>&1 | \
         tee $PHASE2_SESSION/hover_repeat_${repeat}_${fixture%.json}.log; then
       hover_failed=1

@@ -97,6 +97,66 @@ stop required). Pen-up failures hold and require operator recovery.
 The executor does not move through an automatic home pose, switch elbow family,
 or retry an unconstrained IK goal.
 
+### Cartesian failure diagnostics
+
+Set `cartesian_failure_artifact_dir` to an existing writable session directory.
+When a Cartesian request is partial, the executor captures the exact start
+state and EE waypoints in memory. A failed pen-up travel is classified before
+the executor attempts its existing collision-checked joint-space fallback. All
+other failures abort the command and perform the normal retreat first. Only
+after a successful retreat (or when no retreat is needed) does the executor
+submit two additional planning-only requests: one with the relative joint-jump
+filter disabled, and one with both jump and collision checks disabled. Those
+trajectories are summarized and discarded; they are never retimed or passed to
+an execution API. If retreat fails, the probes are skipped.
+
+The resulting JSON records the normal/no-jump/no-jump-no-collision fractions,
+classification, exact request, and owned planning-scene boxes. The
+classification distinguishes jump-limited, collision-limited, mixed, and
+IK/kinematic evidence; it is diagnostic evidence rather than permission to
+weaken a safety limit.
+
+For an offline request template, run the executor with fake hardware and a
+`dry_run: true` profile, then request one command index:
+
+```bash
+mkdir -p /tmp/robross_cartesian_probe
+ros2 launch robross_painter paint.launch.py \
+  paths_file:=$ROBROSS_REPO/output/robot_path.json \
+  calibration_file:=<dry-run-profile.yaml> \
+  canvas_file:=$HOME/canvas_hover_10mm.yaml \
+  cartesian_failure_artifact_dir:=/tmp/robross_cartesian_probe \
+  cartesian_capture_command_index:=157
+```
+
+Extract the joint samples bracketing command 157 from an existing bag. These
+samples are explicitly marked approximate because a bag cannot identify the
+exact sample consumed internally by the executor:
+
+```bash
+ros2 run robross_painter extract_cartesian_probe_seeds.py \
+  <bag-directory> /tmp/robross_cartesian_probe/seeds \
+  --command-index 157 --sample-radius 2
+```
+
+With `move_group` running, replay the captured request repeatedly without a
+driver or trajectory controller:
+
+```bash
+ros2 launch robross_painter cartesian_path_probe.launch.py \
+  recorded_request_file:=<cartesian_request_...json> \
+  start_state_file:=<command_157_seed_...json> \
+  confirm_isolated_move_group:=true \
+  repetitions:=100
+```
+
+The probe contains no MoveIt execution/action client. Exit status is `0` only
+when every normal request completes, `1` for consistently partial normal
+results, `2` for invalid setup/artifacts, and `3` when classifications vary.
+Run it only against a dedicated `move_group` with no hardware executor or other
+planning clients. It restores the owned ground/backing/claw objects before
+exiting, but the isolation requirement prevents concurrent scene races.
+
 See [REFERENCE.md](REFERENCE.md) for the exact controls. Do not weaken a safety
 limit merely to make a rejected trajectory execute.
 

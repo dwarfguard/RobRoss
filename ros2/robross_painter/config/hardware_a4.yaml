@@ -63,10 +63,10 @@ painting_executor:
     claw_collision_offset_xyz: [0.0, -0.03, 0.0]
 
     # Slow for first contact tests; raise once trusted.
-    velocity_scaling: 0.1
-    acceleration_scaling: 0.1
+    velocity_scaling: 0.05
+    acceleration_scaling: 0.05
     # Cartesian interpolation resolution (meters).
-    eef_step_m: 0.005
+    eef_step_m: 0.0002
     # Reject Cartesian paths whose consecutive IK solutions jump more than
     # this factor times the average joint step (an arm configuration flip).
     # Never set to 0: that disables the check and a flip executes as the
