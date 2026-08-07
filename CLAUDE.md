@@ -124,7 +124,7 @@ python3 Image_Process/gemini_mondrian/generate_painting_paths.py --config config
 # line_art route — trace an already-clean line-art/illustration image
 python3 Image_Process/line_art/generate_line_art_paths.py --config configs/line_art_demo_a4.json
 
-# Test line — single 50mm first-contact stroke (docs/hardware-test-checklist.md section 9)
+# Test line — single 50mm first-contact stroke (docs/hardware_run_guide.md)
 python3 Image_Process/mondrian/generate_test_line.py
 
 # Test suites
@@ -183,6 +183,15 @@ python3 aruco_drawing_area.py --camera-id <ID> --robross
 
 See `handeye_calibration/README.md` / `README_EN.md` for full options.
 
+### Mondrian hardware-test helpers
+
+- **`generate_curve_test.py`** — generates a deterministic post-contact hardware test card with
+  an S-curve, closed circle, sine squiggle, and sharp corners as four separate `paint_path`
+  commands. Fixed outputs are `curve_test_paths.json` and `curve_test_preview.svg`.
+- **`tests/`** — `context.py` adds `Image_Process/mondrian/` to `sys.path` (scripts there import
+  each other as top-level modules, not a package), matching how the scripts are run from the repo
+  root. Import it first in new test files the same way the existing `test_*.py` files do.
+
 ## Config profiles
 
 Core profiles in `configs/`; use `demo_v1_a4_pen.json` unless exercising a different route or the
@@ -208,8 +217,8 @@ Config field references live in each route's README.
 
 - `configs/` — pipeline config profiles (see above).
 - `docs/` — `Rob_Ross_Prototype_v1.md` (current prototype source of truth),
-  `painting-paths-format.md` (path JSON schema), `hardware-test-checklist.md`,
-  `Rob_Ross_Discuss.md` (early brainstorming, not current requirements).
+  `painting-paths-format.md` (path JSON schema), `hardware_run_guide.md` (staged real-arm
+  workflow), and `aubo-painting-current-status-2026-07-31.md` (current hardware evidence).
 - `Image_Process/` — one subfolder per artwork-generation algorithm. New generation approaches
   get their own sibling subfolder rather than growing inside an existing one. See
   `Image_Process/README.md` for the module index.

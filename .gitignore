@@ -18,3 +18,9 @@ output/upload_*
 build/
 install/
 log/
+
+# Claude Code local state
+.claude/
+
+#test bag
+robross_phase2_20260724_144321/

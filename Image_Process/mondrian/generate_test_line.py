@@ -31,7 +31,7 @@ from path_validation import validate_painting_paths
 
 DEFAULT_CONFIG_FILE = "configs/demo_v1_a4_pen.json"
 
-# Default line from docs/hardware-test-checklist.md section 9:
+# Default line from docs/hardware_run_guide.md:
 # a 50 mm horizontal line near the middle of A4 paper.
 DEFAULT_START = (80.0, 140.0)
 DEFAULT_END = (130.0, 140.0)

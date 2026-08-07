@@ -126,9 +126,27 @@ This writes `output/<config-name>/test_line_paths.json` and
 directory, defaulting to `output/demo_v1_a4_pen/`) without replacing the full
 artwork outputs. Endpoints are in canvas millimeters.
 
+## Curve Test Card
+
+After the 50 mm first-contact line succeeds, generate the deterministic curve
+test card:
+
+```bash
+python3 Image_Process/mondrian/generate_curve_test.py
+```
+
+This writes `output/curve_test_paths.json` and
+`output/curve_test_preview.svg`. The card contains four independently lifted
+`paint_path` trajectories: a smooth S-curve, a closed circle, a sine squiggle,
+and a sparse polyline with right-angle and acute corners. The geometry is
+hardcoded so repeated hardware runs can be compared against the same reference.
+
+Do not use this card for first contact. Dry-run it first and run it on paper
+only after `output/demo_v1_a4_pen/test_line_paths.json` passes the hardware gate.
+
 ## Validation
 
-Both path generators call `path_validation.validate_painting_paths()` before
+All path generators call `path_validation.validate_painting_paths()` before
 exiting. The result is stored in `painting_paths.json`:
 
 ```json
@@ -157,6 +175,6 @@ commands. Before execution:
 1. Confirm generation completed without validation errors.
 2. Inspect both path previews for unexpected travel or ordering.
 3. Follow the [robross_painter guide](../../ros2/robross_painter/README.md) for RViz.
-4. For a real arm, complete the [hardware preflight](../../ros2/robross_painter/PREFLIGHT.md) in order.
+4. For a real arm, complete the [hardware run guide](../../docs/hardware_run_guide.md) in order.
 
 Do not place robot calibration data in an artwork profile.

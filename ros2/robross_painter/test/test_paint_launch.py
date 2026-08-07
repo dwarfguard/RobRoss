@@ -72,6 +72,52 @@ def test_canvas_requires_taught_pose(tmp_path):
         paint_launch.validate_canvas_file(path)
 
 
+def test_robot_description_names_match():
+    paint_launch.validate_robot_description_names(
+        '<robot name="aubo_robot"/>', '<robot name="aubo_robot"/>'
+    )
+
+
+def test_robot_description_names_reject_mismatch():
+    with pytest.raises(RuntimeError, match="does not match"):
+        paint_launch.validate_robot_description_names(
+            '<robot name="aubo_robot"/>', '<robot name="aubo_i5_robot"/>'
+        )
+
+
+def test_robot_description_names_reject_malformed_xml():
+    with pytest.raises(RuntimeError, match="Cannot parse URDF"):
+        paint_launch.validate_robot_description_names(
+            '<robot name="aubo_robot">', '<robot name="aubo_robot"/>'
+        )
+
+
 def test_shipped_calibration_profiles_are_valid():
     for path in (PACKAGE_ROOT / "config").glob("*.yaml"):
         paint_launch.validate_calibration_file(str(path))
+
+
+def test_shipped_hardware_profile_is_dry_run():
+    path = PACKAGE_ROOT / "config" / "hardware_a4.yaml"
+    parameters = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    assert parameters["painting_executor"]["ros__parameters"]["dry_run"] is True
+
+
+def test_shipped_profiles_use_controller_period_interpolation():
+    # Cartesian trajectories are resampled at the controller period and
+    # validated with a dedicated canvas-normal limit; the old
+    # totg_resample_dt no longer exists.
+    sample_periods = {
+        "hardware_a4.yaml": 0.008,
+        "demo_v1_rviz.yaml": 0.005,
+        "rviz_taught_a4.yaml": 0.005,
+        "rviz_wall_a4.yaml": 0.005,
+    }
+    for name, sample_period in sample_periods.items():
+        path = PACKAGE_ROOT / "config" / name
+        params = yaml.safe_load(path.read_text(encoding="utf-8"))
+        params = params["painting_executor"]["ros__parameters"]
+        assert params["controller_sample_dt"] == sample_period, name
+        assert params["max_cartesian_normal_deviation_mm"] == 0.2, name
+        assert "totg_resample_dt" not in params, name

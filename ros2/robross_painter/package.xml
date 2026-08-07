@@ -14,19 +14,25 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>rclcpp_action</depend>
   <depend>moveit_ros_planning_interface</depend>
   <depend>moveit_core</depend>
   <depend>moveit_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>visualization_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>tf2</depend>
   <depend>tf2_geometry_msgs</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>eigen</depend>
   <depend>libjsoncpp-dev</depend>
 
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>rosbag2_py</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
   <exec_depend>tf2_ros_py</exec_depend>
-  <exec_depend>std_srvs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>launch</exec_depend>
@@ -35,6 +41,9 @@
   <exec_depend>aubo_moveit_config</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>rosbag2_py</test_depend>
+  <test_depend>control_msgs</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

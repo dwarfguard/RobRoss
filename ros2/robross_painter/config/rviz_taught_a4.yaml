@@ -14,7 +14,8 @@ painting_executor:
     # Fallback canvas pose, overridden by the taught canvas_file.
     canvas_origin_xyz: [0.55, 0.105, 0.55]
     canvas_quat_xyzw: [0.5, -0.5, 0.5, -0.5]
-    tool_offset_xyz: [0.0595, 0.0, 0.0514]
+    # Measured claw + pen; keep identical to hardware_a4.yaml.
+    tool_offset_xyz: [0.0, -0.0595, 0.0514]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     tool_spin_deg: -90.0
     # No 4x4 m ground box; the auto-sized backing patch below protects the
@@ -25,8 +26,8 @@ painting_executor:
     canvas_backing_clearance_m: 0.005
     canvas_backing_size_xy_m: [0.0, 0.0]     # auto: canvas + margin
     canvas_backing_margin_m: 0.05
-    claw_collision_size_xyz: [0.118, 0.075, 0.0490]
-    claw_collision_offset_xyz: [0.0184, 0.0, 0.0245]
+    claw_collision_size_xyz: [0.02, 0.06, 0.02]
+    claw_collision_offset_xyz: [0.0, -0.03, 0.0]
     safe_clearance_m: 0.02
     velocity_scaling: 0.3
     acceleration_scaling: 0.3
@@ -46,9 +47,18 @@ painting_executor:
     max_guarded_joint_paint_travel_deg: 120.0
     max_guarded_joint_step_deg: 45.0
     max_cartesian_deviation_mm: 2.0
+    max_cartesian_normal_deviation_mm: 0.2
     max_cartesian_orientation_deviation_deg: 2.0
     max_execution_tip_error_mm: 1.0
     max_execution_tip_orientation_error_deg: 1.0
     totg_path_tolerance: 0.01
-    totg_resample_dt: 0.02
+    controller_sample_dt: 0.008
+    # Endpoint settling: require the arm to reach and HOLD the planned endpoint
+    # at rest before accepting a move; contact moves use the shorter timeout and
+    # a timeout fails closed. (Fake hardware settles near-instantly.)
+    endpoint_settle_velocity_tolerance: 0.02   # rad/s "stationary" threshold
+    endpoint_settle_dwell: 0.15                # s continuous in-tolerance hold
+    endpoint_settle_timeout: 1.5               # s transit/lift budget
+    endpoint_settle_contact_timeout: 0.6       # s lowering/painting budget
+    endpoint_settle_sample_max_age: 0.05       # s max feedback age / sample gap
     dry_run: false

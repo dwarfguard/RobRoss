@@ -69,12 +69,13 @@ These guards supplement the Cartesian jump detector; they do not replace it.
 
 | Parameter | Meaning |
 | --- | --- |
-| `max_cartesian_deviation_mm` | Maximum post-retiming pen-tip position error from the requested path. |
+| `max_cartesian_deviation_mm` | Maximum post-retiming pen-tip tangential (in-canvas-plane) error from the requested path. |
+| `max_cartesian_normal_deviation_mm` | Maximum signed canvas-normal pen-tip error, checked separately inward (into the paper) and outward. Much tighter than the tangential limit: normal excursions rip or gap the paper. |
 | `max_cartesian_orientation_deviation_deg` | Maximum post-retiming tool-orientation error. |
 | `max_execution_tip_error_mm` | Maximum measured endpoint position error after execution. |
 | `max_execution_tip_orientation_error_deg` | Maximum measured endpoint orientation error after execution. |
 | `totg_path_tolerance` | Time-Optimal Trajectory Generation path tolerance. |
-| `totg_resample_dt` | Retimed trajectory output interval in seconds. |
+| `controller_sample_dt` | Cartesian trajectory sample interval in seconds; match the joint trajectory controller period. Cartesian trajectories are sent position-only at this interval so the controller interpolates linearly, matching the validator's model. |
 
 Validation runs after TOTG and before execution. It interpolates between
 trajectory knots and checks pen-tip FK, model bounds, elbow posture, guarded
@@ -91,5 +92,6 @@ must also satisfy model, collision, posture, and endpoint checks.
 | `config/hardware_a4.yaml` | Real-arm template, any taught surface | No (`dry_run: true`) |
 
 Treat shipped values as reviewed starting points, not proof that physical
-geometry has been measured. Follow [PREFLIGHT.md](PREFLIGHT.md) before every
-real-arm session.
+geometry has been measured. Follow the
+[hardware run guide](../../docs/hardware_run_guide.md) before every real-arm
+session.

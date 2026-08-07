@@ -1,4 +1,5 @@
 import os
+import xml.etree.ElementTree as ET
 
 import yaml
 from ament_index_python.packages import get_package_share_directory
@@ -79,6 +80,24 @@ def validate_canvas_file(file_path):
         )
 
 
+def validate_robot_description_names(urdf_xml, srdf_xml):
+    names = []
+    for label, description in (("URDF", urdf_xml), ("SRDF", srdf_xml)):
+        try:
+            root = ET.fromstring(description)
+        except ET.ParseError as error:
+            raise RuntimeError(f"Cannot parse {label}: {error}") from error
+        if root.tag != "robot" or not root.get("name"):
+            raise RuntimeError(f"{label} must have a named <robot> root")
+        names.append(root.get("name"))
+
+    if names[0] != names[1]:
+        raise RuntimeError(
+            f"URDF robot name '{names[0]}' does not match "
+            f"SRDF robot name '{names[1]}'"
+        )
+
+
 def launch_setup(context, *args, **kwargs):
     aubo_type = LaunchConfiguration("aubo_type")
     paths_file = LaunchConfiguration("paths_file")
@@ -100,7 +119,7 @@ def launch_setup(context, *args, **kwargs):
             " ",
         ]
     )
-    robot_description = {"robot_description": robot_description_content}
+    robot_description_xml = robot_description_content.perform(context)
     robot_description_semantic_content = Command(
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
@@ -110,10 +129,13 @@ def launch_setup(context, *args, **kwargs):
             ),
         ]
     )
+    robot_description_semantic_xml = robot_description_semantic_content.perform(context)
+    validate_robot_description_names(
+        robot_description_xml, robot_description_semantic_xml
+    )
+    robot_description = {"robot_description": robot_description_xml}
     robot_description_semantic = {
-        "robot_description_semantic": robot_description_semantic_content.perform(
-            context
-        )
+        "robot_description_semantic": robot_description_semantic_xml
     }
     kinematics_yaml = load_yaml("aubo_moveit_config", "config/kinematics.yaml")
 

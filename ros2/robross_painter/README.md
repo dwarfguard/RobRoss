@@ -9,7 +9,7 @@ fake-hardware testing in RViz and calibrated real-arm operation.
 | --- | --- |
 | This README | Build context, RViz workflow, and canvas teaching |
 | [Configuration reference](REFERENCE.md) | Profiles, parameters, collision model, and motion checks |
-| [Hardware preflight](PREFLIGHT.md) | Required real-arm procedure and abort rules |
+| [Hardware run guide](../../docs/hardware_run_guide.md) | Required real-arm procedure and abort rules |
 | [Path format](../../docs/painting-paths-format.md) | Canvas coordinates and command schema |
 
 The repository [root README](../../README.md) contains the workspace import and
@@ -45,13 +45,57 @@ collision geometry. It then applies these fail-closed checks:
 - configured elbow-family limits at startup and along every trajectory;
 - bounded goal displacement, total travel, and sample steps for guarded joints;
 - tighter guarded-joint travel while lowering, painting, or lifting;
-- Cartesian jump detection and post-retiming pen-tip path validation;
+- Cartesian jump detection and post-retiming pen-tip path validation, with
+  the canvas-normal deviation checked separately (and much tighter) than the
+  tangential deviation;
+- Cartesian trajectories sent position-only at the controller period
+  (`controller_sample_dt`), so the controller's linear interpolation matches
+  exactly what the validator checked;
 - MoveIt bounds and collision checks at interpolated trajectory samples;
-- measured pen-tip endpoint checks after execution.
+- endpoint settling after execution (below), then a one-shot collision check on
+  the settled measured pose.
+
+### Endpoint settling
+
+MoveIt reporting a trajectory "complete" only means the command stream finished;
+the measured `/joint_states` feedback trails the commanded setpoint by roughly
+88–120 ms on this arm, so the first post-completion sample can still show the arm
+moving toward the target. Instead of comparing that first sample, every move
+(pen-up and pen-down alike, in the single `executeTrajectory` path) waits for the
+arm to reach **and hold** the planned endpoint at rest before it is accepted.
+
+On every fresh feedback sample the executor checks, together: the measured
+endpoint is within tolerance (joint angle, pen-tip position and orientation),
+the maximum joint speed is below `endpoint_settle_velocity_tolerance`, and the
+feedback is fresh (finite position **and** velocity, no larger than
+`endpoint_settle_sample_max_age` old). The move settles only when all three hold
+continuously for `endpoint_settle_dwell` and across at least the derived minimum
+number of samples (`ceil(dwell / controller_sample_dt) + 1`). A stop at the wrong
+location (stationary but out of tolerance) and a right-location fly-through (in
+tolerance but still moving) therefore both fail to settle. Missing velocity
+feedback fails closed.
+
+On physical hardware, the AUBO driver also checks the underlying 500 Hz RTDE
+source rather than ROS publication time alone. If no new RTDE state packet
+arrives within `rtde_state_max_age` (driver launch default `0.05` s), it latches
+a hardware fault, invalidates velocity feedback, and disables further ServoJ
+writes until the driver is restarted. This prevents ros2_control from
+republishing cached state as qualifying settle samples. Keep this driver limit
+at or below `endpoint_settle_sample_max_age`.
+
+The motion kind selects only the budget and the recovery, never whether the
+check runs — contact moves (lowering, painting) use the shorter
+`endpoint_settle_contact_timeout`. If the arm does not settle within the budget
+the move **fails closed** (an endpoint-validation failure — the motion itself
+already completed): the executor commands a hold, logs the last and best
+measured samples, and stops the sequence. For a contact move it then attempts a
+bounded straight retreat, but only after a short recovery-stabilization wait
+confirms fresh, low-speed feedback; if the arm is still moving or feedback is
+stale it refuses the autonomous retreat and escalates (operator / protective
+stop required). Pen-up failures hold and require operator recovery.
 
 The executor does not move through an automatic home pose, switch elbow family,
-or retry an unconstrained IK goal. If contact-state execution becomes uncertain,
-it attempts only a measured straight retreat from the canvas.
+or retry an unconstrained IK goal.
 
 See [REFERENCE.md](REFERENCE.md) for the exact controls. Do not weaken a safety
 limit merely to make a rejected trajectory execute.
@@ -62,8 +106,8 @@ limit merely to make a rejected trajectory execute.
 | --- | --- |
 | `config/rviz_wall_a4.yaml` | Default fake-hardware A4 wall. Simulation only. |
 | `config/rviz_taught_a4.yaml` | Fake-hardware tests with a taught canvas on any plane (slanted, ground). No ground collision plane, auto-sized backing patch, relaxed base-axis guards. Simulation only. |
-| `config/demo_v1_rviz.yaml` | Earlier fake-hardware horizontal-paper setup. |
-| `config/hardware_a4.yaml` | Real-arm template for any taught surface. Every `TODO` must be measured and reviewed. |
+| `config/demo_v1_rviz.yaml` | Earlier simplified fake-hardware setup. Its zero tool/claw geometry is not hardware-representative. |
+| `config/hardware_a4.yaml` | Dry-run real-arm template for any taught surface. Its seed geometry must be measured before contact; copy measured tool geometry only to the two hardware-representative RViz profiles above. |
 
 `paint.launch.py` defaults to `rviz_wall_a4.yaml`. Never use that default on a
 real arm. A real-arm launch must explicitly pass both `calibration_file` and a
@@ -114,9 +158,10 @@ ros2 launch robross_painter paint.launch.py \
   paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json
 ```
 
-Use `output/demo_v1_a4_pen/test_line_paths.json` instead for the 50 mm line. Add an RViz
-`Marker` display on `robross_markers` to see the paper outline and completed
-strokes.
+Use `output/demo_v1_a4_pen/test_line_paths.json` instead for the 50 mm line, or
+`output/curve_test_paths.json` for the post-contact curves and corners test.
+Add an RViz `Marker` display on `robross_markers` to see the paper outline and
+completed strokes.
 
 For the horizontal-paper simulation, pass the legacy profile as an extra
 argument to the Terminal 3 launch:
@@ -128,55 +173,318 @@ ros2 launch robross_painter paint.launch.py \
   calibration_file:=$(ros2 pkg prefix robross_painter)/share/robross_painter/config/demo_v1_rviz.yaml
 ```
 
+## Teach The Pen-Tip TCP (Pin Calibration)
+
+The `tool_offset_xyz` / `tool_offset_rpy` in the calibration profiles set where
+the pen tip is relative to `ee_link`. A hand-measured value is only good to a
+millimetre or two; `teach_tcp.py` measures it properly with a **sharp
+calibration pin** using the classic pivot ("N-point") method, and every taught
+canvas and stroke depends on it — so do this **before** teaching the canvas, and
+redo it after any pen or claw change.
+
+Bring up the real stack and release the position controller exactly as in *Teach
+A Real Canvas* below (the node only needs live `base_link -> ee_link` TF; it
+needs no tool offset and no `move_group`). Then, with a sharp pin clamped
+rigidly and pointing up inside the arm's reach:
+
+```bash
+ros2 run robross_painter teach_tcp.py --ros-args \
+  -p output_file:=$HOME/tcp_calibration.yaml
+
+# Second terminal: the same sub-millimeter nudge helper used for the canvas.
+ros2 launch robross_painter teach_nudge.launch.py aubo_type:=$AUBO_TYPE
+```
+
+**Part A — tip position.** Touch the pen tip to the pin tip from **four or more
+widely varied wrist orientations** (freedrive to hover, then `~/nudge_in` to
+just-touch — same doctrine as the canvas). Record each, and reorient the wrist a
+lot between touches (near-identical orientations make the solve ill-conditioned):
+
+```bash
+ros2 service call /teach_tcp/record_tip std_srvs/srv/Trigger
+ros2 service call /teach_tcp/solve std_srvs/srv/Trigger   # check the tip scatter
+```
+
+`~/solve` prints the tip-scatter RMS; keep adding varied touches until it is
+below `residual_warn_mm` (default 0.7 mm).
+
+**Part B — pen axis** (`tool_offset_rpy`), optional but recommended if the pen
+sits angled in the claw. Primary method: with the tip on the pin, hold the pen
+**plumb** (a claw/barrel flat against a small bubble level) and call
+`~/record_axis_vertical` a few times. Higher-accuracy alternative if you have a
+second identifiable point on the pen centerline: run a second pivot on it with
+`~/record_axis_point` (beware touching the side of a bare barrel — that offsets
+by its radius). With neither, the axis stays `[0, 0, 0]` (pen parallel to ee +Z).
+
+```bash
+ros2 service call /teach_tcp/record_axis_vertical std_srvs/srv/Trigger
+ros2 service call /teach_tcp/save std_srvs/srv/Trigger
+```
+
+`~/save` writes a `painting_executor` parameter fragment with the measured
+`tool_offset_xyz` / `tool_offset_rpy` and a report (touch count, scatter, pin
+point, axis tilt). Then:
+
+1. Copy both values into the three hardware-geometry profiles
+   (`hardware_a4.yaml`, `rviz_wall_a4.yaml`, and `rviz_taught_a4.yaml`) so they
+   stay identical. Keep `demo_v1_rviz.yaml` as the explicitly simplified,
+   zero-tool legacy profile.
+2. **Re-pick `tool_spin_deg`** by eye for claw/cable clearance (it is a separate
+   clearance choice, not calibrated here).
+3. **Re-teach the canvas** — any existing `canvas_calibration.yaml` was recorded
+   with the old offset and is now stale.
+
+Other services: `~/record_axis_point`, `~/clear` (reset all touches).
+
 ## Teach A Real Canvas
 
-Complete the [hardware preflight](PREFLIGHT.md) in order; this section only
+Complete the [hardware run guide](../../docs/hardware_run_guide.md) in order; this section only
 documents the teaching tool.
 
 1. Calibrate the robot model as described by the maintained Aubo driver.
-2. Create a working copy of `hardware_a4.yaml`, measure every `TODO`, and keep
+2. Create a working copy of `hardware_a4.yaml`, re-verify the measured values, and keep
    `dry_run: true` for the initial full-artwork plan:
 
 ```bash
-cp "$(ros2 pkg prefix robross_painter)/share/robross_painter/config/hardware_a4.yaml" \
+test -f "$HOME/hardware_a4.yaml" || \
+  cp "$(ros2 pkg prefix robross_painter)/share/robross_painter/config/hardware_a4.yaml" \
   "$HOME/hardware_a4.yaml"
+grep -n "dry_run: true" "$HOME/hardware_a4.yaml"
 ```
 
-3. Start the real driver, enable pendant freedrive, and run the teaching node
-   with the exact measured tool offset from that hardware profile:
+The calibration command creates `aubo_i5_calibrated.urdf`. Rebuild
+`aubo_description`, then use the corresponding model name in every launch:
+
+```bash
+cd ~/robross_aubo_ws
+python3 src/aubo_ros2_driver/aubo_description/scripts/calibrate_urdf_dh.py \
+  --robot-model aubo_i5 \
+  --robot-ip <robot-ip>
+colcon build --packages-select aubo_description
+source install/setup.bash
+export AUBO_TYPE=aubo_i5_calibrated
+```
+
+Using `aubo_i5` after calibration silently selects the stock, uncalibrated
+model. The control, MoveIt, and painter launches must all receive the same
+`aubo_type:=$AUBO_TYPE` value.
+
+Start the real stack in separate terminals before teaching or painting:
+
+```bash
+# Terminal 1
+source ~/robross_aubo_ws/install/setup.bash
+export AUBO_TYPE=aubo_i5_calibrated
+ros2 launch aubo_ros2_driver aubo_control.launch.py \
+  aubo_type:=$AUBO_TYPE robot_ip:=<robot-ip> use_fake_hardware:=false \
+  controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008
+# controllers_file/servoj_time now default to this 125 Hz / 0.008 s pair, so
+# the two args above are optional. The 200 Hz / 0.005 s pair is disqualified.
+
+# Terminal 2
+source ~/robross_aubo_ws/install/setup.bash
+export AUBO_TYPE=aubo_i5_calibrated
+ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=$AUBO_TYPE
+```
+
+3. Start the real driver with `aubo_type:=$AUBO_TYPE`, then release its
+   position controller before enabling pendant freedrive. This keeps the
+   joint-state broadcaster and TF active while stopping servo-position
+   commands:
+
+```bash
+ros2 control switch_controllers \
+  --deactivate joint_trajectory_controller --strict
+ros2 control list_controllers
+```
+
+Confirm that `joint_trajectory_controller` is `inactive` and
+`joint_state_broadcaster` remains `active`. Then run the teaching node with
+the exact measured tool offset from that hardware profile and the intended
+pen preload as `plane_bias_mm`, plus the nudge helper in another terminal
+(it needs the Terminal 2 `move_group` and reports "ready" once connected):
 
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
   -p tool_offset_xyz:="[<x>, <y>, <z>]" \
+  -p plane_bias_mm:=1.0 \
   -p output_file:=$HOME/canvas_calibration.yaml
+
+# Second terminal: sub-millimeter approach steps along the pen axis. Launch
+# (not `ros2 run`) so its MoveGroupInterface gets the robot_description/SRDF;
+# aubo_type must match the running stack.
+ros2 launch robross_painter teach_nudge.launch.py \
+  aubo_type:=$AUBO_TYPE \
+  tool_offset_rpy:="[<r>, <p>, <y>]"
 ```
 
-Touch the **physical paper corners**, not the artwork-margin corners, and record
-top-left, top-right, then bottom-left:
+Teach at **just-touch**: the recorded point is the free-length virtual pen
+tip, so any spring compression at record time pushes the taught plane that
+far behind the paper — the drawing preload is applied in software by
+`plane_bias_mm` instead (see the hardware run guide, Step 4). Touch the **physical
+paper corners**, not the artwork-margin corners. Keep the current 1.0 mm bias
+for the demonstrated supervised setup; do not increase preload to hide tracking
+error. For each corner:
+
+1. Enable pendant freedrive and bring the pen tip to hover a few mm off
+   the corner, roughly perpendicular to the paper — the i5's freedrive
+   breakaway force is too high for accurate millimeter motions, so stop
+   there.
+2. Disable freedrive and reactivate the controller
+   (`ros2 control switch_controllers --activate joint_trajectory_controller
+   --strict`). Before the first corner only, verify the nudge direction
+   well clear of the paper: `~/nudge_out` must move the pen away from it.
+3. Step the pen in until the pen body **first visibly moves** relative to
+   the claw — that is the paper surface at zero compression; stop there:
+
+   ```bash
+   ros2 service call /teach_nudge/nudge_in std_srvs/srv/Trigger
+   ros2 param set /teach_nudge nudge_step_mm 0.2   # finer steps for the last mm
+   ```
+
+4. Record the corner (hands are already off the arm; each record averages
+   the pen tip over the last second and is rejected if the arm was still
+   moving — wait and call it again).
+5. `~/nudge_out` a few steps to clear the paper, deactivate the controller
+   again, and freedrive to the next corner.
+
+Record all four corners, then ~5-9 interior sample points (same just-touch
+procedure) spread across the paper — a rough 3×3 (center, mid-edges, quarter
+points):
 
 ```bash
 ros2 service call /teach_canvas/record_top_left std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_top_right std_srvs/srv/Trigger
 ros2 service call /teach_canvas/record_bottom_left std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_bottom_right std_srvs/srv/Trigger
+ros2 service call /teach_canvas/record_sample std_srvs/srv/Trigger   # repeat x5-9
 ros2 service call /teach_canvas/save std_srvs/srv/Trigger
 ```
 
-`save` writes `canvas_origin_xyz` and `canvas_quat_xyzw`. Re-teach if the
-reported dimensions differ materially from A4 or the corners are not square.
+`save` writes `canvas_origin_xyz` (the top-left corner pushed `plane_bias_mm`
+behind the paper along the canvas normal), `canvas_quat_xyzw`, and
+`canvas_z_correction_coeffs`. All four corners feed the least-squares plane fit
+(so no single noisy corner tips the plane); the interior samples fit a smooth
+quadratic Z-correction surface that is **recorded as a flatness diagnostic
+only — the executor does NOT apply it during motion**
+([the current status](../../docs/aubo-painting-current-status-2026-07-31.md) retains the decision not to
+apply position-dependent Z compensation; the executor always uses the flat
+taught plane). The fit measures the reach-dependent, non-planar contact error a
+single plane cannot represent. `save` reports the out-of-plane error before
+and after the fitted surface,
+warns above `flatness_warn_mm` (0.3 mm), and **refuses** above
+`flatness_refuse_mm` (0.6 mm — add interior samples or re-teach). It still warns
+when bottom-right lies more than 2 mm from where the other three predict it.
+Re-teach if the reported dimensions differ materially from A4 or any warning
+appears.
+
+Disable freedrive on the pendant before returning control to ROS, then
+reactivate the trajectory controller. The driver resumes from the measured
+joint pose rather than the pre-teach command pose:
+
+```bash
+ros2 control switch_controllers \
+  --activate joint_trajectory_controller --strict
+```
+
+The driver rejects controller activation while freedrive is still enabled.
+Never attempt to use freedrive while `joint_trajectory_controller` is active.
 
 First dry-run the **complete artwork** with the reviewed hardware profile and
 taught canvas:
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
+  aubo_type:=$AUBO_TYPE \
   calibration_file:=$HOME/hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
   paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json
 ```
 
-Only after that succeeds should a reviewed profile set `dry_run: false` and run
-`output/demo_v1_a4_pen/test_line_paths.json` at the preflight speeds. Keep an operator on the
-e-stop.
+Dry-run success alone does not authorize contact. The July 31 stationary, repeated-hover, and
+supervised-contact evidence is recorded in
+[the current status](../../docs/aubo-painting-current-status-2026-07-31.md). Follow the
+[hardware run guide](../../docs/hardware_run_guide.md), Step 5.5, on a new setup and after relevant
+source, calibration, tool, or motion-profile changes. Only after that succeeds should a reviewed
+profile set `dry_run: false` and run `output/demo_v1_a4_pen/test_line_paths.json` at the preflight
+speeds with an operator on the e-stop. Unattended contact remains unapproved.
+
+## Offline Tracking-Bag Analysis
+
+`scripts/analyze_tracking_bag.py` is the offline analysis tool. It turns a recorded painting
+run into per-command tracking metrics so every timing/interpolation change can
+be compared against the same baseline. It is strictly read-only — it never
+initializes ROS, creates no node, and publishes nothing; it only reads the bag
+files.
+
+```bash
+ros2 run robross_painter analyze_tracking_bag.py <bag_dir> \
+  --canvas-file $HOME/canvas_calibration.yaml \
+  --calibration-file $HOME/hardware_a4.yaml \
+  --plane-bias-mm 1.0 \
+  --csv tracking.csv \
+  --servoj-csv servoj.csv   # optional; only meaningful for driver diagnostic bags
+```
+
+Required bag topics: `/joint_trajectory_controller/controller_state` (reference
+and feedback joints), `/rosout` (painting_executor command labels drive the
+segmentation), and `/robot_description` (the runtime URDF used for forward
+kinematics — the same calibrated chain MoveIt used; pass `--urdf` if the bag
+lacks it). For each command segment it reports stroke direction, speed, signed
+canvas-normal error (positive = into the paper), tangential error, estimated
+spring compression (`plane_bias_mm + actual canvas z`), per-joint errors
+(max/mean/RMS), and publication rate/jitter for controller state and joint
+states. `--csv` exports per-sample rows for offline plotting.
+
+### Phase delay and normal oscillation
+
+The summary also reports a **Phase delay & normal oscillation** diagnostic
+section computed from the bagged controller state:
+
+- **Instantaneous-direction normal error** — each command's normal error split
+  by the direction of motion *at each sample*, so a reversal or curve is
+  resolved into its `+Y`/`-Y` (etc.) portions instead of being reduced to its
+  net-displacement direction.
+- **Command-to-feedback phase delay** — per moving joint, the lag by which
+  feedback trails the reference, found by best-correlation search on the
+  resampled joint signals. It is reported only for reversal/curved
+  references; a monotonic stroke's delay is
+  mathematically undefined and shows as `n/a`.
+- **Per-cycle canvas-normal peak-to-peak** plus segment peak-to-peak and RMS,
+  retained as a diagnostic for references with repeated reversals.
+
+It also prints a **Historical global tracking screen**. Do not use that single line as the
+current acceptance decision: it pools travel, approach, painting, and retreat, and it derives
+delay from the approximately 62.5 Hz controller-state stream. Current review separates command
+types, reports deliberate repetitions independently, and distinguishes simultaneous temporal
+offset from time-aligned geometric error. See the
+[current status](../../docs/aubo-painting-current-status-2026-07-31.md).
+
+### ServoJ timing
+
+When the bag also carries the Aubo driver's ServoJ diagnostics — the
+`aubo_servoj_diag` `/rosout` lines emitted by the driver instrumentation
+(`servoj_config` once at activation, one `servoj_stats` line per report window)
+— the summary automatically gains a **ServoJ timing** section: the effective
+control-loop rate (and its percentage of the configured rate), `servoJoint`
+RPC and whole-`Servoj` durations, late-cycle runs, queue-full events/retries,
+and the servoJoint return-code breakdown, aggregated across the whole bag. It
+ends with a **ServoJ timing screen** line summarizing historical checks
+(loop rate ≥ 95% of configured, no queue-full, no non-OK return
+codes/exceptions, no latched timing fault). Like the historical tracking screen it reports
+PASS / FAIL / **INCOMPLETE**: a bag lacking the `servoj_config` line cannot
+prove which rate it ran at, so its rate check is unverifiable and the gate reads
+INCOMPLETE rather than dropping the check and passing. Queue-full and non-OK
+return-code *warnings* (including any in the trailing window after the last
+`servoj_stats` report) are folded into the gate so a late fault still fails it.
+`--servoj-csv` writes the per-window timing series. Use it to review the selected
+`125 Hz / t=0.008` pair; the historical 200 Hz pair is rejected for painting because it
+saturated the queue. Bags recorded before this instrumentation, or on fake hardware, carry
+no such lines and the section is simply omitted.
+
+Use [the current status](../../docs/aubo-painting-current-status-2026-07-31.md)
+for current analysis rules and the [hardware run guide](../../docs/hardware_run_guide.md),
+Step 5.5, for the recording and review procedure.
 
 ## Troubleshooting
 

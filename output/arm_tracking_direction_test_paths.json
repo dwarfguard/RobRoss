@@ -1,0 +1,162 @@
+{
+  "project": "R.O.B Ross",
+  "style": "arm_tracking_direction_test",
+  "version": "0.1",
+  "config": {
+    "profile_name": "demo_v1_a4_pen",
+    "source_file": "configs/demo_v1_a4_pen.json"
+  },
+  "units": "mm",
+  "canvas": {
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "width_in": 8.2677,
+    "height_in": 11.6929,
+    "margin_mm": 10.0,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 1.0,
+    "stroke_overlap_ratio": 0.0,
+    "edge_inset_mm": 5.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "arm_tracking_direction_test",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "arm_tracking_direction_test",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "plus_y_retract_same_segment",
+      "x_mm": 105.0,
+      "y_mm": 85.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "plus_y_retract_same_segment"
+    },
+    {
+      "command": "paint_path",
+      "label": "plus_y_retract_same_segment",
+      "color": "black",
+      "points_mm": [
+        [
+          105.0,
+          85.0
+        ],
+        [
+          105.0,
+          115.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "plus_y_retract_same_segment"
+    },
+    {
+      "command": "move_to",
+      "label": "minus_y_extend_same_segment",
+      "x_mm": 105.0,
+      "y_mm": 115.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "minus_y_extend_same_segment"
+    },
+    {
+      "command": "paint_path",
+      "label": "minus_y_extend_same_segment",
+      "color": "black",
+      "points_mm": [
+        [
+          105.0,
+          115.0
+        ],
+        [
+          105.0,
+          85.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "minus_y_extend_same_segment"
+    },
+    {
+      "command": "move_to",
+      "label": "plus_x_control_same_segment",
+      "x_mm": 90.0,
+      "y_mm": 140.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "plus_x_control_same_segment"
+    },
+    {
+      "command": "paint_path",
+      "label": "plus_x_control_same_segment",
+      "color": "black",
+      "points_mm": [
+        [
+          90.0,
+          140.0
+        ],
+        [
+          120.0,
+          140.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "plus_x_control_same_segment"
+    },
+    {
+      "command": "move_to",
+      "label": "minus_x_control_same_segment",
+      "x_mm": 120.0,
+      "y_mm": 140.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "minus_x_control_same_segment"
+    },
+    {
+      "command": "paint_path",
+      "label": "minus_x_control_same_segment",
+      "color": "black",
+      "points_mm": [
+        [
+          120.0,
+          140.0
+        ],
+        [
+          90.0,
+          140.0
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "minus_x_control_same_segment"
+    }
+  ],
+  "debug": {
+    "num_commands": 18,
+    "num_paint_path_commands": 4,
+    "num_path_points": 8,
+    "estimated_total_paint_distance_mm": 120.0
+  },
+  "validation": {
+    "passed": true,
+    "errors": [],
+    "warnings": []
+  }
+}
