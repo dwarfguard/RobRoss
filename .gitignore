@@ -22,5 +22,8 @@ log/
 # Claude Code local state
 .claude/
 
+# Serena tool cache
+.serena/
+
 #test bag
 robross_phase2_20260724_144321/
