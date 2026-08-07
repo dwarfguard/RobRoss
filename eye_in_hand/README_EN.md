@@ -15,16 +15,13 @@ fixed-camera problem of failing to detect 20 mm markers beyond 50 cm.
       └──────────┘
 ```
 
-## Difference from handeye_calibration
+## How it works
 
-| | Fixed camera (handeye_calibration/) | Arm camera (eye_in_hand/) |
-|---|---|---|
-| Camera position | Desktop mount, fixed | Robot end effector, moves with arm |
-| Calibration target | `T_base_cam` (fixed matrix) | `T_ee_cam` (camera in end-effector frame) |
-| Calibration method | Point-pair SVD (Kabsch) | **AX=XB** (Park-Martin) |
-| Coordinate transform | Fixed `T_base_cam` | Dynamic `T_base_cam = T_base_ee × T_ee_cam` |
-| Detection distance | Unreliable beyond ~50 cm | 20–40 cm, stable |
-| Field of view | Large, sees whole paper at once | Small, arm must move above paper |
+The arm-mounted D405 calibrates `T_ee_cam` (the camera's pose in the
+end-effector frame) via **AX=XB** (Park-Martin), giving a dynamic
+`T_base_cam = T_base_ee × T_ee_cam`. Getting the camera close to the paper
+(20–40 cm) makes detection stable, at the cost of a small field of view — the
+arm must move above the paper.
 
 ## Calibration (calibrate_eih.py)
 
@@ -260,15 +257,14 @@ The generated YAML has the exact same format as the fixed-camera version
 
 This folder is **fully self-contained**: the detector, camera-calibration
 loading, drawing-area computation, robot communication (JSON-RPC) and
-canvas-output logic all live in `eih_common.py`. It has no dependency on
-`handeye_calibration/` — you can copy this folder alone and run it.
+canvas-output logic all live in `eih_common.py` — you can copy this folder
+alone and run it.
 
 ## Notes
 
-- Camera calibration files live in this folder (`camera_calib.json` etc.)
-  and are independent from the fixed-camera version.
+- Camera calibration files live in this folder (`camera_calib.json` etc.);
+  it is fully self-contained.
 - Robot communication uses JSON-RPC over TCP, port **30004** (no pyaubo_sdk).
-- Eye-in-hand only solves "camera close to the paper"; during painting the arm
-  still needs guidance from the fixed-camera flow or manual positioning — this
-  folder currently outputs canvas calibration only, it does not drive the
-  painting path directly.
+- Eye-in-hand only solves "camera close to the paper"; this folder currently
+  outputs canvas calibration only and does not drive the painting path directly
+  — feed the generated canvas YAML into the ROS 2 painter.

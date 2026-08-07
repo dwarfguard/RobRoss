@@ -14,16 +14,12 @@ D405 是短距相机（最佳 7–30cm），臂上安装正好利用它的近距
       └──────────┘
 ```
 
-## 与 handeye_calibration 的区别
+## 方案要点
 
-| | 固定相机 (handeye_calibration/) | 臂上相机 (eye_in_hand/) |
-|---|---|---|
-| 相机位置 | 桌面支架，固定不动 | 机械臂末端，随臂移动 |
-| 标定目标 | `T_base_cam` (固定矩阵) | `T_ee_cam` (相机在末端中) |
-| 标定方法 | 点对 SVD (Kabsch) | **AX=XB** (Park-Martin) |
-| 坐标变换 | `T_base_cam` 固定 | `T_base_cam = T_base_ee × T_ee_cam` (动态) |
-| 检测距离 | 50cm 以上容易失效 | 20–40cm，稳定 |
-| 视野 | 大，一次看全纸 | 小，需要臂移到纸上方 |
+臂上相机把 D405 装在机械臂末端，标定目标是 `T_ee_cam`（相机在末端坐标系中的位姿），
+标定方法用 **AX=XB**（Park-Martin），坐标变换是动态的
+`T_base_cam = T_base_ee × T_ee_cam`。相机靠近纸面（20–40cm）检测稳定，代价是视野小、
+需要机械臂移到纸张上方。
 
 ## 标定 (calibrate_eih.py)
 
@@ -238,8 +234,7 @@ T_base_cam = T_base_ee × T_ee_cam
 | `eye_in_hand_calib.txt` | 标定输出（4×4 矩阵 `T_ee_cam`） |
 
 本目录**完全自包含**：检测器、相机内参加载、绘图区域计算、机械臂通信
-（JSON-RPC）和画布输出逻辑都在 `eih_common.py` 中，不依赖
-`handeye_calibration/`，单独复制本文件夹即可运行。
+（JSON-RPC）和画布输出逻辑都在 `eih_common.py` 中，单独复制本文件夹即可运行。
 
 ### 一键启动（标定完成后）
 
@@ -253,13 +248,12 @@ cd eye_in_hand/
   --calibration-file /path/to/hardware_a4.yaml
 ```
 
-与固定相机版本（`handeye_calibration/start_painting.sh`）的区别：
-必须提供 `--robot-ip`（臂上相机需实时读取末端位姿），且使用
-`eye_in_hand_calib.txt`（T_ee_cam）而非 `handeye_calib.txt`。
+注意：必须提供 `--robot-ip`（臂上相机需实时读取末端位姿），标定矩阵使用
+`eye_in_hand_calib.txt`（T_ee_cam）。
 
 ## 备注
 
-- 相机标定文件在本目录内（`camera_calib.json` 等），与固定相机版本互不影响
+- 相机标定文件在本目录内（`camera_calib.json` 等），完全自包含
 - 机械臂通信走 JSON-RPC（与主项目一致，无 pyaubo_sdk 依赖）
-- 臂上相机只解决「相机靠近纸面」的问题；画画时机械臂仍需回到固定相机
-  方案或由用户引导——当前版本只输出画布标定，不直接控制画画路径
+- 臂上相机只解决「相机靠近纸面」的问题；当前版本只输出画布标定，不直接控制
+  画画路径——把生成的画布 YAML 传给 ROS 2 painter 使用

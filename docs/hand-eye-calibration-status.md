@@ -11,11 +11,10 @@
 
 ### 背景
 
-项目目前有两条相机标定路径：
+项目采用臂上相机（eye-in-hand）方案做相机标定：
 
 | 方案 | 目录 | 相机位置 | 标定目标 |
 |---|---|---|---|
-| 固定相机 | `handeye_calibration/` | 桌面支架 | `T_base_cam`（相机→基座固定矩阵） |
 | 臂上相机 | `eye_in_hand/` | 机械臂末端 | `T_ee_cam`（相机→末端固定矩阵） |
 
 ### 当前标定数据情况
@@ -41,10 +40,6 @@
 
 1. **相机分辨率不匹配**：D405 走 UVC 时以 640×480（传感器裁剪）输出，而内参文件是 1280×720 的，导致系统性深度/位置误差。现改为优先用 pyrealsense2 SDK 强制 1280×720 并读取该流实时内参（含出厂畸变），UVC 仅作回退。
 2. **标定标记尺寸不匹配**：标定用大标记黑边约 48mm，代码默认 20mm，导致 solvePnP 距离低估。现在 `calibrate_eih.py` 会自动反推黑边尺寸并提示正确的 `--marker-size`。
-
-**⚠️ 固定相机（`handeye_calibration/`）— 尚未完成**
-
-`handeye_calibration/handeye_calib.txt` 还没有生成/提交。如果需要固定相机方案（大视野、一次看全整张纸），需要另行完成标定；目前只有臂上相机方案有可用数据。
 
 ### 后续如何做标定
 
@@ -86,15 +81,10 @@ python3 calibrate_eih.py \
 | 5–15 mm | 1–3° | 可用，可再采几组优化 |
 | > 15 mm 或 > 5° | — | 重做，检查位姿分布 |
 
-**固定相机标定（如果后续需要）：**
-
-目前无数据。操作步骤见 `handeye_calibration/README.md` 和 `handeye_calibration_guide.md`：用点对 SVD（Kabsch），笔尖触碰标记中心，采集 4~6 组，输出 `handeye_calib.txt`。
-
 ### 相关文档
 
 - `eye_in_hand/eye_in_hand_calibration_guide.md` / `_EN.md` — 臂上相机标定操作指南
 - `eye_in_hand/README.md` / `README_EN.md` — 目录说明、命令、常见错误排查
-- `handeye_calibration/README.md` — 固定相机方案说明
 
 ---
 
@@ -104,11 +94,10 @@ python3 calibrate_eih.py \
 
 ### Background
 
-The project has two camera-based calibration paths:
+The project uses eye-in-hand camera calibration:
 
 | Approach | Directory | Camera position | Calibration target |
 |---|---|---|---|
-| Fixed camera | `handeye_calibration/` | Desk mount | `T_base_cam` (fixed camera→base transform) |
 | Eye-in-hand | `eye_in_hand/` | Robot arm end-effector | `T_ee_cam` (camera in end-effector frame) |
 
 ### Current Calibration Data Status
@@ -134,10 +123,6 @@ The two root causes that previously broke calibration (fixed in commit `8eeedd9`
 
 1. **Camera resolution mismatch**: over UVC the D405 outputs 640×480 (sensor crop) while the intrinsics file is for 1280×720, causing systematic depth/position error. The code now prefers the pyrealsense2 SDK, which forces 1280×720 and reads the live intrinsics (including factory distortion) for that stream; UVC is only a fallback.
 2. **Calibration marker size mismatch**: the large calibration marker's black border is ~48 mm while the code default was 20 mm, so solvePnP underestimated distances. `calibrate_eih.py` now infers the black-border size automatically and suggests the correct `--marker-size`.
-
-**⚠️ Fixed camera (`handeye_calibration/`) — Not done yet**
-
-`handeye_calibration/handeye_calib.txt` has not been generated/committed. If the fixed-camera approach is needed (large field of view, sees the whole sheet at once), calibration must be performed separately; only the eye-in-hand path currently has usable data.
 
 ### How to Re-Calibrate
 
@@ -179,12 +164,7 @@ Quality criteria:
 | 5–15 mm | 1–3° | Usable, a few more poses recommended |
 | > 15 mm or > 5° | — | Redo; check pose distribution |
 
-**Fixed-camera calibration (if needed later):**
-
-No data yet. See `handeye_calibration/README.md` and `handeye_calibration_guide.md`: point-correspondence SVD (Kabsch), touch the marker center with the pen tip, capture 4–6 samples, output `handeye_calib.txt`.
-
 ### Related Docs
 
 - `eye_in_hand/eye_in_hand_calibration_guide.md` / `_EN.md` — eye-in-hand calibration guide
 - `eye_in_hand/README.md` / `README_EN.md` — directory docs, commands, common troubleshooting
-- `handeye_calibration/README.md` — fixed-camera approach

@@ -161,32 +161,6 @@ three-terminal fake-hardware RViz flow is documented in `README.md` ("ROS 2 Aubo
   pen. This mirrors `path_validation.validate_command_sequence`. Unknown command types are
   forward-compatible: they pass preflight and are skipped with a warning during execution.
 
-### Hand-eye calibration & ArUco detection (`handeye_calibration/`)
-
-Run from the `handeye_calibration/` directory.
-
-```bash
-# Preview detection (no robot connection)
-python3 aruco_drawing_area.py --camera-id <ID> --dry-run
-
-# Generate and print ArUco markers
-python3 aruco_drawing_area.py --generate-markers
-
-# Hand-eye calibration (touch marker with pen tip, press Space)
-python3 calibrate_handeye.py --robot-ip 192.168.1.100
-
-# RobRoss canvas calibration YAML output (for ROS 2 painting)
-python3 aruco_drawing_area.py --camera-id <ID> --robross
-
-# One-click ArUco detection → ROS 2 painting
-./start_painting.sh \
-  --camera-id <ID> \
-  --paths-file /path/to/painting_paths.json \
-  --calibration-file /path/to/hardware_a4.yaml
-```
-
-See `handeye_calibration/README.md` / `README_EN.md` for full options.
-
 ### Mondrian hardware-test helpers
 
 - **`generate_curve_test.py`** — generates a deterministic post-contact hardware test card with
@@ -244,16 +218,17 @@ Config field references live in each route's README.
 - `firmware/` — ESP32 servo gripper firmware (Arduino IDE sketch, continuous-rotation MG996R),
   controllable over USB or RS485 (a MAX485 transceiver on `Serial2`, for the robot controller's
   RS485 port). See `firmware/gripper_esp32/README.md`.
-- `handeye_calibration/` — camera-to-robot (hand-eye) calibration tooling and a one-click
-  `start_painting.sh` script that chains ArUco marker detection with the ROS 2 painting launch.
-  See `handeye_calibration/README.md` (also has a `README_EN.md`).
+- `eye_in_hand/` — optional arm-mounted D405 canvas detection (ArUco): detects the
+  paper corners and writes a RobRoss canvas-calibration YAML for the ROS 2 painter.
+  Self-contained; not required for the pen demo. See `eye_in_hand/README.md`
+  (also has a `README_EN.md`).
 
 ## Conventions
 
-- Camera architecture: single fixed D405 (eye-to-hand only, no arm-end camera). See
-  `handeye_calibration/README.md`'s "Camera Architecture" section for rationale — Demo v1
-  doesn't need a second camera; it's a future consideration for auto TCP calibration or
-  collision recovery.
+- Camera architecture: Demo v1 doesn't need live camera feedback during a paint run —
+  it's a future consideration for auto TCP calibration or collision recovery. Optional
+  arm-mounted D405 canvas detection lives in `eye_in_hand/` (an aid for canvas teaching,
+  not required for the pen demo).
 - Prefer simple, readable Python using the standard library unless a dependency is clearly
   justified — `mondrian/` has zero third-party dependencies. Route-specific dependencies are
   deliberate, folder-scoped exceptions (see each route's README). Don't let dependencies spread to

@@ -6,10 +6,10 @@
 #   ./start_painting_eih.sh --robot-ip 192.168.32.101 --camera-id 6 \
 #     --paths-file /path/to/painting_paths.json
 #
-# 与固定相机版本 (handeye_calibration/start_painting.sh) 的区别:
+# 说明:
 #   - 调用 eye_in_hand/aruco_eih.py (臂上相机, 动态 T_base_cam)
 #   - 必须提供 --robot-ip (实时读取末端位姿)
-#   - 使用 eye_in_hand_calib.txt (T_ee_cam) 而非 handeye_calib.txt
+#   - 使用 eye_in_hand_calib.txt (T_ee_cam) 标定矩阵
 #
 # 前提 (已经在运行的):
 #   终端 1: ros2 launch aubo_ros2_driver aubo_control.launch.py aubo_type:=aubo_i5

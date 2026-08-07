@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Eye-in-Hand 公共模块 (自包含，不依赖 handeye_calibration/)
+Eye-in-Hand 公共模块 (完全自包含)
 ==========================================================
 
 本目录 (eye_in_hand/) 的所有脚本共享的代码:
@@ -13,8 +13,7 @@ Eye-in-Hand 公共模块 (自包含，不依赖 handeye_calibration/)
   - 摄像头枚举 (list_available_cameras)
   - 欧拉角/齐次变换工具 (rpy_to_matrix / pose_to_matrix)
 
-本文件与 handeye_calibration/aruco_drawing_area.py 是各自独立的实现，
-互不 import；如需修改检测/通信逻辑，请同步维护两处。
+本模块自包含，不 import 项目其他目录的代码。
 """
 
 import cv2
