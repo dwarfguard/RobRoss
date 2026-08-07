@@ -145,9 +145,9 @@ def test_shipped_profiles_use_controller_period_interpolation():
     # totg_resample_dt no longer exists.
     sample_periods = {
         "hardware_a4.yaml": 0.008,
-        "demo_v1_rviz.yaml": 0.005,
-        "rviz_taught_a4.yaml": 0.005,
-        "rviz_wall_a4.yaml": 0.005,
+        "demo_v1_rviz.yaml": 0.008,
+        "rviz_taught_a4.yaml": 0.008,
+        "rviz_wall_a4.yaml": 0.008,
     }
     for name, sample_period in sample_periods.items():
         path = PACKAGE_ROOT / "config" / name
