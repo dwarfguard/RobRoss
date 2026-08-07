@@ -32,6 +32,27 @@ def require_file(file_path, label):
     return resolved_path
 
 
+def require_directory(directory_path, label):
+    if not directory_path:
+        return ""
+    resolved_path = os.path.abspath(os.path.expanduser(directory_path))
+    if not os.path.isdir(resolved_path):
+        raise RuntimeError(f"{label} is not a directory: {resolved_path}")
+    if not os.access(resolved_path, os.W_OK):
+        raise RuntimeError(f"{label} is not writable: {resolved_path}")
+    return resolved_path
+
+
+def nonnegative_integer(value, label):
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise RuntimeError(f"{label} must be a non-negative integer") from error
+    if parsed < 0:
+        raise RuntimeError(f"{label} must be a non-negative integer")
+    return parsed
+
+
 def load_parameter_file(file_path, label):
     try:
         with open(file_path, "r", encoding="utf-8") as file:
@@ -103,6 +124,8 @@ def launch_setup(context, *args, **kwargs):
     paths_file = LaunchConfiguration("paths_file")
     calibration_file = LaunchConfiguration("calibration_file")
     canvas_file = LaunchConfiguration("canvas_file")
+    artifact_dir = LaunchConfiguration("cartesian_failure_artifact_dir")
+    capture_command = LaunchConfiguration("cartesian_capture_command_index")
 
     # Same robot_description the driver/moveit launches build, so the
     # MoveGroupInterface in the executor sees an identical model.
@@ -158,7 +181,19 @@ def launch_setup(context, *args, **kwargs):
         canvas_file_path = require_file(canvas_file_path, "canvas_file")
         validate_canvas_file(canvas_file_path)
         parameters.append(canvas_file_path)
-    parameters.append({"paths_file": paths_file_path})
+    artifact_dir_path = require_directory(
+        artifact_dir.perform(context), "cartesian_failure_artifact_dir"
+    )
+    parameters.append(
+        {
+            "paths_file": paths_file_path,
+            "cartesian_failure_artifact_dir": artifact_dir_path,
+            "cartesian_capture_command_index": nonnegative_integer(
+                capture_command.perform(context),
+                "cartesian_capture_command_index",
+            ),
+        }
+    )
 
     painting_executor_node = Node(
         package="robross_painter",
@@ -194,6 +229,16 @@ def generate_launch_description():
             default_value="",
             description="Optional taught canvas pose YAML from "
             "teach_canvas.py; overrides the canvas pose in calibration_file.",
+        ),
+        DeclareLaunchArgument(
+            "cartesian_failure_artifact_dir",
+            default_value="",
+            description="Existing writable directory for planning-failure artifacts.",
+        ),
+        DeclareLaunchArgument(
+            "cartesian_capture_command_index",
+            default_value="0",
+            description="Dry-run-only command index to capture as a probe template.",
         ),
     ]
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])

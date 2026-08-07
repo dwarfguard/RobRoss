@@ -44,9 +44,15 @@ object disabled by the active profile is removed from MoveIt's planning scene.
 | `dry_run` | Plans a coherent command sequence without sending trajectory goals. |
 | `joint_states_topic` | Joint feedback topic, including any robot namespace. |
 | `state_validity_service` | MoveIt state-validity service, including any namespace. |
+| `cartesian_failure_artifact_dir` | Existing writable directory for exact Cartesian failure/reproduction artifacts. Empty disables artifact files but not post-retreat classification logs. |
+| `cartesian_capture_command_index` | Dry-run-only 1-based command index to capture as a planning-only probe template. `0` disables capture. Requires an artifact directory. |
 
 During dry-run, each planned endpoint seeds the next command. During live
 execution, measured feedback is refreshed before every motion.
+
+`cartesian_path_probe` replays an artifact through
+`/compute_cartesian_path` only. It has no trajectory-execution interface and
+can optionally substitute one approximate bag-derived start-state seed.
 
 ## Posture And Joint Guards
 
