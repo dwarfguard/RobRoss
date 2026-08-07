@@ -87,7 +87,14 @@ class TestBuildRegionsAndFullPipeline(unittest.TestCase):
             strokes_by_color, border_strokes, PALETTE_COLORS, home_position
         )
 
+        # Scanline fills stay per-row paint_stroke commands; each traced
+        # border is now a single continuous paint_path (one per contour),
+        # not one paint_stroke per segment.
         self.assertTrue(any(cmd["command"] == "paint_stroke" for cmd in commands))
+        path_commands = [cmd for cmd in commands if cmd["command"] == "paint_path"]
+        self.assertEqual(len(path_commands), len(border_strokes))
+        for cmd in path_commands:
+            self.assertGreaterEqual(len(cmd["points_mm"]), 2)
 
         region_debug = {
             "num_regions_total": len(regions) + dropped,

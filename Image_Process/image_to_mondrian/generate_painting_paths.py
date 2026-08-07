@@ -13,9 +13,12 @@ sketch route).
 
 Output uses the exact same command vocabulary as
 Image_Process/mondrian/generate_painting_paths.py and
-Image_Process/sketch/generate_sketch_paths.py
-(select_tool/dip_paint/move_to/lower_tool/paint_stroke/lift_tool), so it is
-consumable by the same ros2/robross_painter executor.
+Image_Process/sketch/generate_sketch_paths.py (select_tool/dip_paint/
+move_to/lower_tool/paint_stroke/paint_path/lift_tool), so it is consumable
+by the same ros2/robross_painter executor. Scanline fills emit one
+paint_stroke per row; traced borders emit one continuous paint_path per
+contour (like the line_art route) so the robot draws each border as a
+single trajectory instead of one settle cycle per segment.
 """
 
 import argparse
@@ -70,6 +73,18 @@ def paint_stroke(from_point, to_point, color: str, label: str) -> dict:
         "color": color,
         "from_mm": [round(from_point[0], 2), round(from_point[1], 2)],
         "to_mm": [round(to_point[0], 2), round(to_point[1], 2)],
+    }
+
+
+def paint_path(points, color: str, label: str) -> dict:
+    """Continuous pen-down polyline through all points (same vocabulary as
+    line_art/mondrian): the whole contour executes as one retimed robot
+    trajectory, not one MoveIt execution + endpoint-settle per segment."""
+    return {
+        "command": "paint_path",
+        "label": label,
+        "color": color,
+        "points_mm": [[round(x, 2), round(y, 2)] for x, y in points],
     }
 
 
@@ -230,6 +245,13 @@ def _fill_strokes_to_commands(ordered_points: list, color_hex: str, label_prefix
 
 
 def _polyline_strokes_to_commands(ordered_polylines: list, color_hex: str, label_prefix: str) -> list:
+    """One traced contour -> move_to + lower_tool + a single paint_path
+    (through every vertex) + lift_tool. Emitting one paint_path per
+    continuous contour - instead of one paint_stroke per segment - is what
+    keeps a border from paying a per-segment MoveIt execution and
+    endpoint-settle cycle on the robot (the executor's doPath() plans the
+    whole polyline as one retimed trajectory). Consecutive duplicate points
+    are collapsed first so the paint_path has no zero-length segments."""
     commands = []
     for index, points in enumerate(ordered_polylines, start=1):
         label = f"{label_prefix}_{index}"
@@ -241,8 +263,7 @@ def _polyline_strokes_to_commands(ordered_polylines: list, color_hex: str, label
             continue
         commands.append(move_to(deduped[0][0], deduped[0][1], label))
         commands.append(lower_tool(label))
-        for from_point, to_point in zip(deduped, deduped[1:]):
-            commands.append(paint_stroke(from_point, to_point, color_hex, label))
+        commands.append(paint_path(deduped, color_hex, label))
         commands.append(lift_tool(label))
     return commands
 
@@ -295,7 +316,14 @@ def build_painting_paths(
     region_debug: dict,
 ) -> dict:
     stroke_commands = [cmd for cmd in commands if cmd["command"] == "paint_stroke"]
-    total_distance = sum(math.dist(cmd["from_mm"], cmd["to_mm"]) for cmd in stroke_commands)
+    path_commands = [cmd for cmd in commands if cmd["command"] == "paint_path"]
+    total_distance = sum(
+        math.dist(cmd["from_mm"], cmd["to_mm"]) for cmd in stroke_commands
+    ) + sum(
+        math.dist(a, b)
+        for cmd in path_commands
+        for a, b in zip(cmd["points_mm"], cmd["points_mm"][1:])
+    )
 
     def count_commands(command_name: str) -> int:
         return sum(1 for cmd in commands if cmd["command"] == command_name)
@@ -334,6 +362,7 @@ def build_painting_paths(
         "debug": {
             "num_commands": len(commands),
             "num_paint_stroke_commands": len(stroke_commands),
+            "num_paint_path_commands": len(path_commands),
             "estimated_total_paint_distance_mm": round(total_distance, 2),
             "num_select_tool_commands": count_commands("select_tool"),
             "num_lift_tool_commands": count_commands("lift_tool"),
@@ -347,7 +376,8 @@ def build_painting_paths(
 # --- SVG / debug preview -------------------------------------------------
 
 def render_svg(painting_paths: dict) -> str:
-    """Draw every paint_stroke command as a colored line, for a quick visual check."""
+    """Draw every paint_stroke as a colored line and every paint_path as a
+    polyline (borders), for a quick visual check."""
     canvas = painting_paths["canvas"]
     width_mm = canvas["width_mm"]
     height_mm = canvas["height_mm"]
@@ -378,6 +408,16 @@ def render_svg(painting_paths: dict) -> str:
                 f'stroke-linecap="round" stroke-opacity="{STROKE_PREVIEW_OPACITY}" />'
             )
             last_point = (x2, y2)
+
+        elif cmd["command"] == "paint_path":
+            points = cmd["points_mm"]
+            points_attr = " ".join(f"{x},{y}" for x, y in points)
+            elements.append(
+                f'<polyline points="{points_attr}" fill="none" '
+                f'stroke="{escape(cmd["color"])}" stroke-width="{painting_paths["path_settings"]["tool_width_mm"]}" '
+                f'stroke-linecap="round" stroke-linejoin="round" stroke-opacity="{STROKE_PREVIEW_OPACITY}" />'
+            )
+            last_point = tuple(points[-1])
 
     svg_body = "\n  ".join(elements)
 
@@ -442,7 +482,7 @@ def main() -> None:
     palette_colors = config["palette"]["colors"]
     commands = order_and_build_commands(strokes_by_color, border_strokes, palette_colors, home_position)
 
-    if not any(cmd["command"] == "paint_stroke" for cmd in commands):
+    if not any(cmd["command"] in ("paint_stroke", "paint_path") for cmd in commands):
         print(f"No paintable regions found in {image_path} - nothing to write.")
         sys.exit(1)
 

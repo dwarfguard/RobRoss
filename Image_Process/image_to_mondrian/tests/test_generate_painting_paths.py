@@ -96,7 +96,15 @@ class TestEndToEnd(unittest.TestCase):
         commands = order_and_build_commands(
             strokes_by_color, border_strokes, PALETTE, tuple(config["path_generation"]["home_position_mm"])
         )
+        # Scanline fills are still per-row paint_stroke commands...
         self.assertTrue(any(cmd["command"] == "paint_stroke" for cmd in commands))
+        # ...but each traced border is now one continuous paint_path (not one
+        # paint_stroke per segment), so there is exactly one paint_path per
+        # border contour and no border is exploded into segments.
+        path_commands = [cmd for cmd in commands if cmd["command"] == "paint_path"]
+        self.assertEqual(len(path_commands), len(border_strokes))
+        for cmd in path_commands:
+            self.assertGreaterEqual(len(cmd["points_mm"]), 2)
 
         painting_paths = build_painting_paths(
             commands, config, "test_config.json", FIXTURE_IMAGE,

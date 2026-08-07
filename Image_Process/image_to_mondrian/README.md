@@ -204,7 +204,11 @@ dependency on it.
   — same convention `mondrian` uses for its border, and it has a nice side
   effect here too: `mask_erosion_mm` leaves a thin gap between adjacent
   fills, and the border line (traced along the true, un-eroded boundary)
-  paints right over that gap.
+  paints right over that gap. Scanline fills emit one `paint_stroke` per
+  row (each is an independent pen-down/lift); each traced border contour
+  emits a single continuous `paint_path` (like the `line_art` route), so
+  the robot draws a whole border as one retimed trajectory instead of
+  paying a MoveIt execution + endpoint-settle cycle per segment.
 
 ## Known v1 limitations
 
