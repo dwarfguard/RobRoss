@@ -176,7 +176,7 @@ Path coordinates describe the physical pen tip, but MoveIt plans motion for
 The calibration provides the fixed transform from `ee_link` to the pen tip:
 
 ```yaml
-tool_offset_xyz: [0.0, -0.0595, 0.0514]
+tool_offset_xyz: [0.001208, -0.06034, 0.090753]
 tool_offset_rpy: [0.0, 0.0, 0.0]
 ```
 

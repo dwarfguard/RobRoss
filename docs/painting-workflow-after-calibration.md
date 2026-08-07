@@ -68,7 +68,7 @@ ros2 launch robross_painter paint.launch.py \
 ```
 
 > ⚠ `paint.launch.py` 默认的 `calibration_file` 是 `rviz_wall_a4.yaml`（仅仿真）。
-> 真机画画**必须**显式传 `hardware_a4.yaml`（含 `tool_offset_xyz: [0.0595, 0, 0.0514]`）。
+> 真机画画**必须**显式传 `hardware_a4.yaml`（含 `tool_offset_xyz: [0.001208, -0.06034, 0.090753]`）。
 
 `painting_executor` 做的事：
 
@@ -183,7 +183,7 @@ ros2 launch robross_painter paint.launch.py \
 
 > ⚠ The default `calibration_file` of `paint.launch.py` is `rviz_wall_a4.yaml`
 > (simulation only). For real hardware you **must** pass `hardware_a4.yaml`
-> explicitly (it contains `tool_offset_xyz: [0.0595, 0, 0.0514]`).
+> explicitly (it contains `tool_offset_xyz: [0.001208, -0.06034, 0.090753]`).
 
 What `painting_executor` does:
 

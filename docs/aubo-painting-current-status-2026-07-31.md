@@ -104,7 +104,6 @@ The preserved contact profile also differs from the current template:
 
 | Parameter | July 31 contact source | Current checked-in template |
 | --- | ---: | ---: |
-| `tool_offset_xyz` | `[0.001208, -0.06034, 0.090753]` | `[0.0, -0.0595, 0.0514]` |
 | Velocity/acceleration scaling | `0.025 / 0.025` | `0.1 / 0.1` |
 | `eef_step_m` | `0.0002` | `0.005` |
 | Normal-deviation limit | `0.5 mm` | `0.2 mm` |

@@ -24,24 +24,27 @@ painting_executor:
     # permanently in collision. Match this to the real mounting surface.
     ground_enabled: true
     ground_z_m: -0.005
-    # Collision plane just behind the paper (wall / board / table top).
-    # Disabled for this fake-hardware profile: with a zero tool offset,
-    # ee_link itself is the pen tip, so the wrist sits right at the paper
-    # plane and a backing plane would always be in collision. Enable it on
-    # real hardware where the claw provides standoff.
-    canvas_backing_enabled: false
+    # Collision plane just behind/under the paper (wall / board / table top):
+    # reject any plan where an arm/claw link pushes past the drawing plane.
+    # The pen-tip TCP below gives the claw real standoff, so the wrist clears
+    # this plane at contact and the sim checks the same geometry as hardware.
+    # Size [0, 0] auto-sizes the patch to the canvas plus the margin per side.
+    canvas_backing_enabled: true
     canvas_backing_clearance_m: 0.005
-    # Pen tip pose in ee_link (custom claw). Zero for the RViz demo:
-    # ee_link is treated as the pen tip.
+    canvas_backing_size_xy_m: [0.0, 0.0]
+    canvas_backing_margin_m: 0.05
+    # Pen-tip pose in ee_link (custom claw). Keep identical to hardware_a4.yaml
+    # so this simulation checks the same tool geometry the real arm uses.
     tool_offset_xyz: [0.001208, -0.06034, 0.090753]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     # Rotation of the claw about the pen axis, degrees. -90 reproduces the
     # wrist orientation of the earlier tool_rpy: [pi, 0, 0] setting.
     tool_spin_deg: -90.0
-    # Stand-in collision box for the claw, attached to ee_link
-    # (size [0,0,0] disables it; not needed without a claw model).
-    claw_collision_size_xyz: [0.0, 0.0, 0.0]
-    claw_collision_offset_xyz: [0.0, 0.0, 0.0]
+    # Box that fully encloses the claw, attached to ee_link so MoveIt
+    # collision-checks it against the backing (the claw is not in the URDF).
+    # Measured on the real claw; keep identical to hardware_a4.yaml.
+    claw_collision_size_xyz: [0.02, 0.06, 0.02]
+    claw_collision_offset_xyz: [0.0, -0.03, 0.0]
     velocity_scaling: 0.3
     acceleration_scaling: 0.3
     # Cartesian interpolation resolution (meters).

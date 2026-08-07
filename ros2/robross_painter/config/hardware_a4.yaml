@@ -1,8 +1,9 @@
 # RobRoss hardware profile: A4 paper on any taught surface (wall, table,
 # ground, slanted stand), pen held by the custom claw. This is a dry-run
 # template with 2026-07-16 seed measurements, not a qualified contact profile.
-# Keep `rviz_wall_a4.yaml` and `rviz_taught_a4.yaml` tool/claw copies identical,
-# and re-verify every measured value before running with dry_run: false.
+# Keep the `rviz_wall_a4.yaml`, `rviz_taught_a4.yaml`, and `demo_v1_rviz.yaml`
+# tool/claw copies identical, and re-verify every measured value before running
+# with dry_run: false.
 #
 # The canvas pose itself does NOT live here. Teach it on the real setup:
 #   1. Run teach_canvas.py with the same tool_offset_xyz as below and
@@ -47,7 +48,7 @@ painting_executor:
     # pin via teach_tcp.py (pivot method: docs/hardware_run_guide.md Step 3.5 /
     # package README "Teach The Pen-Tip TCP") — far more accurate
     # than a ruler. Re-calibrate after any pen or claw change, keep the hardware,
-    # rviz_wall, and rviz_taught profiles identical, and re-teach the canvas (it is taught in tip
+    # rviz_wall, rviz_taught, and demo_v1_rviz profiles identical, and re-teach the canvas (it is taught in tip
     # coordinates). Values below are the 2026-07-16 hand-measured seed.
     tool_offset_xyz: [0.001208, -0.06034, 0.090753]
     tool_offset_rpy: [0.0, 0.0, 0.0]

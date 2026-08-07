@@ -176,8 +176,8 @@ limit merely to make a rejected trajectory execute.
 | --- | --- |
 | `config/rviz_wall_a4.yaml` | Default fake-hardware A4 wall. Simulation only. |
 | `config/rviz_taught_a4.yaml` | Fake-hardware tests with a taught canvas on any plane (slanted, ground). No ground collision plane, auto-sized backing patch, relaxed base-axis guards. Simulation only. |
-| `config/demo_v1_rviz.yaml` | Earlier simplified fake-hardware setup. Its zero tool/claw geometry is not hardware-representative. |
-| `config/hardware_a4.yaml` | Dry-run real-arm template for any taught surface. Its seed geometry must be measured before contact; copy measured tool geometry only to the two hardware-representative RViz profiles above. |
+| `config/demo_v1_rviz.yaml` | Fake-hardware horizontal-paper setup. Carries the same tool/claw geometry as `hardware_a4.yaml`. |
+| `config/hardware_a4.yaml` | Dry-run real-arm template for any taught surface. Its seed geometry must be measured before contact; copy measured tool geometry to all three RViz profiles above so the four stay identical. |
 
 `paint.launch.py` defaults to `rviz_wall_a4.yaml`. Never use that default on a
 real arm. A real-arm launch must explicitly pass both `calibration_file` and a
@@ -295,10 +295,9 @@ ros2 service call /teach_tcp/save std_srvs/srv/Trigger
 `tool_offset_xyz` / `tool_offset_rpy` and a report (touch count, scatter, pin
 point, axis tilt). Then:
 
-1. Copy both values into the three hardware-geometry profiles
-   (`hardware_a4.yaml`, `rviz_wall_a4.yaml`, and `rviz_taught_a4.yaml`) so they
-   stay identical. Keep `demo_v1_rviz.yaml` as the explicitly simplified,
-   zero-tool legacy profile.
+1. Copy both values into all four calibration profiles (`hardware_a4.yaml`,
+   `rviz_wall_a4.yaml`, `rviz_taught_a4.yaml`, and `demo_v1_rviz.yaml`) so they
+   stay identical — every profile shares the one measured tool geometry.
 2. **Re-pick `tool_spin_deg`** by eye for claw/cable clearance (it is a separate
    clearance choice, not calibrated here).
 3. **Re-teach the canvas** — any existing `canvas_calibration.yaml` was recorded
