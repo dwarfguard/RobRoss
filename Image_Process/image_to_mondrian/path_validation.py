@@ -189,6 +189,90 @@ def validate_command(command: dict, index: int, canvas: dict) -> tuple:
     return errors, warnings
 
 
+def validate_command_sequence(commands: list) -> tuple:
+    """Validate the pen-state machine across the whole command list.
+
+    Individual commands can each be structurally valid yet form an illegal
+    sequence (e.g. move_to -> lower_tool -> move_to travels with the pen on
+    the paper). The robot executor refuses these transitions at runtime, but
+    only after it has already executed every command before the bad one — so
+    without a preflight pass it moves and lowers the pen before discovering
+    the sequence is malformed. Checking the sequence here, before any motion,
+    turns a partial run into a clean rejection.
+
+    The simulated states mirror exactly what the executor refuses:
+      - move_to travels only with the pen up;
+      - lower_tool/lift_tool need a prior move_to to know where the pen is;
+      - paint_stroke/paint_path only run with the pen down;
+      - the sequence must end with the pen up (lifted to safe height).
+
+    Unknown command types are treated as no-ops (skipped), matching the
+    executor's forward-compatible skip-with-warning behavior, so they never
+    perturb the pen-state simulation.
+
+    Returns (errors, warnings).
+    """
+    errors = []
+    warnings = []
+
+    pen_down = False
+    have_position = False
+
+    for index, command in enumerate(commands):
+        if not isinstance(command, dict):
+            continue  # already reported by validate_command
+        command_type = command.get("command")
+        if not command_type or command_type not in KNOWN_COMMANDS:
+            continue  # missing (reported elsewhere) or unknown (skipped): no-op
+
+        desc = _describe(command, index)
+
+        if command_type == "move_to":
+            if pen_down:
+                errors.append(
+                    f"{desc} (move_to) travels while the pen is down; "
+                    f"lift_tool before moving."
+                )
+            have_position = True
+        elif command_type == "lower_tool":
+            if not have_position:
+                errors.append(
+                    f"{desc} (lower_tool) lowers the pen before any move_to "
+                    f"has positioned it."
+                )
+            elif pen_down:
+                warnings.append(
+                    f"{desc} (lower_tool) lowers the pen while it is already down."
+                )
+            pen_down = True
+        elif command_type == "lift_tool":
+            if not have_position:
+                errors.append(
+                    f"{desc} (lift_tool) lifts the pen before any move_to "
+                    f"has positioned it."
+                )
+            elif not pen_down:
+                warnings.append(
+                    f"{desc} (lift_tool) lifts the pen while it is already up."
+                )
+            pen_down = False
+        elif command_type in ("paint_stroke", "paint_path"):
+            if not pen_down:
+                errors.append(
+                    f"{desc} ({command_type}) paints while the pen is up; "
+                    f"lower_tool first."
+                )
+        # select_tool and dip_paint do not change pen state.
+
+    if pen_down:
+        errors.append(
+            "Command sequence ends with the pen down; a lift_tool must return "
+            "the pen to safe height at end of file."
+        )
+
+    return errors, warnings
+
+
 def validate_painting_paths(painting_paths: dict) -> dict:
     """Validate a full painting_paths.json-style structure.
 
@@ -215,6 +299,10 @@ def validate_painting_paths(painting_paths: dict) -> dict:
         command_errors, command_warnings = validate_command(command, index, canvas or {})
         errors.extend(command_errors)
         warnings.extend(command_warnings)
+
+    sequence_errors, sequence_warnings = validate_command_sequence(commands)
+    errors.extend(sequence_errors)
+    warnings.extend(sequence_warnings)
 
     return {
         "passed": len(errors) == 0,

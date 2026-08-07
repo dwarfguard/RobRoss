@@ -155,7 +155,11 @@ three-terminal fake-hardware RViz flow is documented in `README.md` ("ROS 2 Aubo
 - `painting_executor` (`src/painting_executor.cpp`) reads a `painting_paths.json`-format file and
   maps each command to MoveIt motion. See `ros2/robross_painter/README.md` for the command table.
 - Safety checks refuse out-of-canvas coordinates, `move_to` with the pen down, and strokes with
-  the pen up.
+  the pen up. `loadJson` preflights the whole file before any motion — command structure plus a
+  pen-state machine (legal up/down transitions and pen-up at EOF) — so a malformed sequence is
+  rejected up front instead of aborting mid-run after the arm has already moved and lowered the
+  pen. This mirrors `path_validation.validate_command_sequence`. Unknown command types are
+  forward-compatible: they pass preflight and are skipped with a warning during execution.
 
 ### Hand-eye calibration & ArUco detection (`handeye_calibration/`)
 

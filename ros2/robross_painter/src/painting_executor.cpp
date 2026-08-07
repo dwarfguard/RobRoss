@@ -807,6 +807,13 @@ private:
                          "paths_file has invalid canvas dimensions");
             return false;
         }
+        // Preflight structure AND the pen-state machine so a malformed
+        // sequence is rejected before any motion, instead of aborting partway
+        // through after the arm has already moved and lowered the pen. The
+        // simulated transitions mirror exactly what doMoveTo / doVertical /
+        // doStroke / doPath refuse at runtime.
+        bool pen_down = false;
+        bool have_position = false;
         std::size_t index = 0;
         for (const auto &command : root["commands"]) {
             ++index;
@@ -816,10 +823,11 @@ private:
                 return false;
             }
             const std::string type = command["command"].asString();
-            bool valid = false;
+            bool known = true;
+            bool valid = true;
             if (type == "select_tool" || type == "dip_paint" ||
                 type == "lower_tool" || type == "lift_tool") {
-                valid = true;
+                // No coordinate fields to check.
             } else if (type == "move_to") {
                 valid = finite_number(command["x_mm"]) &&
                         finite_number(command["y_mm"]);
@@ -837,14 +845,65 @@ private:
                         }
                     }
                 }
+            } else {
+                // Unknown command: forward-compatible, skipped at runtime with
+                // a warning (see the execution loop). Do not reject it here,
+                // and treat it as a no-op for the pen-state machine so new
+                // command types don't break existing pipelines.
+                known = false;
             }
-            if (!valid) {
+            if (known && !valid) {
                 RCLCPP_ERROR(node_->get_logger(),
                              "Command %zu ('%s') has invalid or unsupported "
                              "fields",
                              index, type.c_str());
                 return false;
             }
+
+            // Pen-state machine: reject illegal transitions up front.
+            if (type == "move_to") {
+                if (pen_down) {
+                    RCLCPP_ERROR(node_->get_logger(),
+                                 "Command %zu (move_to) travels while the pen "
+                                 "is down; lift_tool before moving",
+                                 index);
+                    return false;
+                }
+                have_position = true;
+            } else if (type == "lower_tool") {
+                if (!have_position) {
+                    RCLCPP_ERROR(node_->get_logger(),
+                                 "Command %zu (lower_tool) lowers the pen "
+                                 "before any move_to positions it",
+                                 index);
+                    return false;
+                }
+                pen_down = true;
+            } else if (type == "lift_tool") {
+                if (!have_position) {
+                    RCLCPP_ERROR(node_->get_logger(),
+                                 "Command %zu (lift_tool) lifts the pen before "
+                                 "any move_to positions it",
+                                 index);
+                    return false;
+                }
+                pen_down = false;
+            } else if (type == "paint_stroke" || type == "paint_path") {
+                if (!pen_down) {
+                    RCLCPP_ERROR(node_->get_logger(),
+                                 "Command %zu ('%s') paints while the pen is "
+                                 "up; lower_tool first",
+                                 index, type.c_str());
+                    return false;
+                }
+            }
+            // select_tool / dip_paint and unknown commands do not change state.
+        }
+        if (pen_down) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "paths_file ends with the pen down; a lift_tool must "
+                         "return the pen to safe height at end of file");
+            return false;
         }
         return true;
     }
