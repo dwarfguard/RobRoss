@@ -1,14 +1,11 @@
 # image_to_mondrian
 
-A third artwork-generation route, alongside `Image_Process/mondrian/` (random
-procedural vector layouts) and `Image_Process/sketch/` (Canny outline
-tracing, lines only). This route takes an arbitrary source **photo**,
-quantizes it down to the robot's actual pen colors (red/blue/yellow/black/
-white by default), segments it into connected same-color regions, and
-**fully fills** each region — not just outlines — plus classic Mondrian
-black grid lines between color blocks. Output is the same
-`painting_paths.json` command format the other two routes produce, so it's
-consumable by the same `ros2/robross_painter` executor.
+This artwork-generation route takes a source **photo**, quantizes it to a
+configurable palette, segments connected same-color regions, scanline-fills
+each retained eroded region, and adds classic Mondrian black grid lines.
+Output uses the shared `painting_paths.json` format. Color/tool commands are
+abstract metadata: the current Demo v1 pen executor does not physically switch
+tools or colors.
 
 ```text
 Config profile (configs/*.json)
@@ -29,9 +26,10 @@ photo, so the pipeline goes straight to `painting_paths.json`.
 ## Why (mostly) non-ML
 
 This route is built as a classical color-quantization + connected-component
-pipeline rather than an ML segmentation/GAN/diffusion approach. The hard
-requirement is **complete, gap-free fill** — a matrix that classical
-scanline fill on axis-independent region masks satisfies directly, while
+pipeline rather than an ML segmentation/GAN/diffusion approach. Scanline fill
+provides complete coverage of every retained interval in the eroded region
+mask; it does not guarantee coverage of dropped regions, skipped white areas,
+or the entire source image. This bounded guarantee is direct and testable, while
 GAN/diffusion image generation all eventually produce a raster result that
 still needs vectorizing into fillable regions, which is where the real risk
 and complexity lives.
@@ -91,8 +89,8 @@ component segmentation, scanline fill, and (`cv2.findContours`) the
 black-grid-line tracer. Unlike `Image_Process/sketch/` (this repo's other
 photo-input route), no `scikit-image` is needed here — border tracing is
 per-region contour extraction, not skeleton/graph-walk based.
-`Image_Process/mondrian/` stays pure standard library; this is a second,
-deliberate folder-scoped dependency exception per root `CLAUDE.md`.
+`Image_Process/mondrian/` stays pure standard library. See
+`Image_Process/README.md` for the route dependency summary.
 
 ```bash
 sudo apt-get install -y python3-opencv python3-numpy
@@ -120,7 +118,7 @@ dependency on it.
 | `source_image.blur_kernel_size` / `blur_sigma` | Gaussian blur applied before quantization, to merge single-pixel noise so it doesn't fragment into tiny regions. Ignored when `bilateral_d` is set (see below). |
 | `source_image.bilateral_d` / `bilateral_sigma_color` / `bilateral_sigma_space` | Optional, `bilateral_d` default `0` (disabled). Edge-preserving smoothing (`cv2.bilateralFilter`) instead of Gaussian blur — smooths flat/gradient areas (e.g. a lit-to-shadow transition across one object) while keeping real high-contrast edges (e.g. an eye against skin) sharp, which Gaussian blur can't distinguish. Recommended over `blur_kernel_size` for real photos with faces or other fine detail worth preserving; `sigma_color`/`sigma_space` default to 75/75, the standard general-purpose starting point in the literature, not tuned to any one photo. |
 | `source_image.downscale_max_dimension_px` | Caps the image's longest side before processing (keeps region counts and runtime tractable). |
-| `palette.colors` | The list of `{name, hex}` target colors — configurable, but defaults to the robot's actual 5 pens (white/yellow/red/blue/black). Order is also the pen-switching order. |
+| `palette.colors` | The list of `{name, hex}` target colors. Order groups abstract tool/color commands, but the current executor does not perform physical tool changes. |
 | `palette.color_space` | `"lab"` (recommended, perceptually uniform nearest-color matching) or `"rgb"`. |
 | `palette.neutral_chroma_threshold` | Optional, Lab only, default `0` (disabled). Pixels with Lab chroma below this are only matched against the palette's neutral colors (white/black), never a chromatic one — keeps desaturated/mid-tone content (skin, hair, shadow) from being forced into a bold color just because it's marginally closer than white, so photos come out closer to real Mondrian paintings (mostly white canvas, sparingly-used bold color blocks) instead of every pixel being colored in. A fixed number tuned for one specific photo, not a general default — prefer `neutral_chroma_percentile` below unless you're deliberately overriding it. |
 | `palette.neutral_chroma_percentile` | Optional (0-100). Computes `neutral_chroma_threshold` automatically as this percentile of *this photo's own* Lab chroma distribution (see `color_quantize.compute_adaptive_chroma_threshold()`), instead of a fixed number picked for one photo — the threshold self-adjusts to how colorful the source image actually is. Ignored if `neutral_chroma_threshold` is also set explicitly (explicit wins). Validated against three visually different photos (a real portrait, a real product photo, a flat synthetic cartoon) — all three produced sensible thresholds with the same percentile value, no per-photo tuning. |
@@ -129,7 +127,7 @@ dependency on it.
 | `segmentation.morph_close_kernel_px` | Optional, default `0` (disabled). Morphological closing kernel size, run *before* opening — bridges gaps cut into one real object's mask by internal lighting/shadow variation (e.g. a hat's shadowed brim reading as a different, more saturated color than its lit crown, splitting one object into a fragmented, unrecognizable shape). Needs tuning per photo relative to `downscale_max_dimension_px` (too small doesn't bridge the gap; too large can merge separate same-colored regions that happen to be near each other into one oversized blob, **and** can merge small nearby semantic features like an eye into hair — see `protect_face_features` below for the fix) — see `configs/image_to_mondrian_lenna_a4.json` for a worked example. Pair with a smaller `border_generation.simplify_epsilon_ratio` than you'd otherwise use — the cleaner shapes closing produces are still curved, and an epsilon tuned for fragmented jagged contours will over-simplify a real curve back into a jagged polygon. |
 | `segmentation.skip_white_regions` | If true (default), white-quantized regions get zero paint strokes — assumes white paper, no white pen needed. Set false if painting on non-white material with an actual white pen. |
 | `segmentation.protect_face_features` | Optional, default `false`. Requires `mediapipe` (see "Dependencies"). Runs a pretrained face landmark model on the source photo and locks eye/eyebrow/lip pixels to their original pre-morphology classification, no matter what `morph_close_kernel_px` decides for those pixels — lets you use a closing kernel large enough to properly fix a large object's shape without that same kernel erasing nearby facial detail. A photo with no detected face (or `mediapipe` not installed) silently no-ops — not every photo has a face, that's not an error. |
-| `segmentation.face_protection_margin_px` | Optional, default `0`. Extra dilation (in pixels, at the processed/downscaled resolution) added around each detected landmark region, in case the landmark polygon alone runs slightly tighter than the visually-relevant feature. |
+| `segmentation.face_protection_margin_px` | Optional, effective default `3`. Extra dilation (in pixels, at the processed/downscaled resolution) added around each detected landmark region, in case the landmark polygon alone runs slightly tighter than the visually-relevant feature. |
 | `path_generation.tool_width_mm` / `stroke_overlap_ratio` | Same meaning as the other two routes' stripe-fill spacing. |
 | `path_generation.mask_erosion_mm` | This route's analog of `mondrian`'s `edge_inset_mm`, but for an arbitrary-shape mask instead of a rectangle — shrinks each region's paintable area inward so the tool's width doesn't bleed into a neighboring color. |
 | `path_generation.home_position_mm` | Starting position for travel-distance ordering; defaults to the canvas' top-left margin corner. |

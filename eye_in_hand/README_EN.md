@@ -1,5 +1,9 @@
 # Eye-in-Hand Camera — Canvas Detection
 
+**Authority:** This English file is canonical. `README.md` is a concise Chinese
+translation. For real-arm execution, `../docs/hardware_run_guide.md` is the only
+authoritative procedure.
+
 Mount the D405 on the robot's end effector so the camera can get **close to the
 paper** and detect the ArUco markers. The D405 is a short-range camera (best
 7–30 cm), so arm-mounting leverages its near-field precision and solves the
@@ -17,15 +21,18 @@ fixed-camera problem of failing to detect 20 mm markers beyond 50 cm.
 
 ## How it works
 
-The arm-mounted D405 calibrates `T_ee_cam` (the camera's pose in the
-end-effector frame) via **AX=XB** (Park-Martin), giving a dynamic
-`T_base_cam = T_base_ee × T_ee_cam`. Getting the camera close to the paper
+The arm-mounted D405 calibrates the camera pose relative to the controller's
+active TCP via **AX=XB** (Park-Martin), giving a dynamic camera pose in the base
+frame. Code and files retain the historical `T_ee_cam` name, but the robot API
+reads `RobotState.getTcpPose`; changing the controller TCP definition therefore
+invalidates the calibration even if the camera mount does not move. Getting the camera close to the paper
 (20–40 cm) makes detection stable, at the cost of a small field of view — the
 arm must move above the paper.
 
 ## Calibration (calibrate_eih.py)
 
-Goal: solve `T_ee_cam` — the camera pose in the robot end-effector frame.
+Goal: solve the camera pose relative to the controller's active TCP (historically
+named `T_ee_cam`). Record and preserve that TCP definition with the calibration.
 
 ```
 A_i = T_base_ee_i        (read from robot)
@@ -108,7 +115,7 @@ Note that the two stages use **different markers**:
   black square (e.g. 48 mm → `--marker-size 0.048`);
 - `aruco_eih.py` canvas detection uses the four **small corner markers**
   (20 mm) on the paper — keep the default `0.02`
-  (`start_painting_eih.sh` defaults to 0.02 as well).
+  (the localization-only `start_painting_eih.sh` wrapper uses the same default).
 
 ### Camera opening method (important)
 
@@ -213,7 +220,8 @@ check in this order:
 ## Canvas detection (aruco_eih.py)
 
 After calibration, place the paper on the table (ArUco markers on the 4
-corners) and move the arm above the paper:
+corners) and manually move the arm above the paper. The program reads robot
+state; it does not command arm motion:
 
 ```bash
 # List available cameras
@@ -238,9 +246,12 @@ The current TCP pose is read live each frame, so the transform is dynamic:
 T_base_cam = T_base_ee × T_ee_cam
 ```
 
-The generated YAML has the exact same format as the fixed-camera version
-(`canvas_origin_xyz` + `canvas_quat_xyzw`) and can be fed directly to
-`paint.launch.py`.
+The generated YAML contains `canvas_origin_xyz` and `canvas_quat_xyzw`. The
+reported marker-defined width and height must also match the path canvas within
+the hardware guide's tolerance. Dimensions are currently comments rather than
+enforced ROS parameters, so this check is manual and fail-closed. The YAML is
+localization evidence, not authorization to skip dry-run, hover, test-line,
+curve, flatness, or contact gates in `../docs/hardware_run_guide.md`.
 
 ## Files
 
@@ -249,6 +260,7 @@ The generated YAML has the exact same format as the fixed-camera version
 | `calibrate_eih.py` | AX=XB calibration → `eye_in_hand_calib.txt` |
 | `analyze_eih_data.py` | Offline analysis of captured data (npz) → diagnose quality |
 | `aruco_eih.py` | Live canvas detection → RobRoss canvas YAML |
+| `start_painting_eih.sh` | Localization-only wrapper; writes canvas YAML and never launches painting |
 | `eih_common.py` | Shared local module: detector, calib loading, canvas math, robot comms |
 | `calibrate_camera.py` | Camera intrinsics calibration (self-contained) |
 | `read_realsense_intrinsics.py` | Read D405 factory intrinsics |
@@ -265,6 +277,5 @@ alone and run it.
 - Camera calibration files live in this folder (`camera_calib.json` etc.);
   it is fully self-contained.
 - Robot communication uses JSON-RPC over TCP, port **30004** (no pyaubo_sdk).
-- Eye-in-hand only solves "camera close to the paper"; this folder currently
-  outputs canvas calibration only and does not drive the painting path directly
-  — feed the generated canvas YAML into the ROS 2 painter.
+- Eye-in-hand only solves camera calibration and canvas localization. It does
+  not qualify a real-arm painting session; continue with the hardware run guide.

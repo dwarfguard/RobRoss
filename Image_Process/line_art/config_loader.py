@@ -7,7 +7,7 @@ source_image + path_generation + output, no palette/segmentation/border
 sections - line_art traces single strokes, it doesn't fill regions), but
 validates this pipeline's own source_image fields: a fixed binarization
 threshold instead of Canny thresholds, plus a skeleton spur-pruning length
-and a minimum physical stroke length that sketch/ doesn't need.
+and route-specific cleanup/continuity controls.
 """
 
 import json
@@ -20,8 +20,11 @@ REQUIRED_SECTIONS = ["canvas", "source_image", "path_generation", "output"]
 DEFAULT_BINARY_THRESHOLD = 200
 DEFAULT_MORPH_CLOSE_KERNEL_PX = 2
 DEFAULT_MIN_SPUR_LENGTH_PX = 4.0
-DEFAULT_MIN_STROKE_LENGTH_MM = 1.0
+DEFAULT_MIN_STROKE_LENGTH_MM = 2.0
 DEFAULT_SIMPLIFY_EPSILON_RATIO = 0.002
+DEFAULT_SIMPLIFY_MIN_EPSILON_PX = 1.0
+DEFAULT_JOIN_OVERLAPPING_STROKES = True
+DEFAULT_MAX_JOIN_TURN_DEGREES = 60.0
 
 
 class ConfigError(ValueError):
@@ -97,10 +100,34 @@ def validate_config(config: dict) -> list:
     if not _is_number(epsilon_ratio) or epsilon_ratio <= 0:
         errors.append(f"source_image.simplify_epsilon_ratio must be > 0, got {epsilon_ratio!r}.")
 
+    min_epsilon_px = source_image.get("simplify_min_epsilon_px", DEFAULT_SIMPLIFY_MIN_EPSILON_PX)
+    if not _is_number(min_epsilon_px) or min_epsilon_px < 0:
+        errors.append(
+            f"source_image.simplify_min_epsilon_px must be a number >= 0, got {min_epsilon_px!r}."
+        )
+
     path_generation = config.get("path_generation", {})
     tool_width = path_generation.get("tool_width_mm")
     if not _is_number(tool_width) or tool_width <= 0:
         errors.append(f"path_generation.tool_width_mm must be > 0, got {tool_width!r}.")
+
+    join_strokes = path_generation.get(
+        "join_overlapping_strokes", DEFAULT_JOIN_OVERLAPPING_STROKES
+    )
+    if not isinstance(join_strokes, bool):
+        errors.append(
+            "path_generation.join_overlapping_strokes must be a boolean, "
+            f"got {join_strokes!r}."
+        )
+
+    max_join_turn = path_generation.get(
+        "max_join_turn_degrees", DEFAULT_MAX_JOIN_TURN_DEGREES
+    )
+    if not _is_number(max_join_turn) or not (0 <= max_join_turn <= 180):
+        errors.append(
+            "path_generation.max_join_turn_degrees must be a number in [0, 180], "
+            f"got {max_join_turn!r}."
+        )
 
     home_position = path_generation.get("home_position_mm")
     if home_position is not None:

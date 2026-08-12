@@ -25,10 +25,10 @@ Each command is a dict with a `"command"` field, an optional `"label"`
 | `paint_path` | `points_mm` (list of >= 2 two-number lists), `color` | Continuous polyline while tool is down: the tool draws through every point without lifting or stopping. |
 | `lift_tool` | — | No coordinates needed. |
 
-Any other `"command"` value is unknown: forward-compatible so new command
-types don't break existing pipelines. The validator flags it as a warning
-(not an error), and the ROS 2 executor skips it with a warning at both
-preflight and execution time (neither rejects the file).
+Any other `"command"` value is unknown. The Python generator validator reports
+it as a warning for forward compatibility, but the ROS 2 executor rejects an
+unsupported command during preflight. A generator validation pass therefore
+does not guarantee executor compatibility.
 
 Typical sequence per continuous line: `move_to` -> `lower_tool` ->
 `paint_path` -> `lift_tool`, with `select_tool`/`dip_paint` emitted once per
@@ -59,7 +59,8 @@ color group. `paint_stroke` remains valid for single straight strokes
 
 **Every command:**
 - Must have a `"command"` field — error otherwise.
-- Unknown command type — warning.
+- Unknown command type — warning in the Python validator; rejected by the ROS
+  2 executor preflight.
 - `move_to` must have numeric `x_mm`/`y_mm`, inside canvas bounds — error
   otherwise (the robot physically travels to `move_to` targets, so
   out-of-bounds travel is as dangerous as an out-of-bounds stroke).
@@ -80,8 +81,8 @@ refuses these transitions at runtime — but only *after* it has already execute
 every command before the bad one, so without this check the arm moves and lowers
 the pen before discovering the sequence is malformed. The ROS 2 executor
 (`painting_executor`) runs the same state machine in its file preflight, so a
-malformed file is rejected before any motion. Unknown commands are treated as
-skipped no-ops and do not affect pen state.
+malformed file is rejected before any motion. The Python sequence validator
+treats unknown commands as no-ops, but executor preflight rejects them.
 
 - `move_to` while the pen is down — error (travel drags the pen; `lift_tool` first).
 - `lower_tool`/`lift_tool` before any `move_to` has positioned the pen — error.

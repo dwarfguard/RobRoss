@@ -7,6 +7,7 @@ painting_plan.json, like the sketch route.
       -> line_tracing.binarize() + close_mask() + skeletonize_mask() + extract_strokes()
          (threshold -> bridge antialiasing gaps -> skeleton -> traced centerlines, no Canny)
       -> line_tracing.prune_spurs() + simplify()
+      -> path_ordering.join_overlapping_strokes()  (compatible shared junctions only)
       -> path_ordering.order_strokes()  (greedy nearest-neighbor travel order)
       -> generate_line_art_paths.py     -> output/<painting_paths_file> (+ preview SVG)
 
@@ -27,10 +28,13 @@ from pathlib import Path
 
 from config_loader import (
     DEFAULT_BINARY_THRESHOLD,
+    DEFAULT_JOIN_OVERLAPPING_STROKES,
+    DEFAULT_MAX_JOIN_TURN_DEGREES,
     DEFAULT_MIN_SPUR_LENGTH_PX,
     DEFAULT_MIN_STROKE_LENGTH_MM,
     DEFAULT_MORPH_CLOSE_KERNEL_PX,
     DEFAULT_SIMPLIFY_EPSILON_RATIO,
+    DEFAULT_SIMPLIFY_MIN_EPSILON_PX,
     load_config,
 )
 from line_tracing import (
@@ -42,7 +46,7 @@ from line_tracing import (
     simplify,
     skeletonize_mask,
 )
-from path_ordering import order_strokes, total_travel_distance
+from path_ordering import join_overlapping_strokes, order_strokes, total_travel_distance
 from path_validation import validate_painting_paths
 
 DEFAULT_CONFIG_FILE = "configs/line_art_demo_a4.json"
@@ -102,7 +106,7 @@ def map_points_to_canvas(points_xy, image_size, drawable_origin, drawable_size):
     return [(offset_x + x * scale, offset_y + y * scale) for x, y in points_xy]
 
 
-def build_canvas_strokes(config: dict) -> tuple:
+def build_canvas_strokes(config: dict, include_stats: bool = False) -> tuple:
     """Run binarize + skeletonize + trace + prune + simplify + canvas
     mapping. Returns (strokes_data, image_path) where strokes_data is a
     list of (points_mm, closed) not yet distance-ordered."""
@@ -115,6 +119,9 @@ def build_canvas_strokes(config: dict) -> tuple:
     min_spur_length_px = source_image.get("min_spur_length_px", DEFAULT_MIN_SPUR_LENGTH_PX)
     min_stroke_length_mm = source_image.get("min_stroke_length_mm", DEFAULT_MIN_STROKE_LENGTH_MM)
     epsilon_ratio = source_image.get("simplify_epsilon_ratio", DEFAULT_SIMPLIFY_EPSILON_RATIO)
+    min_epsilon_px = source_image.get(
+        "simplify_min_epsilon_px", DEFAULT_SIMPLIFY_MIN_EPSILON_PX
+    )
 
     mask, image_size = binarize(image_path, threshold)
     mask = close_mask(mask, morph_close_kernel_px)
@@ -127,9 +134,9 @@ def build_canvas_strokes(config: dict) -> tuple:
     drawable_origin = (margin, margin)
     drawable_size = (canvas["width_mm"] - 2 * margin, canvas["height_mm"] - 2 * margin)
 
-    strokes_data = []
+    traced_strokes = []
     for points_xy, closed in pruned_strokes:
-        simplified = simplify(points_xy, closed, epsilon_ratio)
+        simplified = simplify(points_xy, closed, epsilon_ratio, min_epsilon_px)
         if len(simplified) < 2:
             continue
         if closed and simplified[0] != simplified[-1]:
@@ -143,13 +150,36 @@ def build_canvas_strokes(config: dict) -> tuple:
             # closed, the rendered stroke would still look open.
             simplified = simplified + [simplified[0]]
         canvas_points = map_points_to_canvas(simplified, image_size, drawable_origin, drawable_size)
-        stroke_length_mm = sum(
-            math.dist(a, b) for a, b in zip(canvas_points, canvas_points[1:])
-        )
-        if stroke_length_mm < min_stroke_length_mm:
-            continue
-        strokes_data.append((canvas_points, closed))
+        traced_strokes.append((canvas_points, closed))
 
+    path_generation = config["path_generation"]
+    should_join = path_generation.get(
+        "join_overlapping_strokes", DEFAULT_JOIN_OVERLAPPING_STROKES
+    )
+    max_join_turn = path_generation.get(
+        "max_join_turn_degrees", DEFAULT_MAX_JOIN_TURN_DEGREES
+    )
+    if should_join:
+        joined_strokes, num_joins = join_overlapping_strokes(
+            traced_strokes, max_turn_degrees=max_join_turn
+        )
+    else:
+        joined_strokes, num_joins = traced_strokes, 0
+
+    strokes_data = []
+    for points, closed in joined_strokes:
+        stroke_length_mm = sum(math.dist(a, b) for a, b in zip(points, points[1:]))
+        if stroke_length_mm >= min_stroke_length_mm:
+            strokes_data.append((points, closed))
+
+    stats = {
+        "num_traced_lines_before_optimization": len(traced_strokes),
+        "num_overlap_joins": num_joins,
+        "num_short_lines_filtered": len(joined_strokes) - len(strokes_data),
+        "num_traced_lines_after_optimization": len(strokes_data),
+    }
+    if include_stats:
+        return strokes_data, image_path, stats
     return strokes_data, image_path
 
 
@@ -183,7 +213,14 @@ def build_commands(ordered_strokes: list) -> list:
     return commands
 
 
-def build_painting_paths(commands: list, config: dict, config_path: Path, image_path: Path, pen_up_travel_mm: dict) -> dict:
+def build_painting_paths(
+    commands: list,
+    config: dict,
+    config_path: Path,
+    image_path: Path,
+    pen_up_travel_mm: dict,
+    optimization_stats: dict = None,
+) -> dict:
     path_commands = [cmd for cmd in commands if cmd["command"] == "paint_path"]
     total_distance = sum(
         math.dist(a, b)
@@ -196,6 +233,21 @@ def build_painting_paths(commands: list, config: dict, config_path: Path, image_
 
     canvas = config["canvas"]
     path_generation = config["path_generation"]
+
+    debug = {
+        "num_commands": len(commands),
+        "num_paint_path_commands": len(path_commands),
+        "estimated_total_paint_distance_mm": round(total_distance, 2),
+        "num_traced_lines": count_commands("lower_tool"),
+        "num_select_tool_commands": count_commands("select_tool"),
+        "num_lift_tool_commands": count_commands("lift_tool"),
+        "num_lower_tool_commands": count_commands("lower_tool"),
+        "num_dip_paint_commands": count_commands("dip_paint"),
+        "baseline_pen_up_travel_mm": round(pen_up_travel_mm["baseline"], 2),
+        "optimized_pen_up_travel_mm": round(pen_up_travel_mm["optimized"], 2),
+    }
+    if optimization_stats:
+        debug.update(optimization_stats)
 
     return {
         "project": config.get("project"),
@@ -216,20 +268,15 @@ def build_painting_paths(commands: list, config: dict, config_path: Path, image_
         },
         "path_settings": {
             "tool_width_mm": path_generation["tool_width_mm"],
+            "join_overlapping_strokes": path_generation.get(
+                "join_overlapping_strokes", DEFAULT_JOIN_OVERLAPPING_STROKES
+            ),
+            "max_join_turn_degrees": path_generation.get(
+                "max_join_turn_degrees", DEFAULT_MAX_JOIN_TURN_DEGREES
+            ),
         },
         "commands": commands,
-        "debug": {
-            "num_commands": len(commands),
-            "num_paint_path_commands": len(path_commands),
-            "estimated_total_paint_distance_mm": round(total_distance, 2),
-            "num_traced_lines": count_commands("lower_tool"),
-            "num_select_tool_commands": count_commands("select_tool"),
-            "num_lift_tool_commands": count_commands("lift_tool"),
-            "num_lower_tool_commands": count_commands("lower_tool"),
-            "num_dip_paint_commands": count_commands("dip_paint"),
-            "baseline_pen_up_travel_mm": round(pen_up_travel_mm["baseline"], 2),
-            "optimized_pen_up_travel_mm": round(pen_up_travel_mm["optimized"], 2),
-        },
+        "debug": debug,
     }
 
 
@@ -290,7 +337,9 @@ def main() -> None:
     svg_output_file = output_dir / output["preview_svg_file"]
     output_dir.mkdir(exist_ok=True)
 
-    strokes_data, image_path = build_canvas_strokes(config)
+    strokes_data, image_path, optimization_stats = build_canvas_strokes(
+        config, include_stats=True
+    )
     if not strokes_data:
         print(f"No traced lines found in {image_path} - nothing to write.")
         sys.exit(1)
@@ -308,6 +357,7 @@ def main() -> None:
     painting_paths = build_painting_paths(
         commands, config, config_path, image_path,
         {"baseline": baseline_travel, "optimized": optimized_travel},
+        optimization_stats,
     )
 
     validation = validate_painting_paths(painting_paths)
@@ -316,6 +366,13 @@ def main() -> None:
     with open(paths_output_file, "w", encoding="utf-8") as file:
         json.dump(painting_paths, file, indent=2)
     print(f"Generated {paths_output_file} ({len(ordered_strokes)} traced lines)")
+    print(
+        "Stroke optimization: "
+        f"{optimization_stats['num_traced_lines_before_optimization']} traced -> "
+        f"{optimization_stats['num_traced_lines_after_optimization']} pen-down paths "
+        f"({optimization_stats['num_overlap_joins']} overlap joins, "
+        f"{optimization_stats['num_short_lines_filtered']} short lines filtered)"
+    )
 
     svg_content = render_svg(painting_paths)
     with open(svg_output_file, "w", encoding="utf-8") as file:

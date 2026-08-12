@@ -115,6 +115,32 @@ def _cluster_nodes(degree, neighbors):
     return cluster_of
 
 
+def _cluster_anchors(cluster_of):
+    """Choose one real skeleton pixel as the shared anchor for each cluster.
+
+    Using a cluster member nearest its centroid keeps every replacement point
+    inside the original ink while making all incident stroke endpoints exactly
+    equal. That exact overlap is what allows the path optimizer to carry the
+    pen through a junction without inventing a connector across blank space.
+    """
+    members_by_cluster = {}
+    for pixel, cluster_id in cluster_of.items():
+        members_by_cluster.setdefault(cluster_id, []).append(pixel)
+
+    anchors = {}
+    for cluster_id, members in members_by_cluster.items():
+        center_y = sum(point[0] for point in members) / len(members)
+        center_x = sum(point[1] for point in members) / len(members)
+        anchors[cluster_id] = min(
+            members,
+            key=lambda point: (
+                (point[0] - center_y) ** 2 + (point[1] - center_x) ** 2,
+                point,
+            ),
+        )
+    return anchors
+
+
 def extract_strokes(skeleton):
     """Walk a boolean skeleton's pixel graph into centerline chains.
 
@@ -136,11 +162,16 @@ def extract_strokes(skeleton):
     degree = {p: len(neighbors(p)) for p in all_pixels}
     nodes = {p for p, d in degree.items() if d != 2}
     cluster_of = _cluster_nodes(degree, neighbors)
+    cluster_anchors = _cluster_anchors(cluster_of)
 
     def logical_id(pixel):
         """The pixel's cluster id if it's part of a merged junction
         cluster, otherwise the pixel itself (a singleton identity)."""
         return cluster_of.get(pixel, pixel)
+
+    def anchor(pixel):
+        cluster_id = cluster_of.get(pixel)
+        return cluster_anchors.get(cluster_id, pixel)
 
     visited_edges = set()
     strokes_yx = []
@@ -170,6 +201,8 @@ def extract_strokes(skeleton):
             path = walk(node, nbr)
             end = path[-1]
             closed = end in nodes and logical_id(end) == logical_id(node)
+            path[0] = anchor(path[0])
+            path[-1] = anchor(path[-1])
             strokes_yx.append((path, closed))
 
     # Closed loops made entirely of degree-2 pixels (no junctions/endpoints at all).
@@ -256,13 +289,13 @@ def prune_spurs(strokes, min_length_px: float):
     ]
 
 
-def simplify(points_xy, closed: bool, epsilon_ratio: float):
+def simplify(points_xy, closed: bool, epsilon_ratio: float, min_epsilon_px: float = 1.0):
     """Reduce point count with Douglas-Peucker while keeping the stroke
     shape. Epsilon scales with each stroke's own arc length, so long
     strokes tolerate proportionally more simplification than short ones."""
     pts = np.array(points_xy, dtype=np.int32).reshape(-1, 1, 2)
     if len(pts) < 3:
         return [tuple(p) for p in pts.reshape(-1, 2)]
-    epsilon = epsilon_ratio * cv2.arcLength(pts, closed)
+    epsilon = max(min_epsilon_px, epsilon_ratio * cv2.arcLength(pts, closed))
     approx = cv2.approxPolyDP(pts, epsilon, closed)
     return [tuple(int(v) for v in p) for p in approx.reshape(-1, 2)]

@@ -67,9 +67,10 @@ can optionally substitute one approximate bag-derived start-state seed.
 | `max_guarded_joint_paint_travel_deg` | Tighter accumulated travel limit for lowering, painting, and lifting. |
 | `max_guarded_joint_step_deg` | Maximum change between adjacent trajectory samples. |
 
-The shipped profiles use a 120-degree goal limit, 150-degree pen-up travel
-limit, 90-degree contact-motion travel limit, and 45-degree sample-step limit.
-These guards supplement the Cartesian jump detector; they do not replace it.
+The hardware, wall, and horizontal-paper profiles use the reviewed guard set.
+The taught-canvas simulation profile intentionally uses relaxed goal and travel
+limits. Read the selected YAML for exact values. These guards supplement the
+Cartesian jump detector; they do not replace it.
 
 ## Trajectory Verification
 
@@ -82,11 +83,17 @@ These guards supplement the Cartesian jump detector; they do not replace it.
 | `max_execution_tip_orientation_error_deg` | Maximum measured endpoint orientation error after execution. |
 | `totg_path_tolerance` | Time-Optimal Trajectory Generation path tolerance. |
 | `controller_sample_dt` | Cartesian trajectory sample interval in seconds; match the joint trajectory controller period. Cartesian trajectories are sent position-only at this interval so the controller interpolates linearly, matching the validator's model. |
+| `endpoint_settle_velocity_tolerance` | Maximum measured joint speed for a sample to count as stationary. |
+| `endpoint_settle_dwell` | Continuous in-tolerance hold required after execution. |
+| `endpoint_settle_timeout` | Settling budget for transit and lift motions. |
+| `endpoint_settle_contact_timeout` | Shorter settling budget for lowering and painting motions. |
+| `endpoint_settle_sample_max_age` | Maximum accepted feedback age and inter-sample gap. Must not be shorter than `controller_sample_dt`. |
 
 Validation runs after TOTG and before execution. It interpolates between
 trajectory knots and checks pen-tip FK, model bounds, elbow posture, guarded
 joints, and MoveIt collision validity. After execution, fresh measured feedback
-must also satisfy model, collision, posture, and endpoint checks.
+must also satisfy model, collision, posture, endpoint, freshness, low-velocity,
+dwell, and minimum-sample checks.
 
 ## Profiles
 

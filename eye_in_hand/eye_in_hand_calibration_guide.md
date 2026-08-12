@@ -1,18 +1,22 @@
 # 臂上相机标定操作指南 (Eye-in-Hand)
 
+英文版 [`eye_in_hand_calibration_guide_EN.md`](eye_in_hand_calibration_guide_EN.md)
+是规范文档；本文是中文翻译。控制器接口读取当前 TCP 位姿，因此标定时使用的
+TCP 定义必须保存；相机安装或 TCP 定义改变后必须重新标定。
+
 ## 用来干什么
 
 相机装在机械臂末端时，把相机看到的坐标转换成机械臂知道的坐标。
 
 ```
 相机看见 ArUco 标记 → T_cam_marker （相机坐标）
-机械臂读出末端位姿 → T_base_ee    （基座坐标）
-                      ↓
-              T_base_cam = T_base_ee × T_ee_cam
+机械臂读出当前 TCP  → T_base_tcp   （基座坐标）
+                       ↓
+              T_base_cam = T_base_tcp × T_tcp_cam
 ```
 
-**臂上标定**就是找出 `T_ee_cam`（相机在末端坐标系中的位姿），
-得到一个 4×4 矩阵，存到 `eye_in_hand_calib.txt`。
+**臂上标定**求相机相对控制器当前 TCP 的位姿，得到一个 4×4 矩阵并保存到
+`eye_in_hand_calib.txt`；代码仍保留历史名称 `T_ee_cam`。
 
 ---
 

@@ -497,7 +497,7 @@ def save_robross_canvas(area: DrawingArea, output_path: str):
         "# Canvas calibration from ArUco markers (eye-in-hand).\n"
         f"# Drawing area: {width_mm} x {height_mm} mm\n"
         f"# top_left      ID:0 = {top_left.tolist()}\n"
-        f"# Pass to paint.launch.py as: canvas_file:=<this file>\n"
+        "# Localization output only: validate dimensions and complete the hardware run guide.\n"
     )
     data = {
         "painting_executor": {
@@ -518,13 +518,7 @@ def save_robross_canvas(area: DrawingArea, output_path: str):
     print(f"    canvas_origin_xyz: {[round(float(v), 6) for v in top_left]}")
     print(f"    canvas_quat_xyzw:  {[round(float(v), 6) for v in (qx, qy, qz, qw)]}")
     print(f"    画布尺寸: {width_mm} x {height_mm} mm")
-    print(f"\n  RobRoss 中使用:")
-    print(f"    ros2 launch robross_painter paint.launch.py \\")
-    print(f"      aubo_type:=aubo_i5 \\")
-    print(f"      calibration_file:=<your_calibration.yaml> \\")
-    print(f"      paths_file:=<your_paths.json> \\")
-    print(f"      canvas_file:={output_path}")
-    print(f"\n  calibration_file 示例: ros2/robross_painter/config/hardware_a4.yaml")
+    print("\n  此文件仅提供画布定位。核对尺寸后，按 docs/hardware_run_guide.md 完成验证。")
 
 
 # ══════════════════════════════════════════════════════════════════════

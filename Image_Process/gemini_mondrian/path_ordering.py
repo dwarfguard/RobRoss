@@ -1,13 +1,149 @@
 # This file is maintained byte-for-byte identical to the canonical source:
 #   Image_Process/image_to_mondrian/path_ordering.py
-"""Greedy nearest-neighbor stroke ordering, shared by any script in this
-folder that needs to sequence a set of independent strokes into a travel
-order. Ported unchanged from the `raymond` branch's `scripts/path_ordering.py`.
+"""Exact-overlap stroke joining and greedy nearest-neighbor travel ordering.
+
+Shared by image routes that turn independent traced lines into an efficient,
+continuous drawing sequence.
 """
 
 import math
 
 DEFAULT_HOME_POSITION = (0.0, 0.0)
+
+
+def _endpoint_direction(points, endpoint_rank):
+    """Vector pointing from one endpoint into the stroke."""
+    endpoint = points[0] if endpoint_rank == 0 else points[-1]
+    candidates = points[1:] if endpoint_rank == 0 else reversed(points[:-1])
+    for point in candidates:
+        vector = (point[0] - endpoint[0], point[1] - endpoint[1])
+        if vector != (0, 0):
+            return vector
+    return None
+
+
+def _join_turn_degrees(points_a, endpoint_a, points_b, endpoint_b):
+    """Heading change needed to continue from stroke A into stroke B.
+
+    Endpoint vectors point away from their shared junction, so a visually
+    straight continuation has 180 degrees between vectors and zero turn.
+    """
+    vector_a = _endpoint_direction(points_a, endpoint_a)
+    vector_b = _endpoint_direction(points_b, endpoint_b)
+    if vector_a is None or vector_b is None:
+        return math.inf
+    magnitude = math.hypot(*vector_a) * math.hypot(*vector_b)
+    cosine = (vector_a[0] * vector_b[0] + vector_a[1] * vector_b[1]) / magnitude
+    angle = math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+    return abs(180.0 - angle)
+
+
+def join_overlapping_strokes(strokes_data, max_turn_degrees=60.0):
+    """Join compatible open strokes whose endpoints exactly overlap.
+
+    At each shared endpoint, the straightest available continuation is paired
+    first. Each endpoint participates in at most one join, which carries the
+    pen through ordinary junctions while leaving side branches for a separate
+    deliberate stroke. No proximity threshold is used and no connector is
+    inserted: endpoints at different coordinates are never joined.
+
+    Returns (joined_strokes, num_joins), where num_joins is the resulting
+    reduction in pen-down path count. The stroke representation remains
+    (points, closed) so the result can be passed directly to order_strokes().
+    """
+    if not 0 <= max_turn_degrees <= 180:
+        raise ValueError("max_turn_degrees must be between 0 and 180")
+
+    endpoint_groups = {}
+    for stroke_index, (points, closed) in enumerate(strokes_data):
+        if closed or len(points) < 2:
+            continue
+        endpoint_groups.setdefault(tuple(points[0]), []).append((stroke_index, 0))
+        endpoint_groups.setdefault(tuple(points[-1]), []).append((stroke_index, 1))
+
+    links = {}
+    for endpoints in endpoint_groups.values():
+        candidates = []
+        for left_index in range(len(endpoints)):
+            stroke_a, endpoint_a = endpoints[left_index]
+            for right_index in range(left_index + 1, len(endpoints)):
+                stroke_b, endpoint_b = endpoints[right_index]
+                if stroke_a == stroke_b:
+                    continue
+                turn = _join_turn_degrees(
+                    strokes_data[stroke_a][0], endpoint_a,
+                    strokes_data[stroke_b][0], endpoint_b,
+                )
+                if turn <= max_turn_degrees:
+                    candidates.append(
+                        (turn, stroke_a, endpoint_a, stroke_b, endpoint_b)
+                    )
+
+        for _, stroke_a, endpoint_a, stroke_b, endpoint_b in sorted(candidates):
+            end_a = (stroke_a, endpoint_a)
+            end_b = (stroke_b, endpoint_b)
+            if end_a in links or end_b in links:
+                continue
+            links[end_a] = end_b
+            links[end_b] = end_a
+
+    remaining = set(range(len(strokes_data)))
+    joined_strokes = []
+    while remaining:
+        seed = min(remaining)
+        points, closed = strokes_data[seed]
+        if closed or not any((seed, rank) in links for rank in (0, 1)):
+            joined_strokes.append((list(points), closed))
+            remaining.remove(seed)
+            continue
+
+        component = set()
+        stack = [seed]
+        while stack:
+            stroke_index = stack.pop()
+            if stroke_index in component:
+                continue
+            component.add(stroke_index)
+            for endpoint_rank in (0, 1):
+                linked = links.get((stroke_index, endpoint_rank))
+                if linked is not None and linked[0] not in component:
+                    stack.append(linked[0])
+
+        free_endpoints = sorted(
+            (stroke_index, endpoint_rank)
+            for stroke_index in component
+            for endpoint_rank in (0, 1)
+            if (stroke_index, endpoint_rank) not in links
+        )
+        is_cycle = not free_endpoints
+        current_index, entry_rank = (
+            free_endpoints[0] if free_endpoints else (min(component), 0)
+        )
+
+        combined = []
+        visited = set()
+        while current_index not in visited:
+            visited.add(current_index)
+            current_points = list(strokes_data[current_index][0])
+            if entry_rank == 1:
+                current_points.reverse()
+
+            if combined:
+                # Links are created only for exactly equal endpoints.
+                combined.extend(current_points[1:])
+            else:
+                combined.extend(current_points)
+
+            exit_rank = 1 - entry_rank
+            linked = links.get((current_index, exit_rank))
+            if linked is None:
+                break
+            current_index, entry_rank = linked
+
+        joined_strokes.append((combined, is_cycle))
+        remaining -= component
+
+    return joined_strokes, len(strokes_data) - len(joined_strokes)
 
 
 def order_strokes(strokes_data, home_position=DEFAULT_HOME_POSITION):

@@ -26,8 +26,9 @@ evidence interpretation.
 1. Preserve the exact source, path, calibration, canvas, controller, and profile inputs.
 2. Re-run the dry-run and Step 5.5 hover qualification after a relevant source, controller,
    calibration, tool, or motion-profile change.
-3. Keep supervised contact under immediate e-stop control. Unattended contact remains
-   unapproved until endpoint settling and continuous contact guarding are implemented.
+3. Keep supervised contact under immediate e-stop control. Endpoint settling is implemented
+   but not yet hardware-qualified; unattended contact remains unapproved until settling fault
+   paths and continuous contact guarding are qualified.
 
 ## Step 0 — Network (Ethernet direct)
 
@@ -256,9 +257,9 @@ Run the full artwork, test line, and curve card with this complete loop:
 ```bash
 set -euo pipefail
 for path_file in \
-  painting_paths.json \
-  test_line_paths.json \
-  curve_test_paths.json; do
+  demo_v1_a4_pen/painting_paths.json \
+  demo_v1_a4_pen/test_line_paths.json \
+  demo_v1_a4_pen/curve_test_paths.json; do
   ros2 launch robross_painter paint.launch.py \
     aubo_type:=$AUBO_TYPE \
     calibration_file:=$HOME/hardware_a4.yaml \
@@ -520,7 +521,7 @@ sha256sum \
 ```
 
 **Gate:** all three files exist, pass validation, and retain the recorded hashes. If any is
-missing, stop the hover run. `output/curve_test_paths.json` remains a separate contact test card;
+missing, stop the hover run. `output/demo_v1_a4_pen/curve_test_paths.json` remains a separate contact test card;
 it does not replace the current tracking fixtures.
 
 ### 5.5.4 Create dedicated hover-only canvas and executor files
@@ -916,12 +917,12 @@ ros2 launch robross_painter paint.launch.py \
   aubo_type:=$AUBO_TYPE \
   calibration_file:=$HOME/hardware_a4.yaml \
   canvas_file:=$HOME/canvas_calibration.yaml \
-  paths_file:=$ROBROSS_REPO/output/curve_test_paths.json
+  paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/curve_test_paths.json
 ```
 
 **Gate:** four separate shapes are drawn with a lift between them; the circle closes, the S-curve
 and squiggle are smooth, and the right-angle and acute corners remain distinct. Compare against
-`output/curve_test_preview.svg`. Stop if the pen leaves the paper bounds, chatters, digs in, or
+`output/demo_v1_a4_pen/curve_test_preview.svg`. Stop if the pen leaves the paper bounds, chatters, digs in, or
 takes an unexpected shortcut between shapes.
 
 ## Step 8 — Full artwork

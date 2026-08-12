@@ -40,6 +40,10 @@ def resolve_output_files(output_config: dict) -> dict:
         files["animation_svg"] = output_config["path_animation_svg_file"]
     if "quantized_preview_png_file" in output_config:
         files["quantized_png"] = output_config["quantized_preview_png_file"]
+    if "semantic_outline_image_file" in output_config:
+        files["semantic_outline_png"] = output_config[
+            "semantic_outline_image_file"
+        ]
     return files
 
 
@@ -115,6 +119,37 @@ def render_validation_badge(validation: dict) -> str:
     )
 
 
+SEMANTIC_REASON_LABELS = {
+    "missing_api_key": "missing API key",
+    "missing_dependency": "missing dependency",
+    "timeout": "timeout",
+    "safety_rejection": "safety rejection",
+    "network": "network error",
+    "quota": "quota limit",
+    "api_failure": "API failure",
+    "malformed_response": "malformed response",
+    "source_unreadable": "source unreadable",
+}
+
+
+def render_semantic_badge(debug: dict) -> str:
+    """Render only known semantic states and sanitized failure categories."""
+    status = debug.get("semantic_preprocessing_status")
+    if status == "used":
+        return "<span class='badge semantic-badge semantic-enhanced'>Gemini enhanced</span>"
+    if status == "disabled":
+        return "<span class='badge semantic-badge semantic-disabled'>Gemini disabled</span>"
+    if status == "local_fallback":
+        reason = SEMANTIC_REASON_LABELS.get(
+            debug.get("semantic_preprocessing_reason"), "unknown reason"
+        )
+        return (
+            "<span class='badge semantic-badge semantic-fallback'>"
+            f"Local fallback: {escape(reason)}</span>"
+        )
+    return ""
+
+
 def render_card(run: dict, base_url: str = "", show_delete: bool = False) -> str:
     """base_url prefixes every file link/src - "" (default) gives paths
     relative to output/index.html itself, which is how the static CLI usage
@@ -134,10 +169,27 @@ def render_card(run: dict, base_url: str = "", show_delete: bool = False) -> str
     style = painting_paths.get("style", "?")
     validation = painting_paths.get("validation", {"passed": None, "errors": []})
     debug = painting_paths.get("debug", {})
+    semantic_badge = render_semantic_badge(debug)
+    semantic_badge_html = f"  {semantic_badge}\n" if semantic_badge else ""
+    visible_debug = {
+        key: value
+        for key, value in debug.items()
+        if key
+        not in {
+            "semantic_preprocessing_status",
+            "semantic_preprocessing_reason",
+        }
+    }
 
     rel = lambda filename: f"{base_url}{name}/{filename}"
 
     preview_html = ""
+    if "semantic_outline_png" in files:
+        preview_html += (
+            f"<a href='{escape(rel(files['semantic_outline_png']))}' target='_blank'>"
+            f"<img class='thumb' src='{escape(rel(files['semantic_outline_png']))}' "
+            f"alt='{escape(name)} semantic outline intermediate'></a>"
+        )
     if "quantized_png" in files:
         preview_html += (
             f"<a href='{escape(rel(files['quantized_png']))}' target='_blank'>"
@@ -177,8 +229,8 @@ def render_card(run: dict, base_url: str = "", show_delete: bool = False) -> str
   <p class="canvas">{escape(str(canvas.get('width_mm', '?')))}mm x
      {escape(str(canvas.get('height_mm', '?')))}mm</p>
   {render_validation_badge(validation)}
-  <div class="previews">{preview_html}</div>
-  {render_stats_table(debug)}
+{semantic_badge_html}  <div class="previews">{preview_html}</div>
+  {render_stats_table(visible_debug)}
   <p class="links">{' | '.join(links)}</p>
   <p class="run-dir">output/{escape(name)}/</p>{delete_html}
 </section>
@@ -191,23 +243,27 @@ h1 { margin-top: 0; }
 .toolbar { background: white; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.15); display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .toolbar input, .toolbar select { padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem; }
 .toolbar input { flex: 1; min-width: 160px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.5rem; }
-.card { background: white; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
-.card h2 { margin: 0 0 0.25rem 0; font-size: 1.1rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 1.5rem; min-width: 0; }
+.card { min-width: 0; max-width: 100%; background: white; border-radius: 8px; padding: 1rem 1.25rem; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+.card h2 { margin: 0 0 0.25rem 0; font-size: 1.1rem; overflow-wrap: anywhere; }
 .style-badge { font-size: 0.7rem; font-weight: normal; background: #eee; border-radius: 4px; padding: 0.1rem 0.4rem; color: #555; }
 .canvas { margin: 0 0 0.5rem 0; color: #666; font-size: 0.85rem; }
 .badge { display: inline-block; font-size: 0.75rem; border-radius: 4px; padding: 0.15rem 0.5rem; margin-bottom: 0.5rem; }
 .badge-pass { background: #d6f5d6; color: #1a7a1a; }
 .badge-fail { background: #f8d6d6; color: #a11a1a; }
+.semantic-enhanced { background: #dbeafe; color: #1d4ed8; }
+.semantic-disabled { background: #eee; color: #555; }
+.semantic-fallback { background: #fff1c2; color: #7a5600; }
 .errors { color: #a11a1a; font-size: 0.8rem; }
-.previews { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
-.thumb { max-width: 150px; max-height: 200px; border: 1px solid #ddd; border-radius: 4px; }
-table.stats { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 0.5rem; }
-table.stats td { padding: 0.15rem 0.4rem; border-bottom: 1px solid #eee; }
-table.stats td:first-child { color: #666; }
+.previews { display: flex; min-width: 0; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.previews a { min-width: 0; max-width: 150px; flex: 1 1 120px; }
+.thumb { display: block; width: auto; height: auto; max-width: 100%; max-height: 200px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+table.stats { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 0.5rem; }
+table.stats td { padding: 0.15rem 0.4rem; border-bottom: 1px solid #eee; overflow-wrap: anywhere; word-break: break-word; }
+table.stats td:first-child { width: 52%; color: #666; }
 table.stats td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-.links { font-size: 0.8rem; }
-.run-dir { font-size: 0.75rem; color: #999; font-family: monospace; }
+.links { font-size: 0.8rem; overflow-wrap: anywhere; word-break: break-word; }
+.run-dir { font-size: 0.75rem; color: #999; font-family: monospace; overflow-wrap: anywhere; word-break: break-word; }
 .card-actions { margin: 0.5rem 0 0 0; }
 .delete-btn { padding: 0.3rem 0.7rem; border: 1px solid #f3c2c2; border-radius: 4px; background: #fff0f0; color: #a11a1a; font-size: 0.8rem; cursor: pointer; }
 .delete-btn:hover { background: #fde0e0; }

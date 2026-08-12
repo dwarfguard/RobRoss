@@ -15,7 +15,43 @@ REQUIRED_SECTIONS = ["canvas", "source_image", "path_generation", "output"]
 # required in every config file.
 DEFAULT_CANNY_THRESHOLD1 = 100
 DEFAULT_CANNY_THRESHOLD2 = 200
+DEFAULT_MIN_STROKE_LENGTH_MM = 2.0
 DEFAULT_SIMPLIFY_EPSILON_RATIO = 0.002
+DEFAULT_SIMPLIFY_MIN_EPSILON_PX = 1.0
+DEFAULT_JOIN_OVERLAPPING_STROKES = True
+DEFAULT_MAX_JOIN_TURN_DEGREES = 60.0
+DEFAULT_SEMANTIC_ENABLED = True
+DEFAULT_SEMANTIC_PROVIDER = "gemini"
+DEFAULT_SEMANTIC_MODEL = "gemini-3.1-flash-image"
+DEFAULT_SEMANTIC_PROMPT = (
+    "Convert this photo into clean monochrome black line art on a white "
+    "background for a drawing robot. Preserve the subject's pose, proportions, "
+    "facial likeness, hair silhouette, and framing. Draw long structural "
+    "outlines clearly. Where limbs or similarly dark garments overlap, infer "
+    "and draw distinct visible boundaries so the foreground and background "
+    "forms remain readable. Do not add shading, hatching, text, borders, or a "
+    "frame. Use sparse, smooth, single-width lines and do not invent objects."
+)
+DEFAULT_SEMANTIC_TIMEOUT_SECONDS = 60.0
+DEFAULT_SEMANTIC_FALLBACK_TO_LOCAL = True
+DEFAULT_OUTLINE_CANNY_THRESHOLD1 = 60
+DEFAULT_OUTLINE_CANNY_THRESHOLD2 = 160
+DEFAULT_OUTLINE_BLUR_KERNEL_SIZE = 5
+DEFAULT_OUTLINE_CONTRAST_CLIP_LIMIT = 2.0
+DEFAULT_OUTLINE_LINE_ART_THRESHOLD = 210
+DEFAULT_OUTLINE_MIN_PATH_LENGTH_MM = 5.0
+DEFAULT_BORDER_SUPPRESSION_BAND_PX = 6
+DEFAULT_DETAIL_CANNY_THRESHOLD1 = 80
+DEFAULT_DETAIL_CANNY_THRESHOLD2 = 180
+DEFAULT_DETAIL_BLUR_KERNEL_SIZE = 3
+DEFAULT_DETAIL_MIN_PATH_LENGTH_MM = 0.5
+DETAIL_MIN_PATH_HARD_FLOOR_MM = 0.5
+DEFAULT_DETAIL_MAX_PATHS = 400
+DEFAULT_DETAIL_DEDUPLICATION_DISTANCE_MM = 0.25
+DEFAULT_DETAIL_CONNECTION_DISTANCE_MM = 2.0
+DEFAULT_DETAIL_ISOLATION_DISTANCE_MM = 8.0
+DEFAULT_DETAIL_ISOLATED_SPECKLE_MAX_LENGTH_MM = 2.0
+DEFAULT_SEMANTIC_OUTLINE_IMAGE_FILE = "sketch_outline_intermediate.png"
 
 
 class ConfigError(ValueError):
@@ -24,6 +60,16 @@ class ConfigError(ValueError):
 
 def _is_number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _validate_odd_kernel(value, field: str, errors: list) -> None:
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < 0
+        or (value > 0 and value % 2 == 0)
+    ):
+        errors.append(f"{field} must be 0 or a positive odd integer, got {value!r}.")
 
 
 def validate_config(config: dict) -> list:
@@ -71,14 +117,182 @@ def validate_config(config: dict) -> list:
     if not _is_number(threshold2) or threshold2 < 0:
         errors.append(f"source_image.canny_threshold2 must be a number >= 0, got {threshold2!r}.")
 
+    min_stroke_length_mm = source_image.get(
+        "min_stroke_length_mm", DEFAULT_MIN_STROKE_LENGTH_MM
+    )
+    if not _is_number(min_stroke_length_mm) or min_stroke_length_mm < 0:
+        errors.append(
+            f"source_image.min_stroke_length_mm must be a number >= 0, got {min_stroke_length_mm!r}."
+        )
+
     epsilon_ratio = source_image.get("simplify_epsilon_ratio", DEFAULT_SIMPLIFY_EPSILON_RATIO)
     if not _is_number(epsilon_ratio) or epsilon_ratio <= 0:
         errors.append(f"source_image.simplify_epsilon_ratio must be > 0, got {epsilon_ratio!r}.")
+
+    min_epsilon_px = source_image.get("simplify_min_epsilon_px", DEFAULT_SIMPLIFY_MIN_EPSILON_PX)
+    if not _is_number(min_epsilon_px) or min_epsilon_px < 0:
+        errors.append(
+            f"source_image.simplify_min_epsilon_px must be a number >= 0, got {min_epsilon_px!r}."
+        )
 
     path_generation = config.get("path_generation", {})
     tool_width = path_generation.get("tool_width_mm")
     if not _is_number(tool_width) or tool_width <= 0:
         errors.append(f"path_generation.tool_width_mm must be > 0, got {tool_width!r}.")
+
+    join_strokes = path_generation.get(
+        "join_overlapping_strokes", DEFAULT_JOIN_OVERLAPPING_STROKES
+    )
+    if not isinstance(join_strokes, bool):
+        errors.append(
+            "path_generation.join_overlapping_strokes must be a boolean, "
+            f"got {join_strokes!r}."
+        )
+
+    max_join_turn = path_generation.get(
+        "max_join_turn_degrees", DEFAULT_MAX_JOIN_TURN_DEGREES
+    )
+    if not _is_number(max_join_turn) or not (0 <= max_join_turn <= 180):
+        errors.append(
+            "path_generation.max_join_turn_degrees must be a number in [0, 180], "
+            f"got {max_join_turn!r}."
+        )
+
+    semantic = config.get("semantic_preprocessing", {})
+    semantic_enabled = semantic.get("enabled", DEFAULT_SEMANTIC_ENABLED)
+    if not isinstance(semantic_enabled, bool):
+        errors.append(
+            "semantic_preprocessing.enabled must be a boolean, "
+            f"got {semantic_enabled!r}."
+        )
+    provider = semantic.get("provider", DEFAULT_SEMANTIC_PROVIDER)
+    if provider != "gemini":
+        errors.append(
+            "semantic_preprocessing.provider must be 'gemini', "
+            f"got {provider!r}."
+        )
+    model = semantic.get("model", DEFAULT_SEMANTIC_MODEL)
+    if not isinstance(model, str) or not model.strip():
+        errors.append("semantic_preprocessing.model must be a non-empty string.")
+    prompt = semantic.get("prompt", DEFAULT_SEMANTIC_PROMPT)
+    if not isinstance(prompt, str) or not prompt.strip():
+        errors.append("semantic_preprocessing.prompt must be a non-empty string.")
+    timeout = semantic.get("timeout_seconds", DEFAULT_SEMANTIC_TIMEOUT_SECONDS)
+    if not _is_number(timeout) or timeout <= 0:
+        errors.append(
+            "semantic_preprocessing.timeout_seconds must be > 0, "
+            f"got {timeout!r}."
+        )
+    fallback = semantic.get(
+        "fallback_to_local", DEFAULT_SEMANTIC_FALLBACK_TO_LOCAL
+    )
+    if not isinstance(fallback, bool):
+        errors.append(
+            "semantic_preprocessing.fallback_to_local must be a boolean, "
+            f"got {fallback!r}."
+        )
+
+    outline = config.get("outline_extraction", {})
+    for field, default in (
+        ("canny_threshold1", DEFAULT_OUTLINE_CANNY_THRESHOLD1),
+        ("canny_threshold2", DEFAULT_OUTLINE_CANNY_THRESHOLD2),
+    ):
+        value = outline.get(field, default)
+        if not _is_number(value) or value < 0:
+            errors.append(
+                f"outline_extraction.{field} must be a number >= 0, got {value!r}."
+            )
+    _validate_odd_kernel(
+        outline.get("blur_kernel_size", DEFAULT_OUTLINE_BLUR_KERNEL_SIZE),
+        "outline_extraction.blur_kernel_size",
+        errors,
+    )
+    contrast = outline.get(
+        "contrast_clip_limit", DEFAULT_OUTLINE_CONTRAST_CLIP_LIMIT
+    )
+    if not _is_number(contrast) or contrast < 0:
+        errors.append(
+            "outline_extraction.contrast_clip_limit must be a number >= 0, "
+            f"got {contrast!r}."
+        )
+    line_art_threshold = outline.get(
+        "line_art_threshold", DEFAULT_OUTLINE_LINE_ART_THRESHOLD
+    )
+    if (
+        not isinstance(line_art_threshold, int)
+        or isinstance(line_art_threshold, bool)
+        or not 0 <= line_art_threshold <= 255
+    ):
+        errors.append(
+            "outline_extraction.line_art_threshold must be an integer in [0, 255], "
+            f"got {line_art_threshold!r}."
+        )
+    outline_minimum = outline.get(
+        "min_path_length_mm", DEFAULT_OUTLINE_MIN_PATH_LENGTH_MM
+    )
+    if not _is_number(outline_minimum) or outline_minimum < 0:
+        errors.append(
+            "outline_extraction.min_path_length_mm must be a number >= 0, "
+            f"got {outline_minimum!r}."
+        )
+    border_band = outline.get(
+        "border_suppression_band_px", DEFAULT_BORDER_SUPPRESSION_BAND_PX
+    )
+    if (
+        not isinstance(border_band, int)
+        or isinstance(border_band, bool)
+        or border_band < 0
+    ):
+        errors.append(
+            "outline_extraction.border_suppression_band_px must be an integer >= 0, "
+            f"got {border_band!r}."
+        )
+
+    detail = config.get("detail_extraction", {})
+    for field, default in (
+        ("canny_threshold1", DEFAULT_DETAIL_CANNY_THRESHOLD1),
+        ("canny_threshold2", DEFAULT_DETAIL_CANNY_THRESHOLD2),
+    ):
+        value = detail.get(field, default)
+        if not _is_number(value) or value < 0:
+            errors.append(
+                f"detail_extraction.{field} must be a number >= 0, got {value!r}."
+            )
+    _validate_odd_kernel(
+        detail.get("blur_kernel_size", DEFAULT_DETAIL_BLUR_KERNEL_SIZE),
+        "detail_extraction.blur_kernel_size",
+        errors,
+    )
+    detail_minimum = detail.get(
+        "min_path_length_mm", DEFAULT_DETAIL_MIN_PATH_LENGTH_MM
+    )
+    if (
+        not _is_number(detail_minimum)
+        or detail_minimum < DETAIL_MIN_PATH_HARD_FLOOR_MM
+    ):
+        errors.append(
+            "detail_extraction.min_path_length_mm must be at least "
+            f"{DETAIL_MIN_PATH_HARD_FLOOR_MM} mm, got {detail_minimum!r}."
+        )
+    max_paths = detail.get("max_paths", DEFAULT_DETAIL_MAX_PATHS)
+    if not isinstance(max_paths, int) or isinstance(max_paths, bool) or max_paths < 0:
+        errors.append(
+            f"detail_extraction.max_paths must be an integer >= 0, got {max_paths!r}."
+        )
+    for field, default in (
+        ("deduplication_distance_mm", DEFAULT_DETAIL_DEDUPLICATION_DISTANCE_MM),
+        ("connection_distance_mm", DEFAULT_DETAIL_CONNECTION_DISTANCE_MM),
+        ("isolation_distance_mm", DEFAULT_DETAIL_ISOLATION_DISTANCE_MM),
+        (
+            "isolated_speckle_max_length_mm",
+            DEFAULT_DETAIL_ISOLATED_SPECKLE_MAX_LENGTH_MM,
+        ),
+    ):
+        value = detail.get(field, default)
+        if not _is_number(value) or value < 0:
+            errors.append(
+                f"detail_extraction.{field} must be a number >= 0, got {value!r}."
+            )
 
     home_position = path_generation.get("home_position_mm")
     if home_position is not None:
@@ -93,6 +307,11 @@ def validate_config(config: dict) -> list:
     for field in ("painting_paths_file", "preview_svg_file"):
         if not output.get(field):
             errors.append(f"output.{field} is missing or empty.")
+    semantic_image_file = output.get(
+        "semantic_outline_image_file", DEFAULT_SEMANTIC_OUTLINE_IMAGE_FILE
+    )
+    if not isinstance(semantic_image_file, str) or not semantic_image_file.strip():
+        errors.append("output.semantic_outline_image_file must be a non-empty string.")
 
     return errors
 

@@ -37,7 +37,7 @@ the [hardware run guide](hardware_run_guide.md) governs the per-session procedur
 | Lifecycle finalization | Complete for the demonstrated normal path: clean deactivation finalizes telemetry and supports reactivation. Targeted failure-injection evidence remains open. |
 | Real-time scheduling | Implemented: the control loop requests FIFO scheduling and reports when permission is unavailable. The July 31 cadence was stable. |
 | Offline bag analysis | Partial: useful for segmentation and geometry, but its historical global tracking screen and controller-state delay aggregation are not current acceptance criteria. |
-| Endpoint settling | Open: execution currently checks one fresh post-execution sample rather than a settled sample window. |
+| Endpoint settling | Implemented, not hardware-qualified: execution requires a timeout-bounded window of fresh samples satisfying joint/TCP error, low-velocity, dwell, and minimum-sample requirements. Passing and injected timeout/fault evidence remain open. |
 | Continuous contact guarding | Open: there is no online spring-compression warning, cancellation, and straight-retreat state machine. |
 | Dynamics and mechanics | Open: verified acceleration limits, controller tolerances, payload/CoG, and formal spring-envelope validation remain future work. |
 
@@ -166,15 +166,13 @@ profile, or reject a mismatch before activation. The existing runtime guard
 faults only after a large mismatch remains outside its latch band; warning-only
 mismatches are not configuration approval.
 
-### Endpoint settling
+### Endpoint settling qualification
 
-Replace the single post-execution sample with a timeout-bounded window of fresh
-samples. A pass must require consecutive samples satisfying per-joint error,
-TCP position and orientation error, and low measured velocity. Reject stale
-samples and log signed errors, velocity, sample count, and elapsed time. Verify
-both the passing path and a timeout/fault path; a contact-time failure must use
-the bounded straight retreat. Do not raise endpoint limits merely to suppress
-an abort.
+The timeout-bounded settling window is implemented. Qualify both its passing
+path and injected timeout/fault paths on the reviewed controller profile.
+Confirm that stale, non-finite, moving, and out-of-tolerance feedback fails
+closed and that contact-time failure uses the bounded straight retreat. Do not
+raise endpoint limits merely to suppress an abort.
 
 ### Continuous contact guard
 

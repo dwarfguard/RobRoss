@@ -47,6 +47,17 @@ def render_upload_form() -> str:
     <label id="image-label">Photo:
       <input type="file" name="image" id="image-input" accept="image/*">
     </label>
+    <label id="semantic-label" class="checkbox-label">
+      <input type="checkbox" name="enhance_overlapping_forms"
+             id="semantic-input" checked>
+      Enhance overlapping forms with Gemini
+    </label>
+    <label id="detail-max-paths-label">Maximum detail paths:
+      <input type="number" name="maximum_detail_paths"
+             id="detail-max-paths-input"
+             value="{route_adapters.DEFAULT_SKETCH_DETAIL_MAX_PATHS}"
+             min="0" step="1" inputmode="numeric">
+    </label>
     <button type="submit">Process</button>
   </form>
 </section>
@@ -54,12 +65,21 @@ def render_upload_form() -> str:
   const routeSelect = document.getElementById('route-select');
   const imageLabel = document.getElementById('image-label');
   const imageInput = document.getElementById('image-input');
+  const semanticLabel = document.getElementById('semantic-label');
+  const semanticInput = document.getElementById('semantic-input');
+  const detailMaxPathsLabel = document.getElementById('detail-max-paths-label');
+  const detailMaxPathsInput = document.getElementById('detail-max-paths-input');
   function syncImageField() {{
     const opt = routeSelect.options[routeSelect.selectedIndex];
     const needsImage = opt.dataset.needsImage === 'true';
     imageLabel.style.display = needsImage ? '' : 'none';
     imageInput.disabled = !needsImage;
     imageInput.required = needsImage;
+    const supportsSemantic = routeSelect.value === 'sketch';
+    semanticLabel.style.display = supportsSemantic ? '' : 'none';
+    semanticInput.disabled = !supportsSemantic;
+    detailMaxPathsLabel.style.display = supportsSemantic ? '' : 'none';
+    detailMaxPathsInput.disabled = !supportsSemantic;
   }}
   routeSelect.addEventListener('change', syncImageField);
   syncImageField();
@@ -71,6 +91,7 @@ EXTRA_STYLE = """
 .upload-form { background: white; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
 .upload-form form { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
 .upload-form label { display: flex; flex-direction: column; font-size: 0.85rem; color: #555; gap: 0.25rem; }
+.upload-form .checkbox-label { flex-direction: row; align-items: center; font-size: 0.9rem; color: #333; }
 .upload-form button { padding: 0.5rem 1rem; border: none; border-radius: 4px; background: #2563eb; color: white; cursor: pointer; }
 .error-box { background: #fff0f0; border: 1px solid #f8d6d6; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; }
 """
@@ -106,7 +127,25 @@ def process():
 
     uploaded_file = request.files.get("image")
     try:
-        route_adapters.run_route(route_key, uploaded_file)
+        semantic_enabled = None
+        detail_max_paths = None
+        if route_key == "sketch":
+            semantic_enabled = request.form.get("enhance_overlapping_forms") == "on"
+            raw_detail_max_paths = request.form.get(
+                "maximum_detail_paths",
+                str(route_adapters.DEFAULT_SKETCH_DETAIL_MAX_PATHS),
+            ).strip()
+            if not re.fullmatch(r"[0-9]+", raw_detail_max_paths):
+                raise ValueError(
+                    "Maximum detail paths must be a non-negative integer."
+                )
+            detail_max_paths = int(raw_detail_max_paths)
+        route_adapters.run_route(
+            route_key,
+            uploaded_file,
+            semantic_preprocessing_enabled=semantic_enabled,
+            detail_max_paths=detail_max_paths,
+        )
     except route_adapters.RouteRunError as error:
         return render_error(
             f"{error.script} failed (exit {error.returncode}):\n\n{error.stderr}"

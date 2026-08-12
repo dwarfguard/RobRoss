@@ -5,7 +5,7 @@ import unittest
 
 import context  # noqa: F401
 
-from path_ordering import order_strokes, total_travel_distance
+from path_ordering import join_overlapping_strokes, order_strokes, total_travel_distance
 
 
 def _linear_scan_order(strokes_data, home_position=(0.0, 0.0)):
@@ -51,6 +51,90 @@ def _random_stroke(rng, grid=None, center=(0.0, 0.0), spread=210.0):
     if closed:
         points = points + [points[0]]
     return (points, closed)
+
+
+class TestJoinOverlappingStrokes(unittest.TestCase):
+    def test_joins_collinear_strokes_at_shared_endpoint(self):
+        strokes = [
+            ([(0.0, 0.0), (10.0, 0.0)], False),
+            ([(10.0, 0.0), (20.0, 0.0)], False),
+        ]
+
+        joined, num_joins = join_overlapping_strokes(strokes)
+
+        self.assertEqual(num_joins, 1)
+        self.assertEqual(joined, [([(0.0, 0.0), (10.0, 0.0), (20.0, 0.0)], False)])
+
+    def test_reorients_end_to_end_strokes(self):
+        strokes = [
+            ([(0.0, 0.0), (10.0, 0.0)], False),
+            ([(20.0, 0.0), (10.0, 0.0)], False),
+        ]
+
+        joined, num_joins = join_overlapping_strokes(strokes)
+
+        self.assertEqual(num_joins, 1)
+        self.assertEqual(joined[0], ([(0.0, 0.0), (10.0, 0.0), (20.0, 0.0)], False))
+
+    def test_t_junction_continues_straight_and_leaves_branch(self):
+        junction = (10.0, 0.0)
+        strokes = [
+            ([(0.0, 0.0), junction], False),
+            ([junction, (20.0, 0.0)], False),
+            ([junction, (10.0, 10.0)], False),
+        ]
+
+        joined, num_joins = join_overlapping_strokes(strokes, max_turn_degrees=60.0)
+
+        self.assertEqual(num_joins, 1)
+        self.assertEqual(len(joined), 2)
+        self.assertIn(([(0.0, 0.0), junction, (20.0, 0.0)], False), joined)
+        self.assertIn(([junction, (10.0, 10.0)], False), joined)
+
+    def test_does_not_join_nearby_nonoverlapping_endpoints(self):
+        strokes = [
+            ([(0.0, 0.0), (10.0, 0.0)], False),
+            ([(10.000001, 0.0), (20.0, 0.0)], False),
+        ]
+
+        joined, num_joins = join_overlapping_strokes(strokes)
+
+        self.assertEqual(num_joins, 0)
+        self.assertEqual(joined, strokes)
+
+    def test_turn_limit_preserves_deliberate_corner(self):
+        strokes = [
+            ([(0.0, 0.0), (10.0, 0.0)], False),
+            ([(10.0, 0.0), (10.0, 10.0)], False),
+        ]
+
+        joined, num_joins = join_overlapping_strokes(strokes, max_turn_degrees=45.0)
+
+        self.assertEqual(num_joins, 0)
+        self.assertEqual(joined, strokes)
+
+    def test_joined_cycle_remains_closed(self):
+        strokes = [
+            ([(0.0, 0.0), (10.0, 0.0)], False),
+            ([(10.0, 0.0), (10.0, 10.0)], False),
+            ([(10.0, 10.0), (0.0, 10.0)], False),
+            ([(0.0, 10.0), (0.0, 0.0)], False),
+        ]
+
+        joined, num_joins = join_overlapping_strokes(strokes, max_turn_degrees=90.0)
+
+        self.assertEqual(num_joins, 3)
+        self.assertEqual(len(joined), 1)
+        self.assertTrue(joined[0][1])
+        self.assertEqual(joined[0][0][0], joined[0][0][-1])
+
+    def test_closed_input_stroke_is_unchanged(self):
+        loop = ([(0.0, 0.0), (10.0, 0.0), (0.0, 0.0)], True)
+
+        joined, num_joins = join_overlapping_strokes([loop])
+
+        self.assertEqual(num_joins, 0)
+        self.assertEqual(joined, [loop])
 
 
 class TestOrderStrokesEquivalence(unittest.TestCase):

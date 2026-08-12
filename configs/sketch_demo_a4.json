@@ -15,16 +15,52 @@
     "path": "Image_Process/assets/apple.png",
     "canny_threshold1": 100,
     "canny_threshold2": 200,
-    "simplify_epsilon_ratio": 0.002
+    "min_stroke_length_mm": 2.0,
+    "simplify_epsilon_ratio": 0.002,
+    "simplify_min_epsilon_px": 1.0
+  },
+
+  "semantic_preprocessing": {
+    "enabled": true,
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-image",
+    "prompt": "Convert this photo into clean monochrome black line art on a white background for a drawing robot. Preserve the subject's pose, proportions, facial likeness, hair silhouette, and framing. Draw long structural outlines clearly. Where limbs or similarly dark garments overlap, infer and draw distinct visible boundaries so the foreground and background forms remain readable. Do not add shading, hatching, text, borders, or a frame. Use sparse, smooth, single-width lines and do not invent objects.",
+    "timeout_seconds": 60,
+    "fallback_to_local": true
+  },
+
+  "outline_extraction": {
+    "canny_threshold1": 60,
+    "canny_threshold2": 160,
+    "blur_kernel_size": 5,
+    "contrast_clip_limit": 2.0,
+    "line_art_threshold": 210,
+    "min_path_length_mm": 5.0,
+    "border_suppression_band_px": 6
+  },
+
+  "detail_extraction": {
+    "canny_threshold1": 80,
+    "canny_threshold2": 180,
+    "blur_kernel_size": 3,
+    "min_path_length_mm": 0.5,
+    "max_paths": 400,
+    "deduplication_distance_mm": 0.25,
+    "connection_distance_mm": 2.0,
+    "isolation_distance_mm": 8.0,
+    "isolated_speckle_max_length_mm": 2.0
   },
 
   "path_generation": {
     "tool_width_mm": 1.0,
-    "home_position_mm": [20.0, 20.0]
+    "home_position_mm": [20.0, 20.0],
+    "join_overlapping_strokes": true,
+    "max_join_turn_degrees": 60.0
   },
 
   "output": {
     "directory": "output/sketch_demo_a4",
+    "semantic_outline_image_file": "sketch_outline_intermediate.png",
     "painting_paths_file": "sketch_painting_paths.json",
     "preview_svg_file": "sketch_path_preview.svg"
   }

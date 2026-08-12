@@ -126,6 +126,20 @@ class TestExtractStrokes(unittest.TestCase):
         skeleton = np.zeros((5, 5), dtype=bool)
         self.assertEqual(extract_strokes(skeleton), [])
 
+    def test_clustered_junction_uses_one_shared_endpoint_anchor(self):
+        skeleton = np.zeros((9, 9), dtype=bool)
+        skeleton[1:8, 4] = True
+        skeleton[4, 1:8] = True
+
+        strokes = extract_strokes(skeleton)
+
+        self.assertEqual(len(strokes), 4)
+        endpoint_counts = {}
+        for points, _ in strokes:
+            for endpoint in (points[0], points[-1]):
+                endpoint_counts[endpoint] = endpoint_counts.get(endpoint, 0) + 1
+        self.assertEqual(max(endpoint_counts.values()), 4)
+
     def test_adjacent_junction_pixels_cluster_into_one_closed_loop(self):
         # Regression test using the actual pixel region that motivated this
         # fix: the inner triangular counter of the "A" in
@@ -250,6 +264,18 @@ class TestSimplify(unittest.TestCase):
         points = [(0, 0), (5, 5)]
         simplified = simplify(points, closed=False, epsilon_ratio=0.1)
         self.assertEqual(simplified, [(0, 0), (5, 5)])
+
+    def test_minimum_epsilon_removes_pixel_scale_zigzag(self):
+        points = [(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]
+
+        ratio_only = simplify(
+            points, closed=False, epsilon_ratio=0.0001, min_epsilon_px=0.0
+        )
+        with_floor = simplify(
+            points, closed=False, epsilon_ratio=0.0001, min_epsilon_px=1.0
+        )
+
+        self.assertGreater(len(ratio_only), len(with_floor))
 
 
 if __name__ == "__main__":

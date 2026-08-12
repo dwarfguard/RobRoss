@@ -37,6 +37,12 @@ jobs and read anything under `output/`.
    (and `source_image.path`, if applicable) pointed at the new run folder,
    and written to `output/upload_.../\_config.json` - **not** into `configs/`,
    which stays reserved for the hand-maintained profile list.
+   For the sketch route, the visible **Enhance overlapping forms with Gemini**
+   checkbox is enabled by default and **Maximum detail paths** defaults to 400;
+   both values are recorded in this config. The path value must be a
+   non-negative integer and remains only a maximum, not a target stroke count.
+   Leave it checked only when the uploaded image may be sent to Gemini. Gemini
+   failures still use the sketch route's configured local fallback.
 4. The route's existing script(s) run as subprocesses against that config,
    exactly like `python3 Image_Process/<route>/generate_*.py --config <path>`
    from the README/CLAUDE.md docs. If a step fails, its stderr is shown on
@@ -78,7 +84,8 @@ future route needs one new dict entry here - nothing in `app.py` or
 
 ## Not in scope here
 
-No parameter tuning UI (palette, morphology kernel sizes, Canny thresholds,
+Except for the sketch route's Gemini enable/disable checkbox and maximum
+detail-path budget, there is no parameter tuning UI (palette, morphology kernel sizes, Canny thresholds,
 ...) - every run uses its route's template config's defaults unchanged. No
 persistent database - `output/*/` itself, browsable through the gallery, is
 the "database". No auth, no multi-user isolation, no background job queue -

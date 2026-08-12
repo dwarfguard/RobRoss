@@ -1,5 +1,9 @@
 # Eye-in-Hand Calibration Guide
 
+**Authority:** This English guide is canonical; the Chinese guide is a
+translation. The controller API reads its active TCP pose, so preserve that TCP
+definition with the calibration.
+
 ## What it does
 
 With the camera mounted on the robot's end effector, convert camera coordinates
@@ -7,13 +11,15 @@ into robot coordinates.
 
 ```
 Camera sees ArUco marker → T_cam_marker (camera frame)
-Robot reads end pose    → T_base_ee    (base frame)
-                           ↓
-              T_base_cam = T_base_ee × T_ee_cam
+Robot reads active TCP   → T_base_tcp   (base frame)
+                            ↓
+              T_base_cam = T_base_tcp × T_tcp_cam
 ```
 
-**Eye-in-hand calibration** finds `T_ee_cam` (the camera pose in the
-end-effector frame) and saves it as a 4×4 matrix in `eye_in_hand_calib.txt`.
+**Eye-in-hand calibration** finds the camera pose relative to the controller's
+active TCP and saves it as a 4×4 matrix in `eye_in_hand_calib.txt`. Code keeps
+the historical `T_ee_cam` name. Recalibrate if the camera mount or controller
+TCP definition changes.
 
 ---
 
@@ -88,7 +94,7 @@ Each time, do the same thing:
 
 4. Press [Space] to record
    → the program reads two values automatically:
-      Robot: current TCP pose T_base_ee
+      Robot: current active TCP pose T_base_tcp
       Camera: marker pose T_cam_marker
    → screen shows "pair 1" "pair 2" ...
    → after 3 poses, a **live quality report** is printed after every capture

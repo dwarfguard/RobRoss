@@ -8,10 +8,9 @@ other high-contrast bitmaps via Canny) because Canny is the wrong tool for
 input that is already a flat black-line-on-white drawing: see "Why not
 Canny?" below.
 
-**Only this route needs third-party dependencies** — `opencv-python`,
-`numpy`, and `scikit-image`, the same three as `sketch/`. `mondrian/` stays
-pure standard library; this is a deliberate, folder-scoped exception (see
-root `CLAUDE.md`). On this project's Ubuntu 22.04 / ROS 2 Humble setup, all
+This route needs `opencv-python`, `numpy`, and `scikit-image`, the same three
+as `sketch/`. See `Image_Process/README.md` for the dependency summary across
+all routes. On this project's Ubuntu 22.04 / ROS 2 Humble setup, all
 three are plain apt packages:
 
 ```bash
@@ -67,7 +66,10 @@ Config profile (configs/*.json)
   -> line_tracing.prune_skeleton_spurs() structural pixel-level spur removal (see below)
   -> line_tracing.extract_strokes()      skeleton -> traced centerline chains (node-clustered)
   -> line_tracing.prune_spurs()          drop remaining short spurs/degenerate loops
-  -> line_tracing.simplify()             Douglas-Peucker point reduction
+  -> line_tracing.simplify()             Douglas-Peucker + pixel-jitter reduction
+  -> path_ordering.join_overlapping_strokes()
+                                         carry compatible lines through shared junctions
+  -> minimum-length filter               remove only residual short, unjoined marks
   -> path_ordering.order_strokes()       greedy nearest-neighbor travel order
   -> generate_line_art_paths.py          -> output/<config-name>/<painting_paths_file> (+ preview SVG)
 ```
@@ -95,11 +97,20 @@ config are CWD-relative), same as the other routes' scripts.
 | `source_image.binary_threshold` | Grayscale cutoff (0-255, default 200): pixels darker than this are treated as part of a drawn line. See "Why not Canny?" above for why this needs to be higher than it looks like it should for antialiased raster art. |
 | `source_image.morph_close_kernel_px` | Morphological closing kernel size (pixels, default 2; 0 disables) applied to the mask before skeletonizing, to bridge small antialiasing-induced gaps. |
 | `source_image.min_spur_length_px` | Length threshold (pixels) used at two stages: structural spur removal on the raw skeleton before tracing, and a second pass dropping any short open branch or degenerate closed loop that survives extraction — see `prune_skeleton_spurs`/`prune_spurs` below. Default 4.0; a font-like image with sharp corners (e.g. `ai.png`) may need it higher (~7-8) to fully close ring-shaped letterforms — see "Known limitations". |
-| `source_image.min_stroke_length_mm` | After mapping to canvas millimeters, drop any stroke shorter than this — filters sub-pixel noise that survives spur pruning. Default 1.0. |
+| `source_image.min_stroke_length_mm` | After compatible strokes have been joined, drop any residual stroke shorter than this. Filtering after joining preserves short pieces in longer contours while removing isolated rigid marks. Default 2.0mm; set 0 to disable. |
 | `source_image.simplify_epsilon_ratio` | Douglas-Peucker simplification strength as a fraction of each stroke's arc length — larger = fewer points/straighter lines. Default 0.002. |
+| `source_image.simplify_min_epsilon_px` | Absolute floor for Douglas-Peucker epsilon in source pixels. The 1.0px default removes raster stair-step jitter from short strokes; set 0 for ratio-only behavior. |
 | `path_generation.tool_width_mm` | Pen stroke width (preview rendering + `path_settings.tool_width_mm` in the output). |
 | `path_generation.home_position_mm` | Where the pen starts before the first stroke; affects greedy-ordering's first pick. Optional, defaults to the canvas's top-left margin corner. |
+| `path_generation.join_overlapping_strokes` | If true (default), join compatible open strokes only when their endpoints have exactly the same mapped coordinate. This never bridges nearby endpoints or adds ink through blank space. |
+| `path_generation.max_join_turn_degrees` | Maximum heading change allowed at an exact shared endpoint (default 60°). Smaller values require straighter continuations; at multi-way junctions the straightest pairs are chosen first and side branches remain separate. |
 | `output.directory`, `.painting_paths_file`, `.preview_svg_file` | Same meaning as the other routes' config schema. |
+
+The checked-in values are the balanced profile. For a more conservative trace,
+lower `min_stroke_length_mm`, `simplify_min_epsilon_px`, and
+`max_join_turn_degrees`. For fewer, bolder gestures, raise them gradually.
+`join_overlapping_strokes` can disable joining entirely; no tuning value makes
+the optimizer bridge blank space.
 
 ## line_tracing.py
 
@@ -134,6 +145,9 @@ logical vertex (a rounded corner often rasterizes into 2-3 node pixels
 sitting right next to each other instead of one). Intra-cluster hops are
 skipped, and a stroke whose two ends land in the same cluster counts as
 closed — not just a stroke that returns to its exact starting pixel.
+Every incident endpoint is normalized to a real skeleton pixel nearest the
+cluster center. The strokes therefore overlap at one exact source-ink
+coordinate, allowing safe pen-down joining without drawing a connector.
 Without this, those extra adjacent node pixels spawn near-duplicate paths
 and near-zero-length spurious edges that fragment what should be one
 continuous stroke.
@@ -147,8 +161,9 @@ a clustered-node boundary, not real small content — real closed shapes
 (a dot, a letter's counter) are comfortably longer than any reasonable
 spur threshold, so this doesn't risk real content.
 
-`simplify(points_xy, closed, epsilon_ratio)`: Douglas-Peucker point
-reduction (`cv2.approxPolyDP`), same as `sketch/canny_edges.py`'s.
+`simplify(points_xy, closed, epsilon_ratio, min_epsilon_px)`: Douglas-Peucker
+point reduction (`cv2.approxPolyDP`), same as `sketch/canny_edges.py`'s. The
+absolute epsilon floor suppresses pixel stair-stepping on short paths.
 
 ## path_ordering.py / path_validation.py
 
@@ -161,6 +176,12 @@ support this route, since `line_art/` emits `paint_path` rather than
 `paint_stroke` (see `generate_line_art_paths.py` below) — the other two
 copies picked up the same addition when synced.
 
+`path_ordering.join_overlapping_strokes()` pairs exact shared endpoints by
+the smallest heading change, then combines each resulting chain into one
+pen-down path. A T junction therefore continues through its straight branch
+and leaves the side branch separate. It intentionally has no distance-based
+join option: endpoints at different coordinates are never connected.
+
 `line_art/` doesn't need `border_tracing.py` or `region_fill.py` — those
 are for routes that fill closed regions with color; this route only traces
 open/closed lines, it never fills.
@@ -170,7 +191,9 @@ open/closed lines, it never fills.
 `build_canvas_strokes()` runs the full trace-and-simplify pipeline on the
 config's source image, then scales pixel points onto the canvas's drawable
 box (canvas size minus `margin_mm` on each side), preserving aspect ratio
-and centering the result, then filters by `min_stroke_length_mm`.
+and centering the result. It joins exact-overlap compatible strokes before
+filtering by `min_stroke_length_mm`, so small graph fragments can become part
+of an intentional longer gesture instead of causing extra lifts.
 
 For closed strokes, it also re-appends the first (simplified) point to the
 end of the point list right after `simplify()`. `simplify()`'s

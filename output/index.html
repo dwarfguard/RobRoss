@@ -9,23 +9,30 @@ h1 { margin-top: 0; }
 .toolbar { background: white; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.15); display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .toolbar input, .toolbar select { padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem; }
 .toolbar input { flex: 1; min-width: 160px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.5rem; }
-.card { background: white; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
-.card h2 { margin: 0 0 0.25rem 0; font-size: 1.1rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 1.5rem; min-width: 0; }
+.card { min-width: 0; max-width: 100%; background: white; border-radius: 8px; padding: 1rem 1.25rem; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+.card h2 { margin: 0 0 0.25rem 0; font-size: 1.1rem; overflow-wrap: anywhere; }
 .style-badge { font-size: 0.7rem; font-weight: normal; background: #eee; border-radius: 4px; padding: 0.1rem 0.4rem; color: #555; }
 .canvas { margin: 0 0 0.5rem 0; color: #666; font-size: 0.85rem; }
 .badge { display: inline-block; font-size: 0.75rem; border-radius: 4px; padding: 0.15rem 0.5rem; margin-bottom: 0.5rem; }
 .badge-pass { background: #d6f5d6; color: #1a7a1a; }
 .badge-fail { background: #f8d6d6; color: #a11a1a; }
+.semantic-enhanced { background: #dbeafe; color: #1d4ed8; }
+.semantic-disabled { background: #eee; color: #555; }
+.semantic-fallback { background: #fff1c2; color: #7a5600; }
 .errors { color: #a11a1a; font-size: 0.8rem; }
-.previews { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
-.thumb { max-width: 150px; max-height: 200px; border: 1px solid #ddd; border-radius: 4px; }
-table.stats { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 0.5rem; }
-table.stats td { padding: 0.15rem 0.4rem; border-bottom: 1px solid #eee; }
-table.stats td:first-child { color: #666; }
+.previews { display: flex; min-width: 0; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.previews a { min-width: 0; max-width: 150px; flex: 1 1 120px; }
+.thumb { display: block; width: auto; height: auto; max-width: 100%; max-height: 200px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+table.stats { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 0.5rem; }
+table.stats td { padding: 0.15rem 0.4rem; border-bottom: 1px solid #eee; overflow-wrap: anywhere; word-break: break-word; }
+table.stats td:first-child { width: 52%; color: #666; }
 table.stats td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-.links { font-size: 0.8rem; }
-.run-dir { font-size: 0.75rem; color: #999; font-family: monospace; }
+.links { font-size: 0.8rem; overflow-wrap: anywhere; word-break: break-word; }
+.run-dir { font-size: 0.75rem; color: #999; font-family: monospace; overflow-wrap: anywhere; word-break: break-word; }
+.card-actions { margin: 0.5rem 0 0 0; }
+.delete-btn { padding: 0.3rem 0.7rem; border: 1px solid #f3c2c2; border-radius: 4px; background: #fff0f0; color: #a11a1a; font-size: 0.8rem; cursor: pointer; }
+.delete-btn:hover { background: #fde0e0; }
 </style>
 </head>
 <body>
@@ -97,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="demo_v1_a4_pen" data-style="mondrian"
           data-passed="true"
-          data-created="1784517515.2702992">
+          data-created="1786012251.2073815">
   <h2>demo_v1_a4_pen <span class="style-badge">mondrian</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
@@ -111,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="gemini_mondrian_demo_a4" data-style="gemini_mondrian"
           data-passed="true"
-          data-created="1784617850.323413">
+          data-created="1786012251.2113802">
   <h2>gemini_mondrian_demo_a4 <span class="style-badge">gemini_mondrian</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
@@ -125,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="gemini_mondrian_lenna_a4" data-style="gemini_mondrian"
           data-passed="true"
-          data-created="1784617851.4205961">
+          data-created="1786012251.215379">
   <h2>gemini_mondrian_lenna_a4 <span class="style-badge">gemini_mondrian</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
@@ -139,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="gemini_mondrian_man_a4" data-style="gemini_mondrian"
           data-passed="true"
-          data-created="1784619749.7134335">
+          data-created="1786012251.2193775">
   <h2>gemini_mondrian_man_a4 <span class="style-badge">gemini_mondrian</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
@@ -153,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="image_to_mondrian_demo_a4" data-style="image_to_mondrian"
           data-passed="true"
-          data-created="1784517655.2718577">
+          data-created="1786012251.2263753">
   <h2>image_to_mondrian_demo_a4 <span class="style-badge">image_to_mondrian</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
@@ -167,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="image_to_mondrian_lenna_a4" data-style="image_to_mondrian"
           data-passed="true"
-          data-created="1784008512.3019266">
+          data-created="1786012251.2273748">
   <h2>image_to_mondrian_lenna_a4 <span class="style-badge">image_to_mondrian</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
@@ -181,7 +188,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="image_to_mondrian_minions_a4" data-style="image_to_mondrian"
           data-passed="true"
-          data-created="1784009073.043222">
+          data-created="1786012251.2273748">
   <h2>image_to_mondrian_minions_a4 <span class="style-badge">image_to_mondrian</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
@@ -195,13 +202,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="line_art_ai_a4" data-style="line_art"
           data-passed="true"
-          data-created="1784787392.2491071">
+          data-created="1786092641.0273442">
   <h2>line_art_ai_a4 <span class="style-badge">line_art</span></h2>
   <p class="canvas">297.0mm x
      210.0mm</p>
   <span class='badge badge-pass'>validation passed</span>
   <div class="previews"><a href='line_art_ai_a4/line_art_path_preview.svg' target='_blank'><img class='thumb' src='line_art_ai_a4/line_art_path_preview.svg' alt='line_art_ai_a4 path preview'></a></div>
-  <table class='stats'><tr><td>num_commands</td><td>50</td></tr><tr><td>num_paint_path_commands</td><td>12</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>1293.2</td></tr><tr><td>num_traced_lines</td><td>12</td></tr><tr><td>num_select_tool_commands</td><td>1</td></tr><tr><td>num_lift_tool_commands</td><td>12</td></tr><tr><td>num_lower_tool_commands</td><td>12</td></tr><tr><td>num_dip_paint_commands</td><td>1</td></tr><tr><td>baseline_pen_up_travel_mm</td><td>1321.42</td></tr><tr><td>optimized_pen_up_travel_mm</td><td>463.55</td></tr></table>
+  <table class='stats'><tr><td>num_commands</td><td>50</td></tr><tr><td>num_paint_path_commands</td><td>12</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>1286.35</td></tr><tr><td>num_traced_lines</td><td>12</td></tr><tr><td>num_select_tool_commands</td><td>1</td></tr><tr><td>num_lift_tool_commands</td><td>12</td></tr><tr><td>num_lower_tool_commands</td><td>12</td></tr><tr><td>num_dip_paint_commands</td><td>1</td></tr><tr><td>baseline_pen_up_travel_mm</td><td>1321.42</td></tr><tr><td>optimized_pen_up_travel_mm</td><td>463.55</td></tr><tr><td>num_traced_lines_before_optimization</td><td>12</td></tr><tr><td>num_overlap_joins</td><td>0</td></tr><tr><td>num_short_lines_filtered</td><td>0</td></tr><tr><td>num_traced_lines_after_optimization</td><td>12</td></tr></table>
   <p class="links"><a href='line_art_ai_a4/line_art_painting_paths.json'>painting_paths.json</a></p>
   <p class="run-dir">output/line_art_ai_a4/</p>
 </section>
@@ -209,13 +216,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="line_art_demo_a4" data-style="line_art"
           data-passed="true"
-          data-created="1784787400.3765535">
+          data-created="1786092641.1773355">
   <h2>line_art_demo_a4 <span class="style-badge">line_art</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
   <span class='badge badge-pass'>validation passed</span>
   <div class="previews"><a href='line_art_demo_a4/line_art_path_preview.svg' target='_blank'><img class='thumb' src='line_art_demo_a4/line_art_path_preview.svg' alt='line_art_demo_a4 path preview'></a></div>
-  <table class='stats'><tr><td>num_commands</td><td>1466</td></tr><tr><td>num_paint_path_commands</td><td>366</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>3465.97</td></tr><tr><td>num_traced_lines</td><td>366</td></tr><tr><td>num_select_tool_commands</td><td>1</td></tr><tr><td>num_lift_tool_commands</td><td>366</td></tr><tr><td>num_lower_tool_commands</td><td>366</td></tr><tr><td>num_dip_paint_commands</td><td>1</td></tr><tr><td>baseline_pen_up_travel_mm</td><td>37927.59</td></tr><tr><td>optimized_pen_up_travel_mm</td><td>1149.35</td></tr></table>
+  <table class='stats'><tr><td>num_commands</td><td>582</td></tr><tr><td>num_paint_path_commands</td><td>145</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>3490.52</td></tr><tr><td>num_traced_lines</td><td>145</td></tr><tr><td>num_select_tool_commands</td><td>1</td></tr><tr><td>num_lift_tool_commands</td><td>145</td></tr><tr><td>num_lower_tool_commands</td><td>145</td></tr><tr><td>num_dip_paint_commands</td><td>1</td></tr><tr><td>baseline_pen_up_travel_mm</td><td>15668.45</td></tr><tr><td>optimized_pen_up_travel_mm</td><td>935.5</td></tr><tr><td>num_traced_lines_before_optimization</td><td>403</td></tr><tr><td>num_overlap_joins</td><td>235</td></tr><tr><td>num_short_lines_filtered</td><td>23</td></tr><tr><td>num_traced_lines_after_optimization</td><td>145</td></tr></table>
   <p class="links"><a href='line_art_demo_a4/line_art_painting_paths.json'>painting_paths.json</a></p>
   <p class="run-dir">output/line_art_demo_a4/</p>
 </section>
@@ -223,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="mondrian_12x12_paint" data-style="mondrian"
           data-passed="true"
-          data-created="1784517515.5065749">
+          data-created="1786012251.2293742">
   <h2>mondrian_12x12_paint <span class="style-badge">mondrian</span></h2>
   <p class="canvas">304.8mm x
      304.8mm</p>
@@ -237,57 +244,60 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <section class="card" data-name="sketch_demo_a4" data-style="sketch"
           data-passed="true"
-          data-created="1784517654.1859403">
+          data-created="1786099716.8434849">
   <h2>sketch_demo_a4 <span class="style-badge">sketch</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
   <span class='badge badge-pass'>validation passed</span>
-  <div class="previews"><a href='sketch_demo_a4/sketch_path_preview.svg' target='_blank'><img class='thumb' src='sketch_demo_a4/sketch_path_preview.svg' alt='sketch_demo_a4 path preview'></a></div>
-  <table class='stats'><tr><td>num_commands</td><td>2619</td></tr><tr><td>num_paint_stroke_commands</td><td>1333</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>1373.0</td></tr><tr><td>num_traced_lines</td><td>428</td></tr><tr><td>num_select_tool_commands</td><td>1</td></tr><tr><td>num_lift_tool_commands</td><td>428</td></tr><tr><td>num_lower_tool_commands</td><td>428</td></tr><tr><td>num_dip_paint_commands</td><td>1</td></tr><tr><td>baseline_pen_up_travel_mm</td><td>14951.47</td></tr><tr><td>optimized_pen_up_travel_mm</td><td>850.28</td></tr></table>
+  <span class='badge semantic-badge semantic-fallback'>Local fallback: missing API key</span>
+  <div class="previews"><a href='sketch_demo_a4/sketch_outline_intermediate.png' target='_blank'><img class='thumb' src='sketch_demo_a4/sketch_outline_intermediate.png' alt='sketch_demo_a4 semantic outline intermediate'></a><a href='sketch_demo_a4/sketch_path_preview.svg' target='_blank'><img class='thumb' src='sketch_demo_a4/sketch_path_preview.svg' alt='sketch_demo_a4 path preview'></a></div>
+  <table class='stats'><tr><td>num_commands</td><td>858</td></tr><tr><td>num_paint_stroke_commands</td><td>469</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>1873.83</td></tr><tr><td>num_traced_lines</td><td>129</td></tr><tr><td>num_select_tool_commands</td><td>1</td></tr><tr><td>num_lift_tool_commands</td><td>129</td></tr><tr><td>num_lower_tool_commands</td><td>129</td></tr><tr><td>num_dip_paint_commands</td><td>1</td></tr><tr><td>baseline_pen_up_travel_mm</td><td>5281.75</td></tr><tr><td>optimized_pen_up_travel_mm</td><td>1138.51</td></tr><tr><td>semantic_preprocessing_provider</td><td>gemini</td></tr><tr><td>semantic_preprocessing_model</td><td>gemini-3.1-flash-image</td></tr><tr><td>semantic_outline_image_file</td><td>output/sketch_demo_a4/sketch_outline_intermediate.png</td></tr><tr><td>outline_border_components_filtered</td><td>0</td></tr><tr><td>outline_border_pixels_filtered</td><td>0</td></tr><tr><td>outline_num_raw_paths</td><td>97</td></tr><tr><td>outline_num_overlap_joins</td><td>17</td></tr><tr><td>outline_num_short_paths_filtered</td><td>37</td></tr><tr><td>outline_num_paths</td><td>42</td></tr><tr><td>detail_num_raw_paths</td><td>106</td></tr><tr><td>detail_border_components_filtered</td><td>0</td></tr><tr><td>detail_border_pixels_filtered</td><td>0</td></tr><tr><td>detail_num_duplicate_segments_filtered</td><td>70</td></tr><tr><td>detail_num_overlap_joins</td><td>21</td></tr><tr><td>detail_num_paths</td><td>87</td></tr><tr><td>detail_num_short_paths_filtered</td><td>3</td></tr><tr><td>detail_num_isolated_speckles_filtered</td><td>0</td></tr><tr><td>detail_num_budget_paths_filtered</td><td>0</td></tr><tr><td>detail_num_ranked_candidates</td><td>108</td></tr><tr><td>outline_paint_distance_mm</td><td>1101.59</td></tr><tr><td>outline_num_lifts</td><td>42</td></tr><tr><td>outline_baseline_pen_up_travel_mm</td><td>1962.79</td></tr><tr><td>outline_optimized_pen_up_travel_mm</td><td>575.16</td></tr><tr><td>detail_paint_distance_mm</td><td>772.29</td></tr><tr><td>detail_num_lifts</td><td>87</td></tr><tr><td>detail_baseline_pen_up_travel_mm</td><td>3318.96</td></tr><tr><td>detail_optimized_pen_up_travel_mm</td><td>563.35</td></tr></table>
   <p class="links"><a href='sketch_demo_a4/sketch_painting_paths.json'>painting_paths.json</a></p>
   <p class="run-dir">output/sketch_demo_a4/</p>
 </section>
 
 
-<section class="card" data-name="upload_1784532964_image_to_mondrian" data-style="image_to_mondrian"
+<section class="card" data-name="upload_1786093436_sketch" data-style="sketch"
           data-passed="true"
-          data-created="1784532967.3130739">
-  <h2>upload_1784532964_image_to_mondrian <span class="style-badge">image_to_mondrian</span></h2>
+          data-created="1786093436.7909935">
+  <h2>upload_1786093436_sketch <span class="style-badge">sketch</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
   <span class='badge badge-pass'>validation passed</span>
-  <div class="previews"><a href='upload_1784532964_image_to_mondrian/image_to_mondrian_quantized_preview.png' target='_blank'><img class='thumb' src='upload_1784532964_image_to_mondrian/image_to_mondrian_quantized_preview.png' alt='upload_1784532964_image_to_mondrian quantized preview'></a><a href='upload_1784532964_image_to_mondrian/image_to_mondrian_path_preview.svg' target='_blank'><img class='thumb' src='upload_1784532964_image_to_mondrian/image_to_mondrian_path_preview.svg' alt='upload_1784532964_image_to_mondrian path preview'></a></div>
-  <table class='stats'><tr><td>num_commands</td><td>3603</td></tr><tr><td>num_paint_stroke_commands</td><td>2705</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>7291.91</td></tr><tr><td>num_select_tool_commands</td><td>5</td></tr><tr><td>num_lift_tool_commands</td><td>296</td></tr><tr><td>num_lower_tool_commands</td><td>296</td></tr><tr><td>num_dip_paint_commands</td><td>5</td></tr><tr><td>num_regions_total</td><td>160</td></tr><tr><td>num_regions_after_filter</td><td>46</td></tr><tr><td>num_regions_dropped_small</td><td>114</td></tr><tr><td>num_regions_by_color</td><td>{&#x27;white&#x27;: 8, &#x27;yellow&#x27;: 11, &#x27;red&#x27;: 13, &#x27;blue&#x27;: 11, &#x27;black&#x27;: 3}</td></tr><tr><td>num_border_strokes</td><td>96</td></tr></table>
-  <p class="links"><a href='upload_1784532964_image_to_mondrian/image_to_mondrian_painting_paths.json'>painting_paths.json</a></p>
-  <p class="run-dir">output/upload_1784532964_image_to_mondrian/</p>
+  <div class="previews"><a href='upload_1786093436_sketch/sketch_path_preview.svg' target='_blank'><img class='thumb' src='upload_1786093436_sketch/sketch_path_preview.svg' alt='upload_1786093436_sketch path preview'></a></div>
+  <table class='stats'><tr><td>num_commands</td><td>697</td></tr><tr><td>num_paint_stroke_commands</td><td>383</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>1182.66</td></tr><tr><td>num_traced_lines</td><td>104</td></tr><tr><td>num_select_tool_commands</td><td>1</td></tr><tr><td>num_lift_tool_commands</td><td>104</td></tr><tr><td>num_lower_tool_commands</td><td>104</td></tr><tr><td>num_dip_paint_commands</td><td>1</td></tr><tr><td>baseline_pen_up_travel_mm</td><td>5152.97</td></tr><tr><td>optimized_pen_up_travel_mm</td><td>694.95</td></tr><tr><td>num_traced_lines_before_optimization</td><td>234</td></tr><tr><td>num_overlap_joins</td><td>63</td></tr><tr><td>num_short_lines_filtered</td><td>67</td></tr><tr><td>num_traced_lines_after_optimization</td><td>104</td></tr></table>
+  <p class="links"><a href='upload_1786093436_sketch/sketch_painting_paths.json'>painting_paths.json</a></p>
+  <p class="run-dir">output/upload_1786093436_sketch/</p>
 </section>
 
 
-<section class="card" data-name="upload_1784620327_gemini_mondrian" data-style="gemini_mondrian"
+<section class="card" data-name="upload_1786093990_sketch" data-style="sketch"
           data-passed="true"
-          data-created="1784620340.5981805">
-  <h2>upload_1784620327_gemini_mondrian <span class="style-badge">gemini_mondrian</span></h2>
+          data-created="1786096853.6134167">
+  <h2>upload_1786093990_sketch <span class="style-badge">sketch</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
   <span class='badge badge-pass'>validation passed</span>
-  <div class="previews"><a href='upload_1784620327_gemini_mondrian/gemini_mondrian_quantized_preview.png' target='_blank'><img class='thumb' src='upload_1784620327_gemini_mondrian/gemini_mondrian_quantized_preview.png' alt='upload_1784620327_gemini_mondrian quantized preview'></a><a href='upload_1784620327_gemini_mondrian/gemini_mondrian_path_preview.svg' target='_blank'><img class='thumb' src='upload_1784620327_gemini_mondrian/gemini_mondrian_path_preview.svg' alt='upload_1784620327_gemini_mondrian path preview'></a></div>
-  <table class='stats'><tr><td>num_commands</td><td>21015</td></tr><tr><td>num_paint_stroke_commands</td><td>12941</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>16972.53</td></tr><tr><td>num_select_tool_commands</td><td>5</td></tr><tr><td>num_lift_tool_commands</td><td>2688</td></tr><tr><td>num_lower_tool_commands</td><td>2688</td></tr><tr><td>num_dip_paint_commands</td><td>5</td></tr><tr><td>num_regions_total</td><td>462</td></tr><tr><td>num_regions_after_filter</td><td>33</td></tr><tr><td>num_regions_dropped_small</td><td>429</td></tr><tr><td>num_regions_by_color</td><td>{&#x27;white&#x27;: 11, &#x27;yellow&#x27;: 4, &#x27;red&#x27;: 4, &#x27;blue&#x27;: 12, &#x27;black&#x27;: 2}</td></tr><tr><td>num_border_strokes</td><td>2115</td></tr></table>
-  <p class="links"><a href='upload_1784620327_gemini_mondrian/gemini_mondrian_painting_paths.json'>painting_paths.json</a></p>
-  <p class="run-dir">output/upload_1784620327_gemini_mondrian/</p>
+  <span class='badge semantic-badge semantic-fallback'>Local fallback: missing API key</span>
+  <div class="previews"><a href='upload_1786093990_sketch/sketch_path_preview.svg' target='_blank'><img class='thumb' src='upload_1786093990_sketch/sketch_path_preview.svg' alt='upload_1786093990_sketch path preview'></a></div>
+  <table class='stats'><tr><td>num_commands</td><td>2904</td></tr><tr><td>num_paint_stroke_commands</td><td>1882</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>1733.9</td></tr><tr><td>num_traced_lines</td><td>340</td></tr><tr><td>num_select_tool_commands</td><td>1</td></tr><tr><td>num_lift_tool_commands</td><td>340</td></tr><tr><td>num_lower_tool_commands</td><td>340</td></tr><tr><td>num_dip_paint_commands</td><td>1</td></tr><tr><td>baseline_pen_up_travel_mm</td><td>12475.42</td></tr><tr><td>optimized_pen_up_travel_mm</td><td>1260.85</td></tr><tr><td>semantic_preprocessing_provider</td><td>gemini</td></tr><tr><td>semantic_preprocessing_model</td><td>gemini-3.1-flash-image</td></tr><tr><td>semantic_outline_image_file</td><td>output/upload_1786093990_sketch/sketch_outline_intermediate.png</td></tr><tr><td>outline_border_components_filtered</td><td>1</td></tr><tr><td>outline_border_pixels_filtered</td><td>931</td></tr><tr><td>outline_num_raw_paths</td><td>481</td></tr><tr><td>outline_num_overlap_joins</td><td>84</td></tr><tr><td>outline_num_short_paths_filtered</td><td>191</td></tr><tr><td>outline_num_paths</td><td>194</td></tr><tr><td>detail_num_raw_paths</td><td>422</td></tr><tr><td>detail_border_components_filtered</td><td>1</td></tr><tr><td>detail_border_pixels_filtered</td><td>944</td></tr><tr><td>detail_num_duplicate_segments_filtered</td><td>1303</td></tr><tr><td>detail_num_overlap_joins</td><td>3</td></tr><tr><td>detail_num_paths</td><td>146</td></tr><tr><td>detail_num_short_paths_filtered</td><td>62</td></tr><tr><td>detail_num_isolated_speckles_filtered</td><td>2</td></tr><tr><td>detail_num_budget_paths_filtered</td><td>0</td></tr><tr><td>detail_num_ranked_candidates</td><td>149</td></tr><tr><td>outline_paint_distance_mm</td><td>1499.89</td></tr><tr><td>outline_num_lifts</td><td>194</td></tr><tr><td>outline_baseline_pen_up_travel_mm</td><td>7603.17</td></tr><tr><td>outline_optimized_pen_up_travel_mm</td><td>795.53</td></tr><tr><td>detail_paint_distance_mm</td><td>234.1</td></tr><tr><td>detail_num_lifts</td><td>146</td></tr><tr><td>detail_baseline_pen_up_travel_mm</td><td>4872.25</td></tr><tr><td>detail_optimized_pen_up_travel_mm</td><td>465.31</td></tr></table>
+  <p class="links"><a href='upload_1786093990_sketch/sketch_painting_paths.json'>painting_paths.json</a></p>
+  <p class="run-dir">output/upload_1786093990_sketch/</p>
 </section>
 
 
-<section class="card" data-name="upload_1784620384_gemini_mondrian" data-style="gemini_mondrian"
+<section class="card" data-name="upload_1786097798_sketch" data-style="sketch"
           data-passed="true"
-          data-created="1784620399.6166644">
-  <h2>upload_1784620384_gemini_mondrian <span class="style-badge">gemini_mondrian</span></h2>
+          data-created="1786099349.7445314">
+  <h2>upload_1786097798_sketch <span class="style-badge">sketch</span></h2>
   <p class="canvas">210.0mm x
      297.0mm</p>
   <span class='badge badge-pass'>validation passed</span>
-  <div class="previews"><a href='upload_1784620384_gemini_mondrian/gemini_mondrian_quantized_preview.png' target='_blank'><img class='thumb' src='upload_1784620384_gemini_mondrian/gemini_mondrian_quantized_preview.png' alt='upload_1784620384_gemini_mondrian quantized preview'></a><a href='upload_1784620384_gemini_mondrian/gemini_mondrian_path_preview.svg' target='_blank'><img class='thumb' src='upload_1784620384_gemini_mondrian/gemini_mondrian_path_preview.svg' alt='upload_1784620384_gemini_mondrian path preview'></a></div>
-  <table class='stats'><tr><td>num_commands</td><td>12690</td></tr><tr><td>num_paint_stroke_commands</td><td>7529</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>19302.16</td></tr><tr><td>num_select_tool_commands</td><td>5</td></tr><tr><td>num_lift_tool_commands</td><td>1717</td></tr><tr><td>num_lower_tool_commands</td><td>1717</td></tr><tr><td>num_dip_paint_commands</td><td>5</td></tr><tr><td>num_regions_total</td><td>237</td></tr><tr><td>num_regions_after_filter</td><td>30</td></tr><tr><td>num_regions_dropped_small</td><td>207</td></tr><tr><td>num_regions_by_color</td><td>{&#x27;white&#x27;: 10, &#x27;yellow&#x27;: 4, &#x27;red&#x27;: 8, &#x27;blue&#x27;: 7, &#x27;black&#x27;: 1}</td></tr><tr><td>num_border_strokes</td><td>988</td></tr></table>
-  <p class="links"><a href='upload_1784620384_gemini_mondrian/gemini_mondrian_painting_paths.json'>painting_paths.json</a></p>
-  <p class="run-dir">output/upload_1784620384_gemini_mondrian/</p>
+  <span class='badge semantic-badge semantic-fallback'>Local fallback: missing API key</span>
+  <div class="previews"><a href='upload_1786097798_sketch/sketch_outline_intermediate.png' target='_blank'><img class='thumb' src='upload_1786097798_sketch/sketch_outline_intermediate.png' alt='upload_1786097798_sketch semantic outline intermediate'></a><a href='upload_1786097798_sketch/sketch_path_preview.svg' target='_blank'><img class='thumb' src='upload_1786097798_sketch/sketch_path_preview.svg' alt='upload_1786097798_sketch path preview'></a></div>
+  <table class='stats'><tr><td>num_commands</td><td>3249</td></tr><tr><td>num_paint_stroke_commands</td><td>2185</td></tr><tr><td>estimated_total_paint_distance_mm</td><td>1971.17</td></tr><tr><td>num_traced_lines</td><td>354</td></tr><tr><td>num_select_tool_commands</td><td>1</td></tr><tr><td>num_lift_tool_commands</td><td>354</td></tr><tr><td>num_lower_tool_commands</td><td>354</td></tr><tr><td>num_dip_paint_commands</td><td>1</td></tr><tr><td>baseline_pen_up_travel_mm</td><td>12694.45</td></tr><tr><td>optimized_pen_up_travel_mm</td><td>1336.71</td></tr><tr><td>semantic_preprocessing_provider</td><td>gemini</td></tr><tr><td>semantic_preprocessing_model</td><td>gemini-3.1-flash-image</td></tr><tr><td>semantic_outline_image_file</td><td>output/upload_1786097798_sketch/sketch_outline_intermediate.png</td></tr><tr><td>outline_border_components_filtered</td><td>2</td></tr><tr><td>outline_border_pixels_filtered</td><td>987</td></tr><tr><td>outline_num_raw_paths</td><td>936</td></tr><tr><td>outline_num_overlap_joins</td><td>253</td></tr><tr><td>outline_num_short_paths_filtered</td><td>552</td></tr><tr><td>outline_num_paths</td><td>115</td></tr><tr><td>detail_num_raw_paths</td><td>531</td></tr><tr><td>detail_border_components_filtered</td><td>1</td></tr><tr><td>detail_border_pixels_filtered</td><td>950</td></tr><tr><td>detail_num_duplicate_segments_filtered</td><td>1087</td></tr><tr><td>detail_num_overlap_joins</td><td>23</td></tr><tr><td>detail_num_paths</td><td>239</td></tr><tr><td>detail_num_short_paths_filtered</td><td>116</td></tr><tr><td>detail_num_isolated_speckles_filtered</td><td>2</td></tr><tr><td>detail_num_budget_paths_filtered</td><td>0</td></tr><tr><td>detail_num_ranked_candidates</td><td>262</td></tr><tr><td>outline_paint_distance_mm</td><td>1437.44</td></tr><tr><td>outline_num_lifts</td><td>115</td></tr><tr><td>outline_baseline_pen_up_travel_mm</td><td>4594.87</td></tr><tr><td>outline_optimized_pen_up_travel_mm</td><td>686.27</td></tr><tr><td>detail_paint_distance_mm</td><td>533.83</td></tr><tr><td>detail_num_lifts</td><td>239</td></tr><tr><td>detail_baseline_pen_up_travel_mm</td><td>8099.57</td></tr><tr><td>detail_optimized_pen_up_travel_mm</td><td>650.44</td></tr></table>
+  <p class="links"><a href='upload_1786097798_sketch/sketch_painting_paths.json'>painting_paths.json</a></p>
+  <p class="run-dir">output/upload_1786097798_sketch/</p>
 </section>
 
 </div>

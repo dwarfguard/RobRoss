@@ -24,10 +24,13 @@ def make_valid_config() -> dict:
             "min_spur_length_px": 4.0,
             "min_stroke_length_mm": 1.0,
             "simplify_epsilon_ratio": 0.002,
+            "simplify_min_epsilon_px": 1.0,
         },
         "path_generation": {
             "tool_width_mm": 1.0,
             "home_position_mm": [10.0, 10.0],
+            "join_overlapping_strokes": True,
+            "max_join_turn_degrees": 60.0,
         },
         "output": {
             "directory": "output/line_art_test",
@@ -131,6 +134,12 @@ class TestValidateConfig(unittest.TestCase):
         errors = validate_config(config)
         self.assertTrue(any("simplify_epsilon_ratio" in error for error in errors))
 
+    def test_simplify_min_epsilon_px_must_be_nonnegative(self):
+        config = make_valid_config()
+        config["source_image"]["simplify_min_epsilon_px"] = -0.1
+        errors = validate_config(config)
+        self.assertTrue(any("simplify_min_epsilon_px" in error for error in errors))
+
     def test_tool_width_must_be_positive(self):
         config = make_valid_config()
         config["path_generation"]["tool_width_mm"] = 0
@@ -147,6 +156,18 @@ class TestValidateConfig(unittest.TestCase):
         config = make_valid_config()
         del config["path_generation"]["home_position_mm"]
         self.assertEqual(validate_config(config), [])
+
+    def test_join_overlapping_strokes_must_be_boolean(self):
+        config = make_valid_config()
+        config["path_generation"]["join_overlapping_strokes"] = 1
+        errors = validate_config(config)
+        self.assertTrue(any("join_overlapping_strokes" in error for error in errors))
+
+    def test_max_join_turn_degrees_must_be_in_range(self):
+        config = make_valid_config()
+        config["path_generation"]["max_join_turn_degrees"] = 181
+        errors = validate_config(config)
+        self.assertTrue(any("max_join_turn_degrees" in error for error in errors))
 
     def test_missing_painting_paths_file_is_an_error(self):
         config = make_valid_config()

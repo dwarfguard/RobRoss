@@ -135,8 +135,9 @@ test card:
 python3 Image_Process/mondrian/generate_curve_test.py
 ```
 
-This writes `output/curve_test_paths.json` and
-`output/curve_test_preview.svg`. The card contains four independently lifted
+With the default config this writes
+`output/demo_v1_a4_pen/curve_test_paths.json` and
+`output/demo_v1_a4_pen/curve_test_preview.svg`. The card contains four independently lifted
 `paint_path` trajectories: a smooth S-curve, a closed circle, a sine squiggle,
 and a sparse polyline with right-angle and acute corners. The geometry is
 hardcoded so repeated hardware runs can be compared against the same reference.

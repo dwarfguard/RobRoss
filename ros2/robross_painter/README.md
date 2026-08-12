@@ -229,7 +229,7 @@ ros2 launch robross_painter paint.launch.py \
 ```
 
 Use `output/demo_v1_a4_pen/test_line_paths.json` instead for the 50 mm line, or
-`output/curve_test_paths.json` for the post-contact curves and corners test.
+`output/demo_v1_a4_pen/curve_test_paths.json` for the post-contact curves and corners test.
 Add an RViz `Marker` display on `robross_markers` to see the paper outline and
 completed strokes.
 

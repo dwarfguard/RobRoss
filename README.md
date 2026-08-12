@@ -51,7 +51,7 @@ validation status, path/stroke counts) instead of opening files one by one.
 | Goal | Guide |
 | --- | --- |
 | Generate artwork and paths | [Mondrian pipeline](Image_Process/mondrian/README.md) |
-| Trace edges of a source image | [Sketch route](Image_Process/sketch/README.md) |
+| Turn a photo into ordered structural outlines and likeness details | [Sketch route](Image_Process/sketch/README.md) |
 | Turn a photo into Mondrian-style fill art | [Image-to-Mondrian route](Image_Process/image_to_mondrian/README.md) |
 | Turn a photo into Mondrian-style art (AI restyle) | [Gemini Mondrian route](Image_Process/gemini_mondrian/README.md) |
 | Trace a clean line-art/technical illustration | [line_art route](Image_Process/line_art/README.md) |
@@ -179,5 +179,5 @@ limits belong in `ros2/robross_painter`, not in artwork profiles.
 ## Contributing
 
 Keep artwork generation, path generation, validation, and robot execution
-separate. Update the relevant guide when behavior changes. Coding agents should
-also read [AGENTS.md](AGENTS.md).
+separate. Update the canonical guide when behavior changes. Repository-specific
+agent constraints and the documentation authority map are in `CLAUDE.md`.

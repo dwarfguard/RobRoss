@@ -23,6 +23,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = REPO_ROOT / "output"
+DEFAULT_SKETCH_DETAIL_MAX_PATHS = 400
 
 # To add a new route later: add one entry here. Nothing else in this file or
 # in app.py needs to change.
@@ -79,10 +80,23 @@ def _slugify(filename: str) -> str:
     return "".join(keep) or "upload"
 
 
-def run_route(route_key: str, uploaded_file=None) -> str:
+def run_route(
+    route_key: str,
+    uploaded_file=None,
+    *,
+    semantic_preprocessing_enabled=None,
+    detail_max_paths=None,
+) -> str:
     """uploaded_file is a Werkzeug FileStorage (or None for routes that
     don't need one). Returns the new run's name (output/<name>/)."""
     adapter = ROUTE_ADAPTERS[route_key]
+    if route_key == "sketch" and detail_max_paths is not None:
+        if (
+            not isinstance(detail_max_paths, int)
+            or isinstance(detail_max_paths, bool)
+            or detail_max_paths < 0
+        ):
+            raise ValueError("Maximum detail paths must be a non-negative integer.")
     run_name = f"upload_{int(time.time())}_{route_key}"
     run_dir = OUTPUT_DIR / run_name
     run_dir.mkdir(parents=True)
@@ -91,6 +105,13 @@ def run_route(route_key: str, uploaded_file=None) -> str:
     config = json.loads(template_path.read_text(encoding="utf-8"))
     config = copy.deepcopy(config)
     config["output"]["directory"] = f"output/{run_name}"
+
+    if route_key == "sketch" and semantic_preprocessing_enabled is not None:
+        config.setdefault("semantic_preprocessing", {})["enabled"] = bool(
+            semantic_preprocessing_enabled
+        )
+    if route_key == "sketch" and detail_max_paths is not None:
+        config.setdefault("detail_extraction", {})["max_paths"] = detail_max_paths
 
     if adapter["needs_source_image"]:
         if uploaded_file is None or not uploaded_file.filename:

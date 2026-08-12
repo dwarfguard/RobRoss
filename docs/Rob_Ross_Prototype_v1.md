@@ -241,16 +241,9 @@ Use this to check stroke order, direction, and whether the robot-style paths mat
 
 Intermediate robot-style path command file.
 
-This file contains abstract commands such as:
-
-```text
-select_tool
-dip_paint
-move_to
-lower_tool
-paint_stroke
-lift_tool
-```
+The normative command vocabulary is maintained in
+[`painting-paths-format.md`](painting-paths-format.md). It includes straight
+`paint_stroke` commands and continuous polyline `paint_path` commands.
 
 For Demo v1, `select_tool` and `dip_paint` may be treated as no-op/log-only commands because the test uses a single pen and no paint.
 
@@ -373,8 +366,8 @@ python3 Image_Process/mondrian/generate_curve_test.py
 ```
 
 Compare the executed S-curve, circle, sine squiggle, and sharp-corner path
-against `output/curve_test_preview.svg`. The executable commands are stored in
-`output/curve_test_paths.json` using the same `paint_path` format as traced
+against `output/demo_v1_a4_pen/curve_test_preview.svg`. The executable commands are stored in
+`output/demo_v1_a4_pen/curve_test_paths.json` using the same `paint_path` format as traced
 artwork.
 
 Do not run the full path until the team confirms orientation, scale, contact height, and safety.
@@ -453,7 +446,7 @@ The following questions still need hardware testing or team decisions:
 1. What pen and spring-compression envelope should be approved for repeated use?
 2. What velocity and acceleration scaling give the best corner and endpoint quality?
 3. How much of the measured downstream ServoJ delay can or should be reduced?
-4. What endpoint settling window and controller tolerances are appropriate?
+4. What endpoint-settling tolerances and fault-path evidence should qualify the implemented window?
 5. What continuous contact guard and straight-retreat behavior are required before unattended use?
 6. Should Demo v1 remain line-only or add simple outline tracing later?
 
@@ -463,5 +456,5 @@ The following questions still need hardware testing or team decisions:
 
 The supervised A4 contact milestone has been demonstrated. The next practical milestone is:
 
-> Reproduce the accepted Demo v1 drawing from preserved inputs, then harden endpoint settling and
-> continuous contact monitoring without regressing the supervised result.
+> Reproduce the accepted Demo v1 drawing from preserved inputs, qualify endpoint-settling fault
+> paths, and add continuous contact monitoring without regressing the supervised result.
