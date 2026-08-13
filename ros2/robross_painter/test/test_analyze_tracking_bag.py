@@ -6,6 +6,7 @@ segmentation, and no-publish guarantee gate locally in CI.
 """
 
 import importlib.util
+import json
 import math
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from control_msgs.msg import JointTrajectoryControllerState
 from rcl_interfaces.msg import Log
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
+from aubo_msgs.msg import DriverHealth
 
 _SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
@@ -97,6 +99,31 @@ def _diag_log(text):
     m = Log()
     m.name = "aubo_servoj_diag"
     m.msg = text
+    return m
+
+
+def _health(sequence, source_sequence, state=DriverHealth.READY,
+            fault=DriverHealth.FAULT_NONE, writes_enabled=True):
+    m = DriverHealth()
+    m.status_sequence = sequence
+    m.activation_sequence = 1
+    m.state = state
+    m.fault_code = fault
+    m.fault_reason = "none" if fault == DriverHealth.FAULT_NONE else "fault"
+    m.writes_enabled = writes_enabled
+    m.source_sequence = source_sequence
+    m.callback_count = source_sequence
+    m.valid_sample_count = source_sequence
+    m.source_age_sec = 0.002
+    m.max_source_age_sec = 0.010
+    m.callback_age_sec = 0.002
+    m.requested_rate_hz = 500
+    m.observed_rate_hz = 500.0
+    m.interval_mean_ms = 2.0
+    m.interval_p95_ms = 2.1
+    m.interval_p99_ms = 2.2
+    m.interval_max_ms = 3.0
+    m.percentile_window_count = 100
     return m
 
 
@@ -554,3 +581,264 @@ def test_servoj_gate_fails_on_late_queue_full_warning():
     servoj = analyze_tracking_bag.parse_servoj_diag(msgs)
     summary = analyze_tracking_bag.render_summary([], {}, servoj)
     assert "ServoJ timing screen: FAIL" in summary
+
+
+# --- Remediation evidence analysis -----------------------------------------
+
+def _check_by_key(checks, key):
+    return next(check for check in checks if check.key == key)
+
+
+def test_driver_health_clean_progress_passes():
+    msgs = [(i * int(0.1 * S), _health(i, 100 + i * 50))
+            for i in range(5)]
+    checks, events = analyze_tracking_bag.analyze_driver_health(msgs, [])
+    assert not events
+    assert _check_by_key(checks, "driver_health_evidence").state == \
+        analyze_tracking_bag.CheckState.PASS
+    assert _check_by_key(checks, "driver_fault_free").state == \
+        analyze_tracking_bag.CheckState.PASS
+
+
+def test_driver_health_fault_and_sequence_gap_are_reported():
+    msgs = [
+        (0, _health(0, 100)),
+        (int(0.1 * S), _health(
+            2, 100, state=DriverHealth.FAULTED,
+            fault=DriverHealth.FAULT_RTDE_STALE, writes_enabled=False)),
+    ]
+    checks, events = analyze_tracking_bag.analyze_driver_health(msgs, [])
+    assert len(events) == 1
+    assert _check_by_key(checks, "driver_health_evidence").state == \
+        analyze_tracking_bag.CheckState.UNKNOWN
+    assert _check_by_key(checks, "driver_fault_free").state == \
+        analyze_tracking_bag.CheckState.FAIL
+    assert _check_by_key(checks, "driver_fault_detected").state == \
+        analyze_tracking_bag.CheckState.PASS
+
+
+def test_driver_health_checks_source_age_and_expected_rtde_rate():
+    first = _health(0, 100)
+    second = _health(1, 100)
+    second.requested_rate_hz = 200
+    second.source_age_sec = 0.060
+    checks, _events = analyze_tracking_bag.analyze_driver_health(
+        [(0, first), (int(0.1 * S), second)], [],
+        expected_rtde_rate_hz=500, rtde_state_max_age_s=0.05)
+    health = _check_by_key(checks, "driver_fault_free")
+    assert health.state == analyze_tracking_bag.CheckState.FAIL
+    assert "source-sequence stall" in health.summary
+    assert "source age violation" in health.summary
+    assert "expected 500 Hz" in health.summary
+
+
+def test_feedback_detects_nan_and_frozen_controller_state():
+    js = JointState()
+    js.name = ["jx", "jy", "jz"]
+    js.position = [0.0, 0.0, 0.0]
+    js.velocity = [math.nan] * 3
+    ctrl = [
+        (0, _state([0.0, 0.0, 0.0], [0.0, 0.0, 0.0])),
+        (int(0.1 * S), _state([0.1, 0.0, 0.0], [0.0, 0.0, 0.0])),
+        (int(0.2 * S), _state([0.2, 0.0, 0.0], [0.0, 0.0, 0.0])),
+    ]
+    fault = analyze_tracking_bag.IncidentEvent(
+        0, "driver_fault", "error", "fault", "/aubo_driver/health")
+    checks, events = analyze_tracking_bag.analyze_feedback(
+        [(0, js)], ctrl, [fault], [])
+    assert _check_by_key(checks, "feedback_finite").state == \
+        analyze_tracking_bag.CheckState.FAIL
+    assert _check_by_key(checks, "feedback_not_frozen").state == \
+        analyze_tracking_bag.CheckState.FAIL
+    assert {event.category for event in events} == {
+        "invalid_feedback", "frozen_feedback"}
+
+
+def test_executor_detects_post_fault_command_and_endpoint_fallback():
+    rosout = [
+        (1 * S, _log("[1/2] move_to (a)")),
+        (2 * S, _log("Endpoint failed to settle (Cartesian): timed out")),
+        (3 * S, _log("Selected shortest bounded joint-space candidate: 3 deg")),
+        (4 * S, _log("[2/2] lift_tool (b)")),
+    ]
+    fault = analyze_tracking_bag.IncidentEvent(
+        int(1.5 * S), "driver_fault", "error", "fault", "/rosout")
+    checks, events = analyze_tracking_bag.analyze_executor_behavior(
+        rosout, [fault])
+    assert _check_by_key(checks, "no_command_after_fault").state == \
+        analyze_tracking_bag.CheckState.FAIL
+    assert _check_by_key(checks, "no_post_execution_fallback").state == \
+        analyze_tracking_bag.CheckState.FAIL
+    assert {event.category for event in events} == {
+        "post_fault_command", "post_execution_fallback"}
+
+
+def test_executor_detects_moveit_failure_then_controller_success():
+    controller_success = Log()
+    controller_success.name = "joint_trajectory_controller"
+    controller_success.msg = "Goal reached, success!"
+    rosout = [
+        (1 * S, _log("Execution reported failure (Cartesian); contact state is uncertain")),
+        (1 * S + int(0.05 * S), controller_success),
+    ]
+    checks, events = analyze_tracking_bag.analyze_executor_behavior(rosout, [])
+    consistency = _check_by_key(checks, "moveit_controller_consistency")
+    assert consistency.state == analyze_tracking_bag.CheckState.FAIL
+    assert "50.0 ms later" in consistency.summary
+    assert any(event.category == "split_motion_outcome" for event in events)
+
+
+def test_servoj_runtime_fails_on_reported_queue_full():
+    rosout = [
+        (1 * S, _diag_log(SERVOJ_CONFIG_LINE)),
+        (2 * S, _diag_log(SERVOJ_STATS_2)),
+    ]
+    checks, events = analyze_tracking_bag.analyze_servoj_runtime(rosout)
+    assert checks[0].state == analyze_tracking_bag.CheckState.FAIL
+    assert "queue-full 1" in checks[0].summary
+    assert events[0].category == "servoj_runtime_failure"
+
+
+def _write_servoj_calls(path, rows, footer=True):
+    lines = [",".join(analyze_tracking_bag.SERVOJ_CALL_COLUMNS)]
+    lines.extend(rows)
+    if footer:
+        lines.append(
+            f"# end last_seq={len(rows) - 1} rows={len(rows)} dropped=0 "
+            "status=complete")
+    path.write_text("\n".join(lines) + "\n")
+
+
+def _servoj_row(seq, t_wall, t_call=None, rc=0):
+    if t_call is None:
+        t_call = 1000.0 + t_wall
+    values = [seq, 1000.0 + t_wall, t_wall, t_call]
+    values.extend([0.0] * 6)
+    values.extend([0.008, 1.0, rc, 0, 0, 0])
+    return ",".join(str(value) for value in values)
+
+
+def test_servoj_calls_accept_complete_contiguous_file(tmp_path):
+    path = tmp_path / "calls.csv"
+    _write_servoj_calls(path, [_servoj_row(i, 10.0 + i * 0.008)
+                               for i in range(5)])
+    checks, events, telemetry = analyze_tracking_bag.analyze_servoj_calls(
+        path, expected_rate_hz=125.0, expected_servoj_t_s=0.008)
+    assert not events
+    assert telemetry["footer"]["status"] == "complete"
+    assert checks[0].state == analyze_tracking_bag.CheckState.PASS
+
+
+def test_servoj_calls_default_to_125hz_and_008s(tmp_path):
+    path = tmp_path / "calls.csv"
+    _write_servoj_calls(path, [_servoj_row(i, 10.0 + i * 0.008)
+                               for i in range(5)])
+    checks, _events, _telemetry = analyze_tracking_bag.analyze_servoj_calls(path)
+    assert checks[0].state == analyze_tracking_bag.CheckState.PASS
+
+    slow_path = tmp_path / "slow_calls.csv"
+    slow_rows = []
+    for i in range(5):
+        row = _servoj_row(i, 10.0 + i * 0.080).split(",")
+        row[10] = "0.080"
+        slow_rows.append(",".join(row))
+    _write_servoj_calls(slow_path, slow_rows)
+    checks, _events, _telemetry = analyze_tracking_bag.analyze_servoj_calls(
+        slow_path)
+    assert checks[0].state == analyze_tracking_bag.CheckState.FAIL
+    assert "servoj_t_s" in checks[0].summary
+    assert "below 95%" in checks[0].summary
+
+
+def test_servoj_calls_reject_gap_failure_and_partial(tmp_path):
+    path = tmp_path / "calls.csv"
+    _write_servoj_calls(path, [_servoj_row(0, 10.0),
+                               _servoj_row(2, 10.008, rc=2)])
+    Path(str(path) + ".partial").write_text("partial")
+    checks, events, _telemetry = analyze_tracking_bag.analyze_servoj_calls(path)
+    assert checks[0].state == analyze_tracking_bag.CheckState.FAIL
+    assert events and events[0].category == "servoj_failure"
+    assert "sequence" in checks[0].summary
+    assert "partial" in checks[0].summary
+
+
+def test_clock_detects_system_steady_offset_step(tmp_path):
+    path = tmp_path / "calls.csv"
+    _write_servoj_calls(path, [
+        _servoj_row(0, 10.000, 1010.000),
+        _servoj_row(1, 10.008, 1010.008),
+        _servoj_row(2, 10.016, 1009.966),
+    ])
+    telemetry = analyze_tracking_bag.read_servoj_calls_csv(path)
+    evidence = {"messages": {}}
+    checks, events = analyze_tracking_bag.analyze_clock(evidence, [], telemetry)
+    assert checks[0].state == analyze_tracking_bag.CheckState.FAIL
+    assert events[0].category == "clock_discontinuity"
+
+
+def test_gate_is_incomplete_when_future_capabilities_are_unavailable():
+    checks = [
+        analyze_tracking_bag._check(
+            "driver_health_evidence", "health",
+            analyze_tracking_bag.CheckState.PASS, "ok"),
+        analyze_tracking_bag._check(
+            "driver_fault_detected", "fault",
+            analyze_tracking_bag.CheckState.PASS, "ok"),
+        analyze_tracking_bag._check(
+            "no_command_after_fault", "commands",
+            analyze_tracking_bag.CheckState.PASS, "ok"),
+        analyze_tracking_bag._check(
+            "no_post_execution_fallback", "fallback",
+            analyze_tracking_bag.CheckState.PASS, "ok"),
+        analyze_tracking_bag._check(
+            "structured_motion_outcomes", "outcomes",
+            analyze_tracking_bag.CheckState.NOT_APPLICABLE, "not implemented"),
+        analyze_tracking_bag._check(
+            "controller_hardening", "controller",
+            analyze_tracking_bag.CheckState.NOT_APPLICABLE, "not implemented"),
+        analyze_tracking_bag._check(
+            "runtime_provenance", "provenance",
+            analyze_tracking_bag.CheckState.NOT_APPLICABLE, "not implemented"),
+    ]
+    assert analyze_tracking_bag._overall(
+        checks, "debug", "static-fault") == ("INCOMPLETE", 3)
+
+
+def test_analyze_remediation_synthetic_bag_is_capability_aware(tmp_path):
+    bag_dir, _canvas, _calib = _fixture_files(tmp_path)
+    report = analyze_tracking_bag.analyze_remediation(bag_dir)
+    # The shared fixture deliberately includes one queue-full report.
+    assert report.overall == "FAIL"
+    assert report.exit_code == 1
+    assert _check_by_key(report.checks, "servoj_runtime").state == \
+        analyze_tracking_bag.CheckState.FAIL
+    assert _check_by_key(report.checks, "driver_health_evidence").state == \
+        analyze_tracking_bag.CheckState.UNKNOWN
+    assert _check_by_key(report.checks, "structured_motion_outcomes").state == \
+        analyze_tracking_bag.CheckState.NOT_APPLICABLE
+
+
+def test_analyze_remediation_gate_is_incomplete_without_health(tmp_path):
+    bag_dir, _canvas, _calib = _fixture_files(tmp_path)
+    report = analyze_tracking_bag.analyze_remediation(
+        bag_dir, gate="stationary-soak")
+    assert report.overall == "INCOMPLETE"
+    assert report.exit_code == 3
+
+
+def test_remediation_json_and_event_csv_exports(tmp_path):
+    check = analyze_tracking_bag._check(
+        "driver_fault_free", "health", analyze_tracking_bag.CheckState.FAIL,
+        "fault")
+    event = analyze_tracking_bag.IncidentEvent(
+        123, "driver_fault", "error", "fault", "/aubo_driver/health")
+    report = analyze_tracking_bag.RemediationReport(
+        "bag", "debug", None, 1, 2, {"/rosout": 1}, [check], [event],
+        "FAIL", 1)
+    json_path = tmp_path / "report.json"
+    csv_path = tmp_path / "events.csv"
+    analyze_tracking_bag.write_remediation_json(json_path, report)
+    analyze_tracking_bag.write_events_csv(csv_path, report.events)
+    payload = json.loads(json_path.read_text())
+    assert payload["checks"][0]["state"] == "FAIL"
+    assert csv_path.read_text().splitlines()[0].startswith("t_ns,category")

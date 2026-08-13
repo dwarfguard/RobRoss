@@ -134,7 +134,7 @@ test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV.partial" || {
 }
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
   aubo_type:=$AUBO_TYPE robot_ip:=$ROBOT_IP use_fake_hardware:=false \
-  controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008
+  controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008 rtde_state_rate:=200 rtde_state_max_age:=0.05
 ```
 
 The selected hardware profile is the matched pair `125 Hz / 0.008 s`, and it is now the driver
@@ -649,6 +649,7 @@ elbow-up starting pose.
 export TRIAL_DIR=$PHASE2_SESSION/hover_125hz_008s
 test ! -e "$TRIAL_DIR" || { echo "Choose a new hover bag path"; exit 1; }
 ros2 bag record -o "$TRIAL_DIR" \
+  /aubo_driver/health \
   /joint_trajectory_controller/controller_state \
   /joint_states \
   /parameter_events \
@@ -772,10 +773,18 @@ grep -F "# plane_bias_mm: 1.0" $PHASE2_SESSION/contact_canvas_source.yaml || {
 
 ros2 run robross_painter analyze_tracking_bag.py \
   $PHASE2_SESSION/hover_125hz_008s \
+  --gate hover \
+  --servoj-calls-csv $PHASE2_SESSION/hover_servoj_calls.csv \
+  --expected-rate-hz 125 \
+  --expected-servoj-t-s 0.008 \
+  --expected-rtde-rate-hz 200 \
+  --rtde-state-max-age-s 0.05 \
   --canvas-file $PHASE2_SESSION/hover_canvas.yaml \
   --calibration-file $PHASE2_SESSION/hover_hardware.yaml \
   --plane-bias-mm 1.0 \
   --csv $PHASE2_SESSION/hover_tracking.csv \
+  --json $PHASE2_SESSION/hover_remediation_report.json \
+  --events-csv $PHASE2_SESSION/hover_remediation_events.csv \
   --servoj-csv $PHASE2_SESSION/hover_servoj_windows.csv | \
   tee $PHASE2_SESSION/hover_summary.md
 ```
