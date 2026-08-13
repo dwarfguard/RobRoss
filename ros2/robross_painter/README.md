@@ -55,24 +55,24 @@ collision geometry. It then applies these fail-closed checks:
 - configured elbow-family limits at startup and along every trajectory;
 - bounded goal displacement, total travel, and sample steps for guarded joints;
 - tighter guarded-joint travel while lowering, painting, or lifting;
-- Cartesian jump detection and post-retiming pen-tip path validation, with
-  the canvas-normal deviation checked separately (and much tighter) than the
-  tangential deviation;
+- Cartesian jump detection and, when enabled, post-retiming pen-tip path
+  validation, with independently configurable tangential, canvas-normal, and
+  orientation checks;
 - Cartesian trajectories sent position-only at the controller period
   (`controller_sample_dt`), so the controller's linear interpolation matches
   exactly what the validator checked;
 - MoveIt bounds and collision checks at interpolated trajectory samples;
-- endpoint settling after execution (below), then a one-shot collision check on
-  the settled measured pose.
+- optional endpoint settling after execution (below), then a mandatory one-shot
+  collision check on the fresh measured pose.
 
 ### Endpoint settling
 
 MoveIt reporting a trajectory "complete" only means the command stream finished;
 the measured `/joint_states` feedback trails the commanded setpoint by roughly
 88–120 ms on this arm, so the first post-completion sample can still show the arm
-moving toward the target. Instead of comparing that first sample, every move
-(pen-up and pen-down alike, in the single `executeTrajectory` path) waits for the
-arm to reach **and hold** the planned endpoint at rest before it is accepted.
+moving toward the target. When endpoint settling is enabled, every move (pen-up
+and pen-down alike, in the single `executeTrajectory` path) waits for the arm to
+reach **and hold** the planned endpoint at rest before it is accepted.
 
 On every fresh feedback sample the executor checks, together: the measured
 endpoint is within tolerance (joint angle, pen-tip position and orientation),
@@ -85,7 +85,24 @@ location (stationary but out of tolerance) and a right-location fly-through (in
 tolerance but still moving) therefore both fail to settle. Missing velocity
 feedback fails closed.
 
-On physical hardware, the AUBO driver also checks the underlying 500 Hz RTDE
+Every conformance criterion has an independent switch:
+`cartesian_deviation_check_enabled`,
+`cartesian_normal_deviation_check_enabled`,
+`cartesian_orientation_deviation_check_enabled`,
+`execution_joint_error_check_enabled`, `execution_tip_error_check_enabled`, and
+`execution_tip_orientation_error_check_enabled`. Disabled Cartesian criteria do
+not reject a retimed path. Disabled execution criteria do not participate in
+endpoint qualification. All six criteria and `endpoint_settle_enabled` default
+to `true` in the executor and every shipped profile. The per-joint endpoint limit is
+`max_execution_joint_error_deg`.
+
+`endpoint_settle_enabled=false` removes the stationary-velocity and continuous
+dwell wait. The executor instead obtains one fresh sample after MoveIt reports
+completion and applies each enabled execution error check once. Model bounds,
+elbow posture, fresh position feedback, and the final collision check remain
+mandatory. Thus execution error switches remain independent of settling.
+
+On physical hardware, the AUBO driver also checks the underlying 200 Hz RTDE
 source rather than ROS publication time alone. If no new RTDE state packet
 arrives within `rtde_state_max_age` (driver launch default `0.05` s), it latches
 a hardware fault, invalidates velocity feedback, and disables further ServoJ
@@ -93,8 +110,8 @@ writes until the driver is restarted. This prevents ros2_control from
 republishing cached state as qualifying settle samples. Keep this driver limit
 at or below `endpoint_settle_sample_max_age`.
 
-The motion kind selects only the budget and the recovery, never whether the
-check runs — contact moves (lowering, painting) use the shorter
+When settling is enabled, the motion kind selects its budget and recovery:
+contact moves (lowering, painting) use the shorter
 `endpoint_settle_contact_timeout`. If the arm does not settle within the budget
 the move **fails closed** (an endpoint-validation failure — the motion itself
 already completed): the executor commands a hold, logs the last and best
@@ -480,11 +497,48 @@ speeds with an operator on the e-stop. Unattended contact remains unapproved.
 
 ## Offline Tracking-Bag Analysis
 
-`scripts/analyze_tracking_bag.py` is the offline analysis tool. It turns a recorded painting
-run into per-command tracking metrics so every timing/interpolation change can
-be compared against the same baseline. It is strictly read-only — it never
-initializes ROS, creates no node, and publishes nothing; it only reads the bag
-files.
+`scripts/analyze_tracking_bag.py` is a read-only remediation and debugging tool.
+It never initializes ROS, creates a node, publishes, or replays a bag. Its
+default report inventories the available evidence and checks for driver faults,
+RTDE source-health failures, malformed/non-finite or frozen feedback, commands
+started after a fault, post-execution joint-space fallback, ServoJ failures, and
+wall-clock discontinuities.
+
+```bash
+ros2 run robross_painter analyze_tracking_bag.py <bag_dir> \
+  --servoj-calls-csv <full-rate-driver.csv> \
+  --expected-rate-hz 125 \
+  --expected-servoj-t-s 0.008 \
+  --expected-rtde-rate-hz 500 \
+  --rtde-state-max-age-s 0.05 \
+  --json remediation-report.json \
+  --events-csv remediation-events.csv
+```
+
+Checks report `PASS`, `FAIL`, `UNKNOWN`, or `NOT_APPLICABLE`. Later remediation
+phases are capability-aware: their absence does not stop normal debugging.
+Use `--gate stationary-soak`, `--gate hover`, `--gate deliberate-fault`,
+`--gate contact`, or `--gate static-fault` only when applying that strict
+remediation gate. A gate returns `0` when all required evidence passes, `1` on a
+confirmed violation, and `3` when required evidence or capability is incomplete.
+Debug mode returns `1` only for a confirmed violation; missing optional evidence
+is still shown but does not fail the command.
+
+The expected ServoJ profile defaults to `125 Hz` with `t=0.008 s`. Use the
+explicit expectation arguments only when debugging a deliberately different
+profile.
+
+For new bags, record `/aubo_driver/health`, `/joint_states`, controller state,
+`/rosout`, `/parameter_events`, and `/robot_description`, and preserve the
+separate finalized full-rate ServoJ call CSV. Legacy bags without driver health
+remain useful: direct RTDE fault logs, non-finite feedback, frozen state,
+post-fault commands, fallback, and clock warnings are identified as legacy or
+derived evidence rather than silently treated as healthy.
+
+### Optional geometry diagnostics
+
+Canvas-space tracking remains available as an optional diagnostic. Supplying
+the canvas and calibration files appends the historical geometry report:
 
 ```bash
 ros2 run robross_painter analyze_tracking_bag.py <bag_dir> \
@@ -495,7 +549,7 @@ ros2 run robross_painter analyze_tracking_bag.py <bag_dir> \
   --servoj-csv servoj.csv   # optional; only meaningful for driver diagnostic bags
 ```
 
-Required bag topics: `/joint_trajectory_controller/controller_state` (reference
+Geometry requires `/joint_trajectory_controller/controller_state` (reference
 and feedback joints), `/rosout` (painting_executor command labels drive the
 segmentation), and `/robot_description` (the runtime URDF used for forward
 kinematics — the same calibrated chain MoveIt used; pass `--urdf` if the bag
@@ -505,7 +559,7 @@ spring compression (`plane_bias_mm + actual canvas z`), per-joint errors
 (max/mean/RMS), and publication rate/jitter for controller state and joint
 states. `--csv` exports per-sample rows for offline plotting.
 
-### Phase delay and normal oscillation
+### Historical phase delay and normal oscillation
 
 The summary also reports a **Phase delay & normal oscillation** diagnostic
 section computed from the bagged controller state:

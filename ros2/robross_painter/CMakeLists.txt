@@ -96,6 +96,9 @@ if(BUILD_TESTING)
   ament_add_gtest(test_endpoint_settling
     test/test_endpoint_settling.cpp)
   target_include_directories(test_endpoint_settling PRIVATE src)
+  ament_add_gtest(test_conformance_checks
+    test/test_conformance_checks.cpp)
+  target_include_directories(test_conformance_checks PRIVATE src)
   ament_add_gtest(test_cartesian_failure_diagnostics
     test/test_cartesian_failure_diagnostics.cpp)
   target_include_directories(test_cartesian_failure_diagnostics PRIVATE src)

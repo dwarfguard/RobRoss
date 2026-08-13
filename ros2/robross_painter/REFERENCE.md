@@ -75,18 +75,28 @@ These guards supplement the Cartesian jump detector; they do not replace it.
 
 | Parameter | Meaning |
 | --- | --- |
+| `cartesian_deviation_check_enabled` | Enables rejection on tangential post-retiming Cartesian deviation. |
 | `max_cartesian_deviation_mm` | Maximum post-retiming pen-tip tangential (in-canvas-plane) error from the requested path. |
+| `cartesian_normal_deviation_check_enabled` | Enables rejection on signed canvas-normal deviation. |
 | `max_cartesian_normal_deviation_mm` | Maximum signed canvas-normal pen-tip error, checked separately inward (into the paper) and outward. Much tighter than the tangential limit: normal excursions rip or gap the paper. |
+| `cartesian_orientation_deviation_check_enabled` | Enables rejection on post-retiming tool-orientation deviation. |
 | `max_cartesian_orientation_deviation_deg` | Maximum post-retiming tool-orientation error. |
+| `execution_joint_error_check_enabled` | Enables measured endpoint joint-error qualification. |
+| `max_execution_joint_error_deg` | Maximum measured per-joint endpoint error after execution. |
+| `execution_tip_error_check_enabled` | Enables measured endpoint tip-position qualification. |
 | `max_execution_tip_error_mm` | Maximum measured endpoint position error after execution. |
+| `execution_tip_orientation_error_check_enabled` | Enables measured endpoint tip-orientation qualification. |
 | `max_execution_tip_orientation_error_deg` | Maximum measured endpoint orientation error after execution. |
+| `endpoint_settle_enabled` | Enables the fresh, stationary continuous-dwell endpoint gate. When false, enabled execution error checks run once on the first fresh post-completion sample. All seven conformance switches default to true. |
 | `totg_path_tolerance` | Time-Optimal Trajectory Generation path tolerance. |
 | `controller_sample_dt` | Cartesian trajectory sample interval in seconds; match the joint trajectory controller period. Cartesian trajectories are sent position-only at this interval so the controller interpolates linearly, matching the validator's model. |
 
 Validation runs after TOTG and before execution. It interpolates between
-trajectory knots and checks pen-tip FK, model bounds, elbow posture, guarded
-joints, and MoveIt collision validity. After execution, fresh measured feedback
-must also satisfy model, collision, posture, and endpoint checks.
+trajectory knots and applies enabled pen-tip FK checks plus mandatory model
+bounds, elbow posture, guarded-joint, and MoveIt collision checks. After
+execution, fresh measured feedback must always satisfy model, collision, and
+posture checks; enabled endpoint checks are applied either through settling or
+once on the first fresh sample when settling is disabled.
 
 ## Profiles
 
@@ -95,7 +105,7 @@ must also satisfy model, collision, posture, and endpoint checks.
 | `config/rviz_wall_a4.yaml` | Fake hardware, virtual wall | Yes |
 | `config/rviz_taught_a4.yaml` | Fake hardware, taught canvas on any plane (sim-only: no ground plane, relaxed guards) | Yes |
 | `config/demo_v1_rviz.yaml` | Fake hardware, horizontal paper | Yes |
-| `config/hardware_a4.yaml` | Real-arm template, any taught surface | No (`dry_run: true`) |
+| `config/hardware_a4.yaml` | Real arm, any taught surface | Yes (`dry_run: false`) |
 
 Treat shipped values as reviewed starting points, not proof that physical
 geometry has been measured. Follow the

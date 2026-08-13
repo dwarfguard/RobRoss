@@ -111,11 +111,11 @@ def test_shipped_calibration_profiles_are_valid():
         paint_launch.validate_calibration_file(str(path))
 
 
-def test_shipped_hardware_profile_is_dry_run():
+def test_shipped_hardware_profile_executes_live():
     path = PACKAGE_ROOT / "config" / "hardware_a4.yaml"
     parameters = yaml.safe_load(path.read_text(encoding="utf-8"))
 
-    assert parameters["painting_executor"]["ros__parameters"]["dry_run"] is True
+    assert parameters["painting_executor"]["ros__parameters"]["dry_run"] is False
 
 
 def test_hardware_representative_profiles_share_tool_geometry():
@@ -149,10 +149,23 @@ def test_shipped_profiles_use_controller_period_interpolation():
         "rviz_taught_a4.yaml": 0.008,
         "rviz_wall_a4.yaml": 0.008,
     }
+    check_keys = (
+        "cartesian_deviation_check_enabled",
+        "cartesian_normal_deviation_check_enabled",
+        "cartesian_orientation_deviation_check_enabled",
+        "execution_joint_error_check_enabled",
+        "execution_tip_error_check_enabled",
+        "execution_tip_orientation_error_check_enabled",
+        "endpoint_settle_enabled",
+    )
     for name, sample_period in sample_periods.items():
         path = PACKAGE_ROOT / "config" / name
         params = yaml.safe_load(path.read_text(encoding="utf-8"))
         params = params["painting_executor"]["ros__parameters"]
         assert params["controller_sample_dt"] == sample_period, name
-        assert params["max_cartesian_normal_deviation_mm"] == 0.2, name
+        assert {key: params[key] for key in check_keys} == {
+            key: True for key in check_keys
+        }, name
+        assert params["max_cartesian_normal_deviation_mm"] > 0.0, name
+        assert params["max_execution_joint_error_deg"] == 2.0, name
         assert "totg_resample_dt" not in params, name

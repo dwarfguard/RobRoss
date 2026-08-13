@@ -67,6 +67,7 @@
 
 #include "cartesian_postprocess.hpp"
 #include "cartesian_failure_diagnostics.hpp"
+#include "conformance_checks.hpp"
 #include "endpoint_settling.hpp"
 
 namespace {
@@ -272,20 +273,43 @@ public:
                                 max_guarded_joint_step_deg_,
                                 max_guarded_joint_step_deg_);
         node_->get_parameter_or("max_cartesian_deviation_mm",
-                                max_cartesian_deviation_mm_,
-                                max_cartesian_deviation_mm_);
+                                 max_cartesian_deviation_mm_,
+                                 max_cartesian_deviation_mm_);
+        node_->get_parameter_or("cartesian_deviation_check_enabled",
+                                cartesian_deviation_check_enabled_,
+                                cartesian_deviation_check_enabled_);
         node_->get_parameter_or("max_cartesian_normal_deviation_mm",
-                                max_cartesian_normal_deviation_mm_,
-                                max_cartesian_normal_deviation_mm_);
+                                 max_cartesian_normal_deviation_mm_,
+                                 max_cartesian_normal_deviation_mm_);
+        node_->get_parameter_or("cartesian_normal_deviation_check_enabled",
+                                cartesian_normal_deviation_check_enabled_,
+                                cartesian_normal_deviation_check_enabled_);
         node_->get_parameter_or("max_cartesian_orientation_deviation_deg",
-                                max_cartesian_orientation_deviation_deg_,
-                                max_cartesian_orientation_deviation_deg_);
+                                 max_cartesian_orientation_deviation_deg_,
+                                 max_cartesian_orientation_deviation_deg_);
+        node_->get_parameter_or(
+            "cartesian_orientation_deviation_check_enabled",
+            cartesian_orientation_deviation_check_enabled_,
+            cartesian_orientation_deviation_check_enabled_);
+        node_->get_parameter_or("max_execution_joint_error_deg",
+                                max_execution_joint_error_deg_,
+                                max_execution_joint_error_deg_);
+        node_->get_parameter_or("execution_joint_error_check_enabled",
+                                execution_joint_error_check_enabled_,
+                                execution_joint_error_check_enabled_);
         node_->get_parameter_or("max_execution_tip_error_mm",
-                                max_execution_tip_error_mm_,
-                                max_execution_tip_error_mm_);
+                                 max_execution_tip_error_mm_,
+                                 max_execution_tip_error_mm_);
+        node_->get_parameter_or("execution_tip_error_check_enabled",
+                                execution_tip_error_check_enabled_,
+                                execution_tip_error_check_enabled_);
         node_->get_parameter_or("max_execution_tip_orientation_error_deg",
-                                max_execution_tip_orientation_error_deg_,
-                                max_execution_tip_orientation_error_deg_);
+                                 max_execution_tip_orientation_error_deg_,
+                                 max_execution_tip_orientation_error_deg_);
+        node_->get_parameter_or(
+            "execution_tip_orientation_error_check_enabled",
+            execution_tip_orientation_error_check_enabled_,
+            execution_tip_orientation_error_check_enabled_);
         node_->get_parameter_or("totg_path_tolerance", totg_path_tolerance_,
                                 totg_path_tolerance_);
         node_->get_parameter_or("controller_sample_dt", controller_sample_dt_,
@@ -317,7 +341,11 @@ public:
         node_->get_parameter_or("endpoint_settle_sample_max_age",
                                 endpoint_settle_sample_max_age_,
                                 endpoint_settle_sample_max_age_);
+        node_->get_parameter_or("endpoint_settle_enabled",
+                                endpoint_settle_enabled_,
+                                endpoint_settle_enabled_);
         validateSettleParameters();
+        logConformanceCheckConfiguration();
 
         group_.setMaxVelocityScalingFactor(vel_scale_);
         group_.setMaxAccelerationScalingFactor(acc_scale_);
@@ -1154,6 +1182,76 @@ private:
         return RetreatOutcome::Failed;
     }
 
+    robross_painter::CartesianCheckPolicy cartesianCheckPolicy() const
+    {
+        robross_painter::CartesianCheckPolicy policy;
+        policy.deviation_enabled = cartesian_deviation_check_enabled_;
+        policy.normal_deviation_enabled =
+            cartesian_normal_deviation_check_enabled_;
+        policy.orientation_deviation_enabled =
+            cartesian_orientation_deviation_check_enabled_;
+        policy.max_deviation_mm = max_cartesian_deviation_mm_;
+        policy.max_normal_deviation_mm = max_cartesian_normal_deviation_mm_;
+        policy.max_orientation_deviation_deg =
+            max_cartesian_orientation_deviation_deg_;
+        return policy;
+    }
+
+    robross_painter::EndpointCheckPolicy endpointCheckPolicy() const
+    {
+        robross_painter::EndpointCheckPolicy policy;
+        policy.joint_error_enabled = execution_joint_error_check_enabled_;
+        policy.tip_error_enabled = execution_tip_error_check_enabled_;
+        policy.tip_orientation_error_enabled =
+            execution_tip_orientation_error_check_enabled_;
+        policy.max_joint_error_deg = max_execution_joint_error_deg_;
+        policy.max_tip_error_mm = max_execution_tip_error_mm_;
+        policy.max_tip_orientation_error_deg =
+            max_execution_tip_orientation_error_deg_;
+        return policy;
+    }
+
+    void logConformanceCheckConfiguration() const
+    {
+        std::vector<std::string> disabled;
+        const auto add_if_disabled = [&disabled](bool enabled,
+                                                 const char *name) {
+            if (!enabled) {
+                disabled.emplace_back(name);
+            }
+        };
+        add_if_disabled(cartesian_deviation_check_enabled_,
+                        "cartesian deviation");
+        add_if_disabled(cartesian_normal_deviation_check_enabled_,
+                        "cartesian normal deviation");
+        add_if_disabled(cartesian_orientation_deviation_check_enabled_,
+                        "cartesian orientation deviation");
+        add_if_disabled(execution_joint_error_check_enabled_,
+                        "execution joint error");
+        add_if_disabled(execution_tip_error_check_enabled_,
+                        "execution tip error");
+        add_if_disabled(execution_tip_orientation_error_check_enabled_,
+                        "execution tip orientation error");
+        add_if_disabled(endpoint_settle_enabled_, "endpoint settling");
+        if (disabled.empty()) {
+            RCLCPP_INFO(node_->get_logger(),
+                        "All motion conformance checks are enabled");
+            return;
+        }
+        std::ostringstream names;
+        for (std::size_t i = 0; i < disabled.size(); ++i) {
+            if (i != 0) {
+                names << ", ";
+            }
+            names << disabled[i];
+        }
+        RCLCPP_WARN(node_->get_logger(),
+                    "Motion conformance checks DISABLED: %s. Collision, "
+                    "bounds, jump, posture, and guarded-joint checks remain "
+                    "active",
+                    names.str().c_str());
+    }
+
     bool initializeMotionPolicy()
     {
         if (!std::isfinite(safe_clearance_) || safe_clearance_ <= 0.0 ||
@@ -1209,6 +1307,7 @@ private:
             !std::isfinite(max_cartesian_deviation_mm_) ||
             !std::isfinite(max_cartesian_normal_deviation_mm_) ||
             !std::isfinite(max_cartesian_orientation_deviation_deg_) ||
+            !std::isfinite(max_execution_joint_error_deg_) ||
             !std::isfinite(max_execution_tip_error_mm_) ||
             !std::isfinite(max_execution_tip_orientation_error_deg_) ||
             !std::isfinite(totg_path_tolerance_) ||
@@ -1220,11 +1319,13 @@ private:
             max_cartesian_deviation_mm_ <= 0.0 ||
             max_cartesian_normal_deviation_mm_ <= 0.0 ||
             max_cartesian_orientation_deviation_deg_ <= 0.0 ||
+            max_execution_joint_error_deg_ <= 0.0 ||
             max_execution_tip_error_mm_ <= 0.0 ||
             max_execution_tip_orientation_error_deg_ <= 0.0 ||
             totg_path_tolerance_ <= 0.0 || controller_sample_dt_ <= 0.0) {
             RCLCPP_ERROR(node_->get_logger(),
-                         "All guarded-joint motion limits must be positive");
+                         "All motion limits and tolerances must be finite and "
+                         "positive");
             return false;
         }
 
@@ -1465,10 +1566,13 @@ private:
                     " (max into/out of paper), tangential %.3f mm, %.3f deg",
                     inward_mm, outward_mm, tangential_mm,
                     orientation_error_deg);
-        if (inward_mm > max_cartesian_normal_deviation_mm_ ||
-            -outward_mm > max_cartesian_normal_deviation_mm_ ||
-            tangential_mm > max_cartesian_deviation_mm_ ||
-            orientation_error_deg > max_cartesian_orientation_deviation_deg_) {
+        robross_painter::CartesianConformanceError error;
+        error.inward_normal_mm = inward_mm;
+        error.outward_normal_mm = outward_mm;
+        error.tangential_mm = tangential_mm;
+        error.orientation_deg = orientation_error_deg;
+        if (!robross_painter::cartesianConformanceAccepted(
+                error, cartesianCheckPolicy())) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Retimed Cartesian path exceeds FK limits (normal "
                          "%.3f mm, tangential %.3f mm, %.3f deg)",
@@ -1691,20 +1795,12 @@ private:
         return joint_state_sequence_;
     }
 
-    struct EndpointError {
-        bool within_limits = false;
-        double max_joint_deg = 0.0;
-        double tip_mm = 0.0;
-        double orient_deg = 0.0;
-        // Max normalized error (error / limit) across the gates; infinity when
-        // the sample violates bounds. Used to pick the "best" sample.
-        double ratio = std::numeric_limits<double>::infinity();
-    };
+    using EndpointError = robross_painter::EndpointConformanceError;
 
     // Geometric endpoint check for one measured sample against the trajectory's
-    // final waypoint: per-joint angle (<= 2 deg), model/elbow bounds, and
-    // pen-tip position/orientation. Pure (no service call, no logging) so it can
-    // run on every feedback sample while settling.
+    // final waypoint: per-joint angle, model/elbow bounds, and pen-tip
+    // position/orientation. Pure (no service call, no logging) so it can run on
+    // every feedback sample while settling.
     EndpointError endpointError(const std::vector<std::string> &names,
                                 const std::vector<double> &positions,
                                 const moveit_msgs::msg::RobotTrajectory &traj)
@@ -1724,7 +1820,6 @@ private:
         }
         measured.update();
 
-        constexpr double kEndpointToleranceDeg = 2.0;
         double max_joint_deg = 0.0;
         for (std::size_t i = 0; i < jt.joint_names.size(); ++i) {
             const double error_deg =
@@ -1764,17 +1859,7 @@ private:
         result.orient_deg = actual_tip.getRotation().angleShortestPath(
                                 expected_tip.getRotation()) *
                             180.0 / M_PI;
-        result.within_limits =
-            bounds_ok && max_joint_deg <= kEndpointToleranceDeg &&
-            result.tip_mm <= max_execution_tip_error_mm_ &&
-            result.orient_deg <= max_execution_tip_orientation_error_deg_;
-        result.ratio =
-            bounds_ok
-                ? std::max({ max_joint_deg / kEndpointToleranceDeg,
-                             result.tip_mm / max_execution_tip_error_mm_,
-                             result.orient_deg /
-                                 max_execution_tip_orientation_error_deg_ })
-                : std::numeric_limits<double>::infinity();
+        result.hard_limits_ok = bounds_ok;
         return result;
     }
 
@@ -1842,22 +1927,26 @@ private:
             const EndpointError err =
                 positions_valid ? endpointError(names, positions, traj)
                                 : EndpointError{};
+            const auto policy = endpointCheckPolicy();
+            const double error_ratio =
+                robross_painter::endpointErrorRatio(err, policy);
 
             robross_painter::SettleSample sample;
             sample.sequence = seq;
             sample.receipt_time = toSeconds(received_at);
             sample.valid = valid;
-            sample.endpoint_ok = err.within_limits;
+            sample.endpoint_ok =
+                robross_painter::endpointConformanceAccepted(err, policy);
             sample.stationary =
                 valid && max_vel <= endpoint_settle_velocity_tolerance_;
-            sample.error_ratio = err.ratio;
+            sample.error_ratio = error_ratio;
 
             report.last_names = names;
             report.last_positions = positions;
             report.last_velocities = velocities;
             report.last_max_velocity = max_vel;
-            if (err.ratio < report.best_error_ratio) {
-                report.best_error_ratio = err.ratio;
+            if (error_ratio < report.best_error_ratio) {
+                report.best_error_ratio = error_ratio;
                 report.best_names = names;
                 report.best_positions = positions;
                 report.best_velocities = velocities;
@@ -2261,22 +2350,51 @@ private:
             markExecutionFailure(kind);
             return false;
         }
-        // Endpoint settling: wait for the arm to reach and hold the endpoint at
-        // rest before trusting the measured pose (feedback trails the command).
-        SettleReport report;
-        if (!settleAtEndpoint(traj, kind, completion_time, completion_seq,
-                              report)) {
-            logSettleFailure(what, report);
+        if (endpoint_settle_enabled_) {
+            // Wait for the arm to reach and hold the endpoint at rest before
+            // trusting the measured pose (feedback trails the command).
+            SettleReport report;
+            if (!settleAtEndpoint(traj, kind, completion_time, completion_seq,
+                                  report)) {
+                logSettleFailure(what, report);
+                markExecutionFailure(kind);
+                return false;
+            }
+        } else if (!refreshTrackedState(completion_seq, true)) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "No fresh post-execution joint state (%s)", what);
             markExecutionFailure(kind);
             return false;
         }
-        // Final one-shot collision check on the settled sample.
+
         const auto &jt = traj.joint_trajectory;
         std::vector<double> measured;
         measured.reserve(jt.joint_names.size());
         for (const auto &joint : jt.joint_names) {
             measured.push_back(tracked_state_->getVariablePosition(joint));
         }
+
+        if (!endpoint_settle_enabled_) {
+            const EndpointError error =
+                endpointError(jt.joint_names, measured, traj);
+            const auto policy = endpointCheckPolicy();
+            RCLCPP_INFO(node_->get_logger(),
+                        "One-shot endpoint error (%s): joint %.3f deg, tip "
+                        "%.3f mm, orientation %.3f deg",
+                        what, error.max_joint_deg, error.tip_mm,
+                        error.orient_deg);
+            if (!robross_painter::endpointConformanceAccepted(error, policy)) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Fresh measured endpoint violates an enabled "
+                             "execution error limit or hard posture bound "
+                             "(%s)",
+                             what);
+                markExecutionFailure(kind);
+                return false;
+            }
+        }
+
+        // Final one-shot collision check remains mandatory in both modes.
         if (!stateIsValid(jt.joint_names, measured, "Measured endpoint")) {
             markExecutionFailure(kind);
             return false;
@@ -2690,7 +2808,8 @@ private:
         // of executing unvalidated quintic splines. Joint-space travel keeps
         // its derivatives.
         robross_painter::stripDerivatives(traj.joint_trajectory);
-        if (!validateCartesianPath(traj, waypoints)) {
+        if (robross_painter::anyCartesianCheckEnabled(cartesianCheckPolicy()) &&
+            !validateCartesianPath(traj, waypoints)) {
             return false;
         }
         if (!validateCollisionFree(traj)) {
@@ -2799,9 +2918,16 @@ private:
     double max_guarded_joint_travel_deg_{ 150.0 };
     double max_guarded_joint_paint_travel_deg_{ 90.0 };
     double max_guarded_joint_step_deg_{ 45.0 };
+    bool cartesian_deviation_check_enabled_{ true };
+    bool cartesian_normal_deviation_check_enabled_{ true };
+    bool cartesian_orientation_deviation_check_enabled_{ true };
     double max_cartesian_deviation_mm_{ 2.0 };
     double max_cartesian_normal_deviation_mm_{ 0.2 };
     double max_cartesian_orientation_deviation_deg_{ 2.0 };
+    bool execution_joint_error_check_enabled_{ true };
+    bool execution_tip_error_check_enabled_{ true };
+    bool execution_tip_orientation_error_check_enabled_{ true };
+    double max_execution_joint_error_deg_{ 2.0 };
     double max_execution_tip_error_mm_{ 1.0 };
     double max_execution_tip_orientation_error_deg_{ 1.0 };
     double totg_path_tolerance_{ 0.01 };
@@ -2814,6 +2940,7 @@ private:
     double endpoint_settle_timeout_{ 1.5 };              // s, transit/lift budget
     double endpoint_settle_contact_timeout_{ 0.6 };      // s, contact budget
     double endpoint_settle_sample_max_age_{ 0.05 };      // s, freshness/gap bound
+    bool endpoint_settle_enabled_{ true };
     bool dry_run_{ false };
     std::string cartesian_failure_artifact_dir_;
     int cartesian_capture_command_index_{ 0 };

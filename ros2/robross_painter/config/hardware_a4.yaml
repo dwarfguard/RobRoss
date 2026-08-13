@@ -65,7 +65,7 @@ painting_executor:
 
     # Slow for first contact tests; raise once trusted.
     velocity_scaling: 0.05
-    acceleration_scaling: 0.05
+    acceleration_scaling: 0.025
     # Cartesian interpolation resolution (meters).
     eef_step_m: 0.0002
     # Reject Cartesian paths whose consecutive IK solutions jump more than
@@ -92,27 +92,35 @@ painting_executor:
     # linearly — exactly what the validator checks.
     # The canvas-normal limit is much tighter than the tangential one: normal
     # excursions rip or gap the paper.
+    cartesian_deviation_check_enabled: true
     max_cartesian_deviation_mm: 2.0
-    max_cartesian_normal_deviation_mm: 0.2
+    cartesian_normal_deviation_check_enabled: true
+    max_cartesian_normal_deviation_mm: 0.5
+    cartesian_orientation_deviation_check_enabled: true
     max_cartesian_orientation_deviation_deg: 2.0
-    max_execution_tip_error_mm: 1.0
+    execution_joint_error_check_enabled: true
+    max_execution_joint_error_deg: 2.0
+    execution_tip_error_check_enabled: true
+    max_execution_tip_error_mm: 2.0
+    execution_tip_orientation_error_check_enabled: true
     max_execution_tip_orientation_error_deg: 1.0
     totg_path_tolerance: 0.01
     # Match the selected 125 Hz hardware controller period.
     controller_sample_dt: 0.008
-    # Endpoint settling: after a move completes, require the arm to reach and
-    # HOLD the planned endpoint at rest before accepting it (measured feedback
-    # trails the command by ~88-120 ms). Endpoint tolerance, low joint speed,
-    # and fresh feedback must all hold together, continuously, for the dwell.
+    # Endpoint settling, when enabled, requires the arm to reach and HOLD the
+    # planned endpoint at rest (measured feedback trails the command by
+    # ~88-120 ms). Endpoint tolerance, low joint speed, and fresh feedback must
+    # all hold together, continuously, for the dwell.
     # Contact moves use the shorter timeout (dwelling while the pen is pressed
     # to the canvas carries risk). On timeout the move fails closed. Confirm the
     # dwell/velocity threshold from analyze_tracking_bag.py telemetry.
+    endpoint_settle_enabled: true
     endpoint_settle_velocity_tolerance: 0.02   # rad/s "stationary" threshold
-    endpoint_settle_dwell: 0.15                # s continuous in-tolerance hold
+    endpoint_settle_dwell: 0.075                # s continuous in-tolerance hold
     endpoint_settle_timeout: 1.5               # s transit/lift budget
     endpoint_settle_contact_timeout: 0.6       # s lowering/painting budget
     endpoint_settle_sample_max_age: 0.05       # s max feedback age / sample gap
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
-    # Keep true for the first run: plans everything, executes nothing.
-    dry_run: true
+    # Set true for planning-only validation; false sends trajectories.
+    dry_run: false

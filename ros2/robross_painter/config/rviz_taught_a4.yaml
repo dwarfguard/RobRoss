@@ -46,16 +46,24 @@ painting_executor:
     max_guarded_joint_travel_deg: 210.0
     max_guarded_joint_paint_travel_deg: 120.0
     max_guarded_joint_step_deg: 45.0
+    cartesian_deviation_check_enabled: true
     max_cartesian_deviation_mm: 2.0
+    cartesian_normal_deviation_check_enabled: true
     max_cartesian_normal_deviation_mm: 0.2
+    cartesian_orientation_deviation_check_enabled: true
     max_cartesian_orientation_deviation_deg: 2.0
+    execution_joint_error_check_enabled: true
+    max_execution_joint_error_deg: 2.0
+    execution_tip_error_check_enabled: true
     max_execution_tip_error_mm: 1.0
+    execution_tip_orientation_error_check_enabled: true
     max_execution_tip_orientation_error_deg: 1.0
     totg_path_tolerance: 0.01
     controller_sample_dt: 0.008
     # Endpoint settling: require the arm to reach and HOLD the planned endpoint
     # at rest before accepting a move; contact moves use the shorter timeout and
     # a timeout fails closed. (Fake hardware settles near-instantly.)
+    endpoint_settle_enabled: true
     endpoint_settle_velocity_tolerance: 0.02   # rad/s "stationary" threshold
     endpoint_settle_dwell: 0.15                # s continuous in-tolerance hold
     endpoint_settle_timeout: 1.5               # s transit/lift budget
