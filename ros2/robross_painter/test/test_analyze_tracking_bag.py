@@ -8,6 +8,7 @@ segmentation, and no-publish guarantee gate locally in CI.
 import importlib.util
 import json
 import math
+import sqlite3
 from pathlib import Path
 
 import numpy as np
@@ -147,7 +148,7 @@ def _write_bag(bag_dir, messages):
             writer.create_topic(rosbag2_py.TopicMetadata(
                 name=topic, type=type_str, serialization_format="cdr"))
             seen[topic] = True
-    for t_ns, topic, _type_str, msg in sorted(messages, key=lambda x: x[0]):
+    for t_ns, topic, _type_str, msg in messages:
         writer.write(topic, serialize_message(msg), t_ns)
     del writer
 
@@ -184,6 +185,7 @@ def _synthetic_bag(bag_dir):
                      "/joint_trajectory_controller/controller_state",
                      "control_msgs/msg/JointTrajectoryControllerState",
                      _state(ref, act)))
+    for i in range(n):
         # Segment 2: -X 50 -> 20 mm, no error.
         x = 0.050 - 0.030 * i / (n - 1)
         msgs.append((2 * S + int(0.5 * S * i / (n - 1)),
@@ -673,7 +675,7 @@ def test_executor_detects_post_fault_command_and_endpoint_fallback():
         "post_fault_command", "post_execution_fallback"}
 
 
-def test_executor_detects_moveit_failure_then_controller_success():
+def test_executor_does_not_pair_outcomes_by_timestamp_only():
     controller_success = Log()
     controller_success.name = "joint_trajectory_controller"
     controller_success.msg = "Goal reached, success!"
@@ -683,9 +685,23 @@ def test_executor_detects_moveit_failure_then_controller_success():
     ]
     checks, events = analyze_tracking_bag.analyze_executor_behavior(rosout, [])
     consistency = _check_by_key(checks, "moveit_controller_consistency")
+    assert consistency.state == analyze_tracking_bag.CheckState.UNKNOWN
+    assert not any(event.category == "split_motion_outcome" for event in events)
+
+
+def test_executor_pairs_outcomes_only_with_matching_action_uuid():
+    controller_success = Log()
+    controller_success.name = "joint_trajectory_controller"
+    controller_success.msg = "Goal reached, success! action_uuid=abc-123"
+    rosout = [
+        (2 * S, _log("Execution reported failure (Cartesian) action_uuid=abc-123")),
+        (1 * S, controller_success),
+    ]
+    checks, events = analyze_tracking_bag.analyze_executor_behavior(rosout, [])
+    consistency = _check_by_key(checks, "moveit_controller_consistency")
     assert consistency.state == analyze_tracking_bag.CheckState.FAIL
-    assert "50.0 ms later" in consistency.summary
-    assert any(event.category == "split_motion_outcome" for event in events)
+    assert "action_uuid abc-123" in consistency.summary
+    assert events[0].action_uuid == "abc-123"
 
 
 def test_servoj_runtime_fails_on_reported_queue_full():
@@ -776,6 +792,107 @@ def test_clock_detects_system_steady_offset_step(tmp_path):
     assert events[0].category == "clock_discontinuity"
 
 
+def _write_clock_correlation(path, rows):
+    path.write_text("seq,t_steady_s,t_system_s\n" + "\n".join(
+        f"{seq},{steady},{system}" for seq, steady, system in rows) + "\n")
+
+
+def test_clock_correlation_requires_complete_session_coverage(tmp_path):
+    path = tmp_path / "clock.csv"
+    _write_clock_correlation(path, [(0, 1.0, 10.1), (1, 2.0, 11.1)])
+    correlation = analyze_tracking_bag.read_clock_correlation_csv(path)
+    evidence = {"messages": {}, "start_ns": 10 * S, "end_ns": 12 * S}
+    checks, _events = analyze_tracking_bag.analyze_clock(
+        evidence, [], None, correlation)
+    assert checks[0].state == analyze_tracking_bag.CheckState.UNKNOWN
+
+    _write_clock_correlation(path, [(0, 1.0, 9.9), (1, 4.0, 12.9)])
+    correlation = analyze_tracking_bag.read_clock_correlation_csv(path)
+    checks, _events = analyze_tracking_bag.analyze_clock(
+        evidence, [], None, correlation)
+    assert checks[0].state == analyze_tracking_bag.CheckState.PASS
+
+
+def test_clock_monitor_json_requires_finalized_complete_coverage(tmp_path):
+    path = tmp_path / "clock.json"
+    record = {
+        "schema_version": 1,
+        "kind": "robross_host_clock_monitor",
+        "status": "complete",
+        "session_id": "session-a",
+        "coverage": {
+            "first_monotonic_ns": 1 * S,
+            "last_monotonic_ns": 5 * S,
+            "first_realtime_ns": 9 * S,
+            "last_realtime_ns": 13 * S,
+            "sample_count": 17,
+        },
+        "backward_event_count": 0,
+        "offset_step_event_count": 0,
+        "max_abs_offset_step_ns": 1000,
+    }
+    path.write_text(json.dumps(record))
+    correlation = analyze_tracking_bag.read_clock_correlation(path)
+    evidence = {"messages": {}, "start_ns": 10 * S, "end_ns": 12 * S}
+    checks, _events = analyze_tracking_bag.analyze_clock(
+        evidence, [], None, correlation)
+    assert checks[0].state == analyze_tracking_bag.CheckState.PASS
+
+    record["status"] = "running"
+    path.write_text(json.dumps(record))
+    correlation = analyze_tracking_bag.read_clock_correlation(path)
+    checks, _events = analyze_tracking_bag.analyze_clock(
+        evidence, [], None, correlation)
+    assert checks[0].state == analyze_tracking_bag.CheckState.FAIL
+
+
+def test_storage_order_drives_post_fault_causality_with_regressing_timestamps():
+    fault = analyze_tracking_bag.IncidentEvent(
+        200, "driver_fault", "error", "fault", "/health",
+        storage_ordinal=10, split_file_ordinal=0, storage_id=11)
+    command = analyze_tracking_bag.StoredMessage(
+        100, _log("[2/2] lift_tool (after)"), 11, 0, 12)
+    checks, events = analyze_tracking_bag.analyze_executor_behavior([command], [fault])
+    assert _check_by_key(checks, "no_command_after_fault").state == \
+        analyze_tracking_bag.CheckState.FAIL
+    assert events[0].storage_id == 12
+
+
+def test_health_timestamp_gap_does_not_override_contiguous_storage_sequence():
+    health = [
+        analyze_tracking_bag.StoredMessage(2 * S, _health(0, 10), 0, 0, 1),
+        analyze_tracking_bag.StoredMessage(1 * S, _health(1, 11), 1, 0, 2),
+    ]
+    checks, _events = analyze_tracking_bag.analyze_driver_health(health, [])
+    assert _check_by_key(checks, "driver_health_evidence").state == \
+        analyze_tracking_bag.CheckState.PASS
+
+
+def test_duplicate_timestamps_preserve_sqlite_storage_order(tmp_path):
+    bag_dir = tmp_path / "duplicate_bag"
+    bag_dir.mkdir()
+    db = bag_dir / "bag.db3"
+    connection = sqlite3.connect(db)
+    connection.executescript(
+        "CREATE TABLE topics(id INTEGER PRIMARY KEY, name TEXT, type TEXT, "
+        "serialization_format TEXT, offered_qos_profiles TEXT);"
+        "CREATE TABLE messages(id INTEGER PRIMARY KEY, topic_id INTEGER, "
+        "timestamp INTEGER, data BLOB);"
+    )
+    connection.execute(
+        "INSERT INTO topics VALUES(1, '/rosout', 'rcl_interfaces/msg/Log', 'cdr', '')")
+    for text in ("first", "second"):
+        connection.execute(
+            "INSERT INTO messages(topic_id,timestamp,data) VALUES(1,?,?)",
+            (123, serialize_message(_log(text))))
+    connection.commit()
+    connection.close()
+    evidence = analyze_tracking_bag.read_bag_evidence(bag_dir, ["/rosout"])
+    messages = evidence["messages"]["/rosout"]
+    assert [item.msg.msg for item in messages] == ["first", "second"]
+    assert [item.storage_id for item in messages] == [1, 2]
+
+
 def test_gate_is_incomplete_when_future_capabilities_are_unavailable():
     checks = [
         analyze_tracking_bag._check(
@@ -831,7 +948,9 @@ def test_remediation_json_and_event_csv_exports(tmp_path):
         "driver_fault_free", "health", analyze_tracking_bag.CheckState.FAIL,
         "fault")
     event = analyze_tracking_bag.IncidentEvent(
-        123, "driver_fault", "error", "fault", "/aubo_driver/health")
+        123, "driver_fault", "error", "fault", "/aubo_driver/health",
+        storage_ordinal=7, split_file_ordinal=1, storage_id=42,
+        correlation_id="motion-1", action_uuid="uuid-1")
     report = analyze_tracking_bag.RemediationReport(
         "bag", "debug", None, 1, 2, {"/rosout": 1}, [check], [event],
         "FAIL", 1)
@@ -841,4 +960,7 @@ def test_remediation_json_and_event_csv_exports(tmp_path):
     analyze_tracking_bag.write_events_csv(csv_path, report.events)
     payload = json.loads(json_path.read_text())
     assert payload["checks"][0]["state"] == "FAIL"
-    assert csv_path.read_text().splitlines()[0].startswith("t_ns,category")
+    assert payload["events"][0]["storage_id"] == 42
+    header = csv_path.read_text().splitlines()[0]
+    assert header.startswith("t_ns,storage_ordinal,split_file_ordinal,storage_id")
+    assert "correlation_id,action_uuid" in header

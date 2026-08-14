@@ -36,6 +36,7 @@ import csv
 import json
 import math
 import re
+import sqlite3
 import sys
 import xml.etree.ElementTree as ET
 from collections import namedtuple
@@ -94,6 +95,31 @@ class IncidentEvent:
     severity: str
     summary: str
     source: str
+    storage_ordinal: int = None
+    split_file_ordinal: int = None
+    storage_id: int = None
+    correlation_id: str = None
+    action_uuid: str = None
+
+
+@dataclass(frozen=True)
+class StoredMessage:
+    """A bag message with causal storage coordinates and tuple compatibility."""
+    t_ns: int
+    msg: object
+    storage_ordinal: int
+    split_file_ordinal: int
+    storage_id: int
+
+    def __iter__(self):
+        yield self.t_ns
+        yield self.msg
+
+    def __getitem__(self, index):
+        return (self.t_ns, self.msg)[index]
+
+    def __len__(self):
+        return 2
 
 
 @dataclass
@@ -162,50 +188,116 @@ def _find_topic(topic_types, canonical):
     return matches[0] if len(matches) == 1 else None
 
 
+def _stored_parts(item, fallback_ordinal=None):
+    if isinstance(item, StoredMessage):
+        return (item.t_ns, item.msg, item.storage_ordinal,
+                item.split_file_ordinal, item.storage_id)
+    return item[0], item[1], fallback_ordinal, None, None
+
+
+def _incident_from_message(item, category, severity, summary, source,
+                           correlation_id=None, action_uuid=None,
+                           fallback_ordinal=None):
+    t_ns, _msg, ordinal, split_ordinal, storage_id = _stored_parts(
+        item, fallback_ordinal)
+    return IncidentEvent(
+        t_ns, category, severity, summary, source, ordinal, split_ordinal,
+        storage_id, correlation_id, action_uuid)
+
+
+def _event_precedes_message(event, item, inclusive=False):
+    _t_ns, _msg, ordinal, _split, _storage_id = _stored_parts(item)
+    if event.storage_ordinal is not None and ordinal is not None:
+        return ordinal >= event.storage_ordinal if inclusive else ordinal > event.storage_ordinal
+    return item[0] >= event.t_ns if inclusive else item[0] > event.t_ns
+
+
 # ---------------------------------------------------------------------------
 # Bag reading (read-only, never touches the ROS graph)
 # ---------------------------------------------------------------------------
+
+def _bag_database_paths(bag_dir):
+    bag_path = Path(bag_dir)
+    if bag_path.is_file() and bag_path.suffix == ".db3":
+        return [bag_path]
+    metadata_path = bag_path / "metadata.yaml"
+    paths = []
+    if metadata_path.is_file():
+        with open(metadata_path) as stream:
+            metadata = yaml.safe_load(stream) or {}
+        info = metadata.get("rosbag2_bagfile_information", metadata)
+        for relative in info.get("relative_file_paths", []):
+            candidate = bag_path / relative
+            if candidate.suffix == ".db3" and candidate.is_file():
+                paths.append(candidate)
+    if not paths:
+        paths = sorted(bag_path.glob("*.db3"))
+    if not paths:
+        raise RuntimeError(f"No rosbag2 SQLite database found in {bag_dir}")
+    return paths
+
+
+def _sqlite_bag_rows(bag_dir):
+    """Yield rows in split-file order and SQLite insertion order."""
+    storage_ordinal = 0
+    for split_ordinal, database in enumerate(_bag_database_paths(bag_dir)):
+        connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+        try:
+            query = (
+                "SELECT messages.id, topics.name, topics.type, "
+                "messages.timestamp, messages.data "
+                "FROM messages JOIN topics ON topics.id = messages.topic_id "
+                "ORDER BY messages.id")
+            for storage_id, topic, type_name, t_ns, data in connection.execute(query):
+                yield (storage_ordinal, split_ordinal, int(storage_id), topic,
+                       type_name, int(t_ns), data)
+                storage_ordinal += 1
+        finally:
+            connection.close()
+
+
+def _sqlite_topic_types(bag_dir):
+    topic_types = {}
+    for database in _bag_database_paths(bag_dir):
+        connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+        try:
+            for name, type_name in connection.execute(
+                    "SELECT name, type FROM topics"):
+                existing = topic_types.get(name)
+                if existing is not None and existing != type_name:
+                    raise RuntimeError(
+                        f"Topic {name} changes type across split bag files")
+                topic_types[name] = type_name
+        finally:
+            connection.close()
+    return topic_types
 
 def read_bag(bag_dir, topics=None):
     """Read a rosbag2 directory into {topic: [(t_ns, msg), ...]}.
 
     Only deserializes the requested topics (all when topics is None).
     """
-    import rosbag2_py
-
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(bag_dir), storage_id="sqlite3"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
-    type_by_topic = {
-        t.name: t.type for t in reader.get_all_topics_and_types()
-    }
+    type_by_topic = _sqlite_topic_types(bag_dir)
     wanted = set(topics) if topics is not None else set(type_by_topic)
     msg_classes = {}
     out = {t: [] for t in wanted if t in type_by_topic}
-    while reader.has_next():
-        topic, data, t_ns = reader.read_next()
+    for ordinal, split_ordinal, storage_id, topic, type_name, t_ns, data in \
+            _sqlite_bag_rows(bag_dir):
         if topic not in out:
             continue
         cls = msg_classes.get(topic)
         if cls is None:
-            cls = get_message(type_by_topic[topic])
+            cls = get_message(type_name)
             msg_classes[topic] = cls
-        out[topic].append((t_ns, deserialize_message(data, cls)))
+        out[topic].append(StoredMessage(
+            t_ns, deserialize_message(data, cls), ordinal, split_ordinal,
+            storage_id))
     return out
 
 
 def read_bag_evidence(bag_dir, canonical_topics):
     """Read requested evidence and retain the bag's topic inventory."""
-    import rosbag2_py
-
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(bag_dir), storage_id="sqlite3"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
-    topic_types = {t.name: t.type for t in reader.get_all_topics_and_types()}
+    topic_types = _sqlite_topic_types(bag_dir)
     selected = {}
     for canonical in canonical_topics:
         actual = _find_topic(topic_types, canonical)
@@ -216,20 +308,26 @@ def read_bag_evidence(bag_dir, canonical_topics):
     msg_classes = {}
     start_ns = None
     end_ns = None
-    while reader.has_next():
-        topic, data, t_ns = reader.read_next()
+    first_storage_ns = None
+    last_storage_ns = None
+    for ordinal, split_ordinal, storage_id, topic, type_name, t_ns, data in \
+            _sqlite_bag_rows(bag_dir):
         counts[topic] += 1
         start_ns = t_ns if start_ns is None else min(start_ns, t_ns)
         end_ns = t_ns if end_ns is None else max(end_ns, t_ns)
+        if first_storage_ns is None:
+            first_storage_ns = t_ns
+        last_storage_ns = t_ns
         canonical = selected.get(topic)
         if canonical is None:
             continue
         cls = msg_classes.get(topic)
         if cls is None:
-            cls = get_message(topic_types[topic])
+            cls = get_message(type_name)
             msg_classes[topic] = cls
-        messages[canonical].append(
-            (t_ns, deserialize_message(data, cls)))
+        messages[canonical].append(StoredMessage(
+            t_ns, deserialize_message(data, cls), ordinal, split_ordinal,
+            storage_id))
     return {
         "messages": messages,
         "topic_types": topic_types,
@@ -238,6 +336,8 @@ def read_bag_evidence(bag_dir, canonical_topics):
                           for actual, canonical in selected.items()},
         "start_ns": start_ns,
         "end_ns": end_ns,
+        "first_storage_ns": first_storage_ns,
+        "last_storage_ns": last_storage_ns,
     }
 
 
@@ -575,23 +675,27 @@ def _aggregate_servoj(config, reports):
 def _fault_events(health_msgs, rosout_msgs):
     events = []
     faulted_activations = set()
-    for t_ns, msg in health_msgs:
+    for item in health_msgs:
+        t_ns, msg = item
         activation = int(msg.activation_sequence)
         if ((int(msg.state) == 2 or int(msg.fault_code) != 0) and
                 activation not in faulted_activations):
             faulted_activations.add(activation)
-            events.append(IncidentEvent(
-                t_ns, "driver_fault", "error",
+            events.append(_incident_from_message(
+                item, "driver_fault", "error",
                 f"Driver fault {int(msg.fault_code)}: {msg.fault_reason}",
                 DRIVER_HEALTH_TOPIC))
-    for t_ns, msg in rosout_msgs:
+    for item in rosout_msgs:
+        t_ns, msg = item
         text = msg.msg
         lower = text.lower()
         if ("rtde" in lower and "stale" in lower and "fault" in lower) or (
                 "driver health fault latched" in lower):
-            events.append(IncidentEvent(t_ns, "driver_fault", "error", text,
-                                        f"/rosout:{msg.name}"))
-    events.sort(key=lambda event: event.t_ns)
+            events.append(_incident_from_message(
+                item, "driver_fault", "error", text, f"/rosout:{msg.name}"))
+    events.sort(key=lambda event: (
+        event.storage_ordinal is None,
+        event.storage_ordinal if event.storage_ordinal is not None else event.t_ns))
     return events
 
 
@@ -627,12 +731,8 @@ def analyze_driver_health(health_msgs, rosout_msgs, expected_rtde_rate_hz=None,
     sequences = [int(msg.status_sequence) for _, msg in health_msgs]
     gaps = [(sequences[i - 1], sequences[i]) for i in range(1, len(sequences))
             if sequences[i] != sequences[i - 1] + 1]
-    heartbeat_gaps = [health_msgs[i][0] - health_msgs[i - 1][0]
-                      for i in range(1, len(health_msgs))]
-    max_gap_ns = max(heartbeat_gaps, default=0)
     first_sequence = sequences[0]
-    if (len(health_msgs) < 2 or first_sequence != 0 or gaps or
-            max_gap_ns > 500_000_000):
+    if len(health_msgs) < 2 or first_sequence != 0 or gaps:
         details = []
         if len(health_msgs) < 2:
             details.append("fewer than two health heartbeats")
@@ -640,8 +740,6 @@ def analyze_driver_health(health_msgs, rosout_msgs, expected_rtde_rate_hz=None,
             details.append(f"recording starts at status_sequence {first_sequence}")
         if gaps:
             details.append(f"{len(gaps)} status-sequence gap(s)")
-        if max_gap_ns > 500_000_000:
-            details.append(f"maximum heartbeat gap {max_gap_ns / 1e6:.1f} ms")
         checks.append(_check(
             "driver_health_evidence", "Driver health evidence",
             CheckState.UNKNOWN, "; ".join(details),
@@ -650,8 +748,7 @@ def analyze_driver_health(health_msgs, rosout_msgs, expected_rtde_rate_hz=None,
     else:
         checks.append(_check(
             "driver_health_evidence", "Driver health evidence", CheckState.PASS,
-            f"{len(health_msgs)} contiguous messages; maximum heartbeat gap "
-            f"{max_gap_ns / 1e6:.1f} ms",
+            f"{len(health_msgs)} contiguous storage-ordered messages",
             evidence=[f"first status_sequence={first_sequence}"]))
 
     counter_names = ("source_sequence", "callback_count", "valid_sample_count")
@@ -758,10 +855,12 @@ def _joint_state_issues(joint_msgs):
     return issues, first_bad_ns
 
 
-def _controller_freeze_after(ctrl_msgs, fault_t_ns):
+def _controller_freeze_after(ctrl_msgs, fault_event):
     samples = []
-    for t_ns, msg in ctrl_msgs:
-        if fault_t_ns is not None and t_ns < fault_t_ns:
+    for item in ctrl_msgs:
+        t_ns, msg = item
+        if fault_event is not None and not _event_precedes_message(
+                fault_event, item, inclusive=True):
             continue
         names = list(msg.joint_names)
         ref = list(_point_positions(msg, "reference", "desired"))
@@ -813,12 +912,14 @@ def analyze_feedback(joint_msgs, ctrl_msgs, fault_events, health_msgs):
                 f"{len(joint_msgs)} joint-state samples are structurally valid "
                 "and finite"))
 
-    fault_t_ns = fault_events[0].t_ns if fault_events else None
-    freeze = _controller_freeze_after(ctrl_msgs, fault_t_ns)
+    fault_event = fault_events[0] if fault_events else None
+    fault_t_ns = fault_event.t_ns if fault_event else None
+    freeze = _controller_freeze_after(ctrl_msgs, fault_event)
     source_progress = None
     if health_msgs:
-        relevant = [(t, m) for t, m in health_msgs
-                    if fault_t_ns is None or t >= fault_t_ns]
+        relevant = [item for item in health_msgs
+                    if fault_event is None or _event_precedes_message(
+                        fault_event, item, inclusive=True)]
         if len(relevant) >= 2:
             source_progress = (int(relevant[-1][1].source_sequence) >
                                int(relevant[0][1].source_sequence))
@@ -857,6 +958,35 @@ def analyze_feedback(joint_msgs, ctrl_msgs, fault_events, health_msgs):
     return checks, events
 
 
+def _motion_identifiers(text):
+    identifiers = {}
+    if text.startswith("motion_outcome="):
+        try:
+            outcome = json.loads(text.split("=", 1)[1])
+        except json.JSONDecodeError:
+            outcome = {}
+        correlation_id = outcome.get("correlation_id")
+        goal_identifier = outcome.get("goal_identifier")
+        if correlation_id:
+            identifiers["correlation_id"] = str(correlation_id)
+        if goal_identifier:
+            identifiers["action_uuid"] = str(goal_identifier)
+    for key, value in re.findall(
+            r"\b(correlation_id|motion_id|execution_id|command_id|"
+            r"action_uuid|goal_uuid|goal_id)=([^\s,;]+)", text):
+        normalized = "action_uuid" if key in ("action_uuid", "goal_uuid", "goal_id") \
+            else "correlation_id"
+        identifiers[normalized] = value.strip("[]{}()\"'")
+    return identifiers
+
+
+def _matching_motion_identifier(left, right):
+    for key in ("action_uuid", "correlation_id"):
+        if left.get(key) and left[key] == right.get(key):
+            return key, left[key]
+    return None
+
+
 def analyze_executor_behavior(rosout_msgs, fault_events):
     checks = []
     events = []
@@ -868,40 +998,45 @@ def analyze_executor_behavior(rosout_msgs, fault_events):
     structured = False
     execution_failures = []
     controller_successes = []
-    for t_ns, msg in rosout_msgs:
+    for index, item in enumerate(rosout_msgs):
+        t_ns, msg = item
+        ids = _motion_identifiers(msg.msg)
         if msg.name == "joint_trajectory_controller" and \
                 "Goal reached, success" in msg.msg:
-            controller_successes.append((t_ns, msg.msg))
+            controller_successes.append((item, msg.msg, ids))
         if msg.name != ROSOUT_NODE:
             continue
         text = msg.msg
         if COMMAND_START_RE.match(text):
-            command_starts.append((t_ns, text))
+            command_starts.append((index, item, text))
         if "Endpoint failed to settle" in text or "One-shot endpoint" in text and "failed" in text:
-            endpoint_failures.append((t_ns, text))
+            endpoint_failures.append((index, item, text))
         if "Selected shortest bounded joint-space candidate" in text:
-            joint_fallbacks.append((t_ns, text))
+            joint_fallbacks.append((index, item, text))
         if "Aborting with the pen down" in text:
-            contact_abort = t_ns
+            contact_abort = (index, item)
         if "Pen retreated to hover height" in text:
-            retreat = (t_ns, "succeeded")
+            retreat = (index, item, "succeeded")
         if "refusing an autonomous retreat" in text:
-            retreat = (t_ns, "safely refused from unknown state")
-        if text.startswith("motion_outcome "):
+            retreat = (index, item, "safely refused from unknown state")
+        if text.startswith("motion_outcome=") or text.startswith("motion_outcome "):
             structured = True
-        if "Execution reported failure" in text:
-            execution_failures.append((t_ns, text))
+        if "Execution reported failure" in text or "Execution failed (" in text:
+            execution_failures.append((item, text, ids))
 
     if fault_events:
-        fault_t_ns = fault_events[0].t_ns
-        after = [(t, text) for t, text in command_starts if t > fault_t_ns]
+        fault_event = fault_events[0]
+        after = [(item, text) for _index, item, text in command_starts
+                 if _event_precedes_message(fault_event, item)]
         if after:
+            after_t = after[0][0][0]
             checks.append(_check(
                 "no_command_after_fault", "No command starts after a health fault",
                 CheckState.FAIL, f"{len(after)} command(s) started after the first fault",
-                confidence="direct", t_ns=after[0][0], evidence=[after[0][1]]))
-            events.append(IncidentEvent(after[0][0], "post_fault_command", "error",
-                                        after[0][1], "/rosout:painting_executor"))
+                confidence="direct", t_ns=after_t, evidence=[after[0][1]]))
+            events.append(_incident_from_message(
+                after[0][0], "post_fault_command", "error", after[0][1],
+                "/rosout:painting_executor"))
         else:
             checks.append(_check(
                 "no_command_after_fault", "No command starts after a health fault",
@@ -912,22 +1047,24 @@ def analyze_executor_behavior(rosout_msgs, fault_events):
             CheckState.PASS, "No health fault occurred; no post-fault command exists"))
 
     forbidden = []
-    for endpoint_t, endpoint_text in endpoint_failures:
-        candidate = next(((t, text) for t, text in joint_fallbacks
-                          if t > endpoint_t), None)
+    for endpoint_index, endpoint_item, endpoint_text in endpoint_failures:
+        candidate = next(((item, text) for fallback_index, item, text in
+                          joint_fallbacks if fallback_index > endpoint_index), None)
         if candidate:
-            forbidden.append((endpoint_t, endpoint_text, candidate))
+            forbidden.append((endpoint_item, endpoint_text, candidate))
     if forbidden:
-        t_ns, endpoint_text, fallback = forbidden[0]
+        endpoint_item, endpoint_text, fallback = forbidden[0]
+        fallback_t = fallback[0][0]
         checks.append(_check(
             "no_post_execution_fallback",
             "No joint-space fallback after post-execution failure",
             CheckState.FAIL,
             "A joint-space candidate was selected after endpoint failure",
-            confidence="derived", t_ns=fallback[0],
+            confidence="derived", t_ns=fallback_t,
             evidence=[endpoint_text, fallback[1]]))
-        events.append(IncidentEvent(fallback[0], "post_execution_fallback", "error",
-                                    fallback[1], "/rosout:painting_executor"))
+        events.append(_incident_from_message(
+            fallback[0], "post_execution_fallback", "error", fallback[1],
+            "/rosout:painting_executor"))
     elif endpoint_failures:
         checks.append(_check(
             "no_post_execution_fallback",
@@ -946,15 +1083,20 @@ def analyze_executor_behavior(rosout_msgs, fault_events):
                              CheckState.PASS,
                              "No pen-down abort required contact recovery"))
     elif retreat:
+        retreat_after_abort = retreat[0] > contact_abort[0]
+        retreat_t = retreat[1][0]
+    else:
+        retreat_after_abort = False
+    if contact_abort is not None and retreat_after_abort:
         checks.append(_check(
             "bounded_recovery", "Contact recovery stayed bounded", CheckState.PASS,
-            f"Straight retreat {retreat[1]}", t_ns=retreat[0]))
-    else:
+            f"Straight retreat {retreat[2]}", t_ns=retreat_t))
+    elif contact_abort is not None:
         checks.append(_check(
             "bounded_recovery", "Contact recovery stayed bounded",
             CheckState.UNKNOWN,
             "Pen-down abort was recorded without a conclusive retreat outcome",
-            t_ns=contact_abort))
+            t_ns=contact_abort[1][0]))
 
     checks.append(_check(
         "structured_motion_outcomes", "Typed motion outcomes are available",
@@ -962,29 +1104,37 @@ def analyze_executor_behavior(rosout_msgs, fault_events):
         ("Structured motion_outcome events were recorded" if structured else
          "Phase 3 structured motion outcomes are not implemented in this bag")))
     split_outcomes = []
-    for failure_t, failure_text in execution_failures:
-        success = next(((t, text) for t, text in controller_successes
-                        if failure_t < t <= failure_t + 1_000_000_000), None)
+    for failure_item, failure_text, failure_ids in execution_failures:
+        success = None
+        for success_item, success_text, success_ids in controller_successes:
+            match = _matching_motion_identifier(failure_ids, success_ids)
+            if match:
+                success = (success_item, success_text, success_ids, match)
+                break
         if success:
-            split_outcomes.append((failure_t, failure_text, success))
+            split_outcomes.append((failure_item, failure_text, failure_ids, success))
     if split_outcomes:
-        failure_t, failure_text, success = split_outcomes[0]
+        failure_item, failure_text, failure_ids, success = split_outcomes[0]
+        failure_t = failure_item[0]
+        identifier_type, identifier = success[3]
         checks.append(_check(
             "moveit_controller_consistency",
             "MoveIt and controller outcomes agree", CheckState.FAIL,
-            f"MoveIt reported failure, then the controller reported success "
-            f"{(success[0] - failure_t) / 1e6:.1f} ms later",
+            f"MoveIt reported failure and the controller reported success for "
+            f"the same {identifier_type} {identifier}",
             confidence="derived", t_ns=failure_t,
             evidence=[failure_text, success[1]]))
-        events.append(IncidentEvent(
-            failure_t, "split_motion_outcome", "error",
+        events.append(_incident_from_message(
+            failure_item, "split_motion_outcome", "error",
             "MoveIt execution failure followed by controller success",
-            "/rosout"))
+            "/rosout", correlation_id=failure_ids.get("correlation_id"),
+            action_uuid=failure_ids.get("action_uuid")))
     elif execution_failures:
         checks.append(_check(
             "moveit_controller_consistency",
             "MoveIt and controller outcomes agree", CheckState.UNKNOWN,
-            "MoveIt reported execution failure without a structured controller result"))
+            "MoveIt reported execution failure without a controller result carrying "
+            "the same structured correlation ID or action UUID"))
     else:
         checks.append(_check(
             "moveit_controller_consistency",
@@ -1032,6 +1182,7 @@ SERVOJ_CALL_COLUMNS = [
 SERVOJ_FOOTER_RE = re.compile(
     r"^# end last_seq=(\d+) rows=(\d+) dropped=(\d+) "
     r"status=(complete|incomplete)$")
+CLOCK_CORRELATION_COLUMNS = ["seq", "t_steady_s", "t_system_s"]
 
 
 def read_servoj_calls_csv(path):
@@ -1160,7 +1311,113 @@ def analyze_servoj_calls(
     return [check], events, telemetry
 
 
-def analyze_clock(evidence, rosout_msgs, telemetry):
+def read_clock_correlation_csv(path):
+    path = Path(path)
+    result = {"path": str(path), "rows": [], "issues": [],
+              "clock_step_indices": [], "max_clock_offset_step_s": 0.0}
+    if not path.is_file():
+        result["issues"].append(f"clock correlation file is missing: {path}")
+        return result
+    with open(path, newline="") as stream:
+        reader = csv.DictReader(
+            line for line in stream if not line.lstrip().startswith("#"))
+        if reader.fieldnames != CLOCK_CORRELATION_COLUMNS:
+            result["issues"].append(
+                "unexpected clock correlation CSV schema; expected " +
+                ",".join(CLOCK_CORRELATION_COLUMNS))
+            return result
+        try:
+            for raw in reader:
+                result["rows"].append({
+                    "seq": int(raw["seq"]),
+                    "t_steady_s": float(raw["t_steady_s"]),
+                    "t_system_s": float(raw["t_system_s"]),
+                })
+        except (TypeError, ValueError, KeyError) as exc:
+            result["issues"].append(f"malformed clock correlation row: {exc}")
+            return result
+    rows = result["rows"]
+    if not rows:
+        result["issues"].append("clock correlation CSV contains no rows")
+        return result
+    if [row["seq"] for row in rows] != list(range(len(rows))):
+        result["issues"].append("clock correlation sequence is not contiguous from zero")
+    numeric = [(row["t_steady_s"], row["t_system_s"]) for row in rows]
+    if not all(math.isfinite(value) for pair in numeric for value in pair):
+        result["issues"].append("clock correlation contains a non-finite value")
+        return result
+    steady_delta = np.diff([row["t_steady_s"] for row in rows])
+    if len(steady_delta) and np.any(steady_delta <= 0.0):
+        result["issues"].append("clock correlation steady timestamps are not increasing")
+    offsets = np.asarray([row["t_system_s"] - row["t_steady_s"]
+                          for row in rows])
+    if len(offsets) > 1:
+        offset_delta = np.diff(offsets)
+        result["clock_step_indices"] = [
+            int(index + 1) for index, value in enumerate(offset_delta)
+            if abs(value) > 0.010]
+        result["max_clock_offset_step_s"] = float(np.max(np.abs(offset_delta)))
+    return result
+
+
+def read_clock_correlation(path):
+    """Read either the session clock-monitor JSON or the legacy CSV format."""
+    path = Path(path)
+    if path.suffix.lower() != ".json":
+        return read_clock_correlation_csv(path)
+    result = {"path": str(path), "rows": [], "issues": [],
+              "clock_step_indices": [], "max_clock_offset_step_s": 0.0}
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        result["issues"].append(f"cannot read clock monitor JSON: {exc}")
+        return result
+    if record.get("schema_version") != 1 or \
+            record.get("kind") != "robross_host_clock_monitor":
+        result["issues"].append("invalid clock monitor schema/kind")
+        return result
+    if record.get("status") != "complete":
+        result["issues"].append(
+            f"clock monitor is not finalized complete: {record.get('status')!r}")
+    coverage = record.get("coverage", {})
+    try:
+        first_mono = int(coverage["first_monotonic_ns"])
+        last_mono = int(coverage["last_monotonic_ns"])
+        first_real = int(coverage["first_realtime_ns"])
+        last_real = int(coverage["last_realtime_ns"])
+        sample_count = int(coverage["sample_count"])
+    except (KeyError, TypeError, ValueError) as exc:
+        result["issues"].append(f"clock monitor coverage is malformed: {exc}")
+        return result
+    if sample_count < 2 or last_mono <= first_mono:
+        result["issues"].append("clock monitor has insufficient monotonic coverage")
+    result["rows"] = [
+        {"seq": 0, "t_steady_s": first_mono / 1e9,
+         "t_system_s": first_real / 1e9},
+        {"seq": sample_count - 1, "t_steady_s": last_mono / 1e9,
+         "t_system_s": last_real / 1e9},
+    ]
+    backward = int(record.get("backward_event_count", 0))
+    offset_steps = int(record.get("offset_step_event_count", 0))
+    if backward or offset_steps:
+        result["clock_step_indices"] = [0]
+    result["max_clock_offset_step_s"] = (
+        float(record.get("max_abs_offset_step_ns", 0)) / 1e9)
+    result["session_id"] = record.get("session_id")
+    return result
+
+
+def _clock_correlation_coverage(evidence, correlation):
+    rows = correlation.get("rows", []) if correlation else []
+    if not rows or evidence.get("start_ns") is None or evidence.get("end_ns") is None:
+        return False
+    first_s = min(row["t_system_s"] for row in rows)
+    last_s = max(row["t_system_s"] for row in rows)
+    return (first_s <= evidence["start_ns"] / 1e9 and
+            last_s >= evidence["end_ns"] / 1e9)
+
+
+def analyze_clock(evidence, rosout_msgs, telemetry, clock_correlation=None):
     events = []
     direct = []
     for t_ns, msg in rosout_msgs:
@@ -1180,7 +1437,9 @@ def analyze_clock(evidence, rosout_msgs, telemetry):
                 regressions.append((topic, messages[index][0], delta))
             elif delta > 100_000_000:
                 large_gaps.append((topic, messages[index][0], delta))
-    clock_steps = telemetry.get("clock_step_indices", []) if telemetry else []
+    step_evidence = clock_correlation or telemetry
+    clock_steps = (step_evidence.get("clock_step_indices", [])
+                   if step_evidence else [])
     if direct or regressions or clock_steps:
         if direct:
             t_ns, text, node = direct[0]
@@ -1189,17 +1448,28 @@ def analyze_clock(evidence, rosout_msgs, telemetry):
             topic, t_ns, delta = regressions[0]
             summary = f"Embedded timestamp regressed {abs(delta) / 1e6:.3f} ms on {topic}"
         else:
-            t_ns = int(telemetry["rows"][clock_steps[0]]["t_call_ros_s"] * 1e9)
+            row = step_evidence["rows"][clock_steps[0]]
+            system_key = "t_system_s" if "t_system_s" in row else "t_call_ros_s"
+            t_ns = int(row[system_key] * 1e9)
             summary = ("System-minus-steady clock offset changed by up to "
-                       f"{telemetry['max_clock_offset_step_s'] * 1000.0:.3f} ms")
+                       f"{step_evidence['max_clock_offset_step_s'] * 1000.0:.3f} ms")
         events.append(IncidentEvent(t_ns, "clock_discontinuity", "error", summary,
                                     "clock correlation"))
         check = _check("clock_stable", "Wall clock remained stable",
                        CheckState.FAIL, summary, t_ns=t_ns)
-    elif telemetry:
+    elif clock_correlation and clock_correlation.get("issues"):
+        check = _check(
+            "clock_stable", "Wall clock remained stable", CheckState.FAIL,
+            "; ".join(clock_correlation["issues"]))
+    elif clock_correlation and _clock_correlation_coverage(
+            evidence, clock_correlation):
         check = _check(
             "clock_stable", "Wall clock remained stable", CheckState.PASS,
-            "No timestamp regression or system-versus-steady offset step detected")
+            "Complete-session monotonic/system clock correlation has no offset step")
+    elif clock_correlation:
+        check = _check(
+            "clock_stable", "Wall clock remained stable", CheckState.UNKNOWN,
+            "Clock correlation does not cover the complete bag timestamp range")
     elif large_gaps:
         max_gap = max(value for _, _, value in large_gaps)
         check = _check(
@@ -1262,6 +1532,7 @@ def _overall(checks, mode, gate):
 
 
 def analyze_remediation(bag_dir, mode="debug", gate=None, servoj_calls_csv=None,
+                        clock_correlation_csv=None,
                         expected_rate_hz=DEFAULT_EXPECTED_RATE_HZ,
                         expected_servoj_t_s=DEFAULT_EXPECTED_SERVOJ_T_S,
                         expected_rtde_rate_hz=None,
@@ -1300,11 +1571,17 @@ def analyze_remediation(bag_dir, mode="debug", gate=None, servoj_calls_csv=None,
         servoj_calls_csv, expected_rate_hz, expected_servoj_t_s)
     checks.extend(servoj_checks)
     events.extend(servoj_events)
-    clock_checks, clock_events = analyze_clock(evidence, rosout, telemetry)
+    clock_correlation = (read_clock_correlation(clock_correlation_csv)
+                          if clock_correlation_csv else None)
+    clock_checks, clock_events = analyze_clock(
+        evidence, rosout, telemetry, clock_correlation)
     checks.extend(clock_checks)
     events.extend(clock_events)
     checks.extend(_capability_checks(manifest))
-    events.sort(key=lambda event: (event.t_ns is None, event.t_ns or 0))
+    events.sort(key=lambda event: (
+        event.storage_ordinal is None,
+        event.storage_ordinal if event.storage_ordinal is not None else
+        (event.t_ns if event.t_ns is not None else float("inf"))))
     overall, exit_code = _overall(checks, mode, gate)
     return RemediationReport(
         str(bag_dir), mode, gate, evidence["start_ns"], evidence["end_ns"],
@@ -1327,7 +1604,10 @@ def render_remediation_summary(report):
     else:
         for event in report.events:
             stamp = "n/a" if event.t_ns is None else f"{event.t_ns / 1e9:.9f}"
-            lines.append(f"- `{stamp}` [{event.severity}] {event.category}: "
+            storage = ("n/a" if event.storage_ordinal is None else
+                       str(event.storage_ordinal))
+            lines.append(f"- storage `{storage}`, time `{stamp}` "
+                         f"[{event.severity}] {event.category}: "
                          f"{event.summary} (`{event.source}`)")
     lines.extend(["", "## Topic inventory", ""])
     for topic, count in sorted(report.topic_counts.items()):
@@ -1344,10 +1624,15 @@ def write_remediation_json(path, report):
 def write_events_csv(path, events):
     with open(path, "w", newline="") as stream:
         writer = csv.writer(stream)
-        writer.writerow(["t_ns", "category", "severity", "summary", "source"])
+        writer.writerow([
+            "t_ns", "storage_ordinal", "split_file_ordinal", "storage_id",
+            "correlation_id", "action_uuid", "category", "severity",
+            "summary", "source"])
         for event in events:
-            writer.writerow([event.t_ns, event.category, event.severity,
-                             event.summary, event.source])
+            writer.writerow([
+                event.t_ns, event.storage_ordinal, event.split_file_ordinal,
+                event.storage_id, event.correlation_id, event.action_uuid,
+                event.category, event.severity, event.summary, event.source])
 
 
 # ---------------------------------------------------------------------------
@@ -1932,6 +2217,8 @@ def main(argv=None):
                     help="apply the selected strict remediation gate")
     ap.add_argument("--servoj-calls-csv",
                     help="driver full-rate ServoJ call CSV input")
+    ap.add_argument("--clock-correlation-csv",
+                    help="clock-monitor JSON or legacy complete-session CSV")
     ap.add_argument("--expected-rate-hz", type=float,
                     default=DEFAULT_EXPECTED_RATE_HZ,
                     help="expected controller/ServoJ call rate (default: 125)")
@@ -1976,6 +2263,7 @@ def main(argv=None):
     report = analyze_remediation(
         args.bag_dir, mode=args.mode, gate=args.gate,
         servoj_calls_csv=args.servoj_calls_csv,
+        clock_correlation_csv=args.clock_correlation_csv,
         expected_rate_hz=args.expected_rate_hz,
         expected_servoj_t_s=args.expected_servoj_t_s,
         expected_rtde_rate_hz=args.expected_rtde_rate_hz,

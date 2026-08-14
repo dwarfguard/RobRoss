@@ -60,9 +60,9 @@ def test_executor_diagnoses_failed_pen_up_travel_before_fallback():
         encoding="utf-8"
     )
     travel = source.index("bool doMoveTo(double x_mm, double y_mm)")
-    cartesian = source.index("ok = moveCartesian({ target })", travel)
+    cartesian = source.index("outcome = moveCartesian({ target })", travel)
     diagnostics = source.index(
         "processPendingCartesianFailures(RetreatOutcome::NotNeeded)", cartesian
     )
-    fallback = source.index("ok = moveJointSpace(target)", diagnostics)
+    fallback = source.index("outcome = moveJointSpace(target)", diagnostics)
     assert cartesian < diagnostics < fallback

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -55,6 +56,116 @@ def test_capture_command_index_must_be_nonnegative(value):
         paint_launch.nonnegative_integer(value, "capture_command")
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("true", True), ("ON", True), ("0", False), ("no", False)],
+)
+def test_boolean_value(value, expected):
+    assert paint_launch.boolean_value(value, "flag") is expected
+
+
+def test_boolean_value_rejects_unknown_value():
+    with pytest.raises(RuntimeError, match="must be a boolean"):
+        paint_launch.boolean_value("sometimes", "flag")
+
+
+def identity(package, **overrides):
+    contents = {
+        "schema_version": 1,
+        "package": package,
+        "available": True,
+        "source_clean": True,
+        "repository": f"https://example.com/{package}.git",
+        "commit": "a" * 40,
+        "reason": "",
+    }
+    contents.update(overrides)
+    return json.dumps(contents)
+
+
+def install_identity_mocks(monkeypatch, contents, identity_prefix="/overlay"):
+    monkeypatch.setattr(
+        paint_launch,
+        "get_resource",
+        lambda resource_type, package: (contents, identity_prefix),
+    )
+    monkeypatch.setattr(
+        paint_launch, "get_package_prefix", lambda package: "/overlay"
+    )
+
+
+def test_build_identity_accepts_exact_clean_source_build(monkeypatch):
+    package = "aubo_ros2_driver"
+    install_identity_mocks(monkeypatch, identity(package))
+
+    result = paint_launch.validate_build_identity(
+        package, f"https://example.com/{package}.git", "a" * 40
+    )
+    assert result["commit"] == "a" * 40
+
+
+def test_build_identity_rejects_missing_resource(monkeypatch):
+    def missing_resource(resource_type, package):
+        raise LookupError(package)
+
+    monkeypatch.setattr(paint_launch, "get_resource", missing_resource)
+    with pytest.raises(RuntimeError, match="source build identity is unavailable"):
+        paint_launch.validate_build_identity(
+            "joint_trajectory_controller",
+            "https://example.com/ros2_controllers.git",
+            "a" * 40,
+        )
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"available": False, "reason": "dirty source"}, "dirty source"),
+        ({"source_clean": False}, "not a qualified source build"),
+        ({"repository": "https://example.com/other.git"}, "repository mismatch"),
+        ({"commit": "b" * 40}, "commit mismatch"),
+    ],
+)
+def test_build_identity_rejects_unqualified_or_mismatched_build(
+    monkeypatch, overrides, message
+):
+    package = "aubo_ros2_driver"
+    install_identity_mocks(monkeypatch, identity(package, **overrides))
+
+    with pytest.raises(RuntimeError, match=message):
+        paint_launch.validate_build_identity(
+            package, f"https://example.com/{package}.git", "a" * 40
+        )
+
+
+def test_build_identity_rejects_marker_from_shadowed_prefix(monkeypatch):
+    package = "joint_trajectory_controller"
+    install_identity_mocks(monkeypatch, identity(package), "/underlay")
+
+    with pytest.raises(RuntimeError, match="does not describe the active package"):
+        paint_launch.validate_build_identity(
+            package, f"https://example.com/{package}.git", "a" * 40
+        )
+
+
+def test_qualification_requires_controller_pin_before_resource_lookup(monkeypatch):
+    calls = []
+
+    def validate(package, repository, commit):
+        calls.append((package, repository, commit))
+        if not repository:
+            raise RuntimeError(f"expected repository is required for {package}")
+        return {"package": package, "repository": repository, "commit": commit}
+
+    monkeypatch.setattr(paint_launch, "validate_build_identity", validate)
+
+    with pytest.raises(RuntimeError, match="joint_trajectory_controller"):
+        paint_launch.validate_qualified_build(
+            "https://example.com/driver.git", "a" * 40, "", ""
+        )
+    assert calls[0][0] == "aubo_ros2_driver"
+
+
 def test_calibration_rejects_pose_only_yaml(tmp_path):
     path = write_parameter_file(
         tmp_path / "canvas.yaml",
@@ -75,6 +186,81 @@ def test_calibration_does_not_enforce_dry_run(tmp_path, dry_run_marker):
     )
 
     paint_launch.validate_calibration_file(path)
+
+
+def qualified_parameters():
+    parameters = valid_calibration(False)
+    parameters["controller_sample_dt"] = 0.008
+    for name in paint_launch.QUALIFIED_CHECKS:
+        parameters[name] = True
+    return parameters
+
+
+def test_qualification_parameters_accept_frozen_timing_and_all_checks():
+    paint_launch.validate_qualification_parameters(
+        qualified_parameters(), 125, 0.008, 200, 0.05
+    )
+
+
+def test_qualification_parameters_reject_disabled_check():
+    parameters = qualified_parameters()
+    parameters["endpoint_settle_enabled"] = False
+
+    with pytest.raises(RuntimeError, match="endpoint_settle_enabled"):
+        paint_launch.validate_qualification_parameters(
+            parameters, 125, 0.008, 200, 0.05
+        )
+
+
+def test_qualification_parameters_reject_unqualified_timing_pair():
+    with pytest.raises(RuntimeError, match="125 Hz"):
+        paint_launch.validate_qualification_parameters(
+            qualified_parameters(), 200, 0.005, 200, 0.05
+        )
+
+
+def test_provenance_manifest_is_structured_and_atomic(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        paint_launch,
+        "get_package_prefix",
+        lambda package: str(tmp_path / "missing-prefix"),
+    )
+    monkeypatch.setattr(
+        paint_launch,
+        "git_identity",
+        lambda path: {"path": str(path), "revision": "a" * 40, "dirty": False},
+    )
+    input_path = tmp_path / "paths.json"
+    input_path.write_text("{}", encoding="utf-8")
+
+    destination = paint_launch.write_provenance_manifest(
+        tmp_path,
+        "session-a",
+        "aubo_i5_calibrated",
+        {"paths_file": str(input_path)},
+        qualified_parameters(),
+        '<robot name="aubo"><joint name="j1" type="revolute"/></robot>',
+        '<robot name="aubo"><group name="manipulator"><joint name="j1"/></group></robot>',
+        {"controller_update_rate_hz": 125},
+        {"status": "pass"},
+        {"status": "running"},
+        {
+            "aubo_ros2_driver": {"commit": "a" * 40},
+            "joint_trajectory_controller": {"commit": "b" * 40},
+        },
+    )
+
+    manifest = json.loads(Path(destination).read_text(encoding="utf-8"))
+    assert manifest["session_id"] == "session-a"
+    assert all(manifest["coverage"].values())
+    assert (
+        manifest["qualified_build_identities"]["joint_trajectory_controller"][
+            "commit"
+        ]
+        == "b" * 40
+    )
+    assert manifest["robot"]["urdf_joint_order"] == ["j1"]
+    assert not list(tmp_path.glob("*.tmp"))
 
 
 def test_canvas_requires_taught_pose(tmp_path):
@@ -111,11 +297,13 @@ def test_shipped_calibration_profiles_are_valid():
         paint_launch.validate_calibration_file(str(path))
 
 
-def test_shipped_hardware_profile_executes_live():
+def test_shipped_hardware_profile_is_safe_template():
     path = PACKAGE_ROOT / "config" / "hardware_a4.yaml"
     parameters = yaml.safe_load(path.read_text(encoding="utf-8"))
 
-    assert parameters["painting_executor"]["ros__parameters"]["dry_run"] is False
+    parameters = parameters["painting_executor"]["ros__parameters"]
+    assert parameters["dry_run"] is True
+    assert all(parameters[name] is True for name in paint_launch.QUALIFIED_CHECKS)
 
 
 def test_hardware_representative_profiles_share_tool_geometry():

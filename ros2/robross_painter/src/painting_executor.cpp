@@ -18,6 +18,7 @@
 // kept normal to the canvas; tool_spin_deg rotates the claw about it.
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
@@ -41,6 +42,7 @@
 
 #include <json/json.h>
 
+#include <aubo_msgs/msg/driver_health.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
@@ -69,17 +71,13 @@
 #include "cartesian_failure_diagnostics.hpp"
 #include "conformance_checks.hpp"
 #include "endpoint_settling.hpp"
+#include "executor_safety.hpp"
 
 namespace {
 
-// Contact state of a single executed trajectory. Validation runs for every
-// kind; the kind only selects the settle timeout and the recovery policy.
-enum class MotionKind {
-    Transit,   // pen up, positioning move (no contact)
-    Lowering,  // descending to establish pen contact
-    Painting,  // pen down, drawing a stroke/path
-    Lifting    // leaving contact, raising the pen
-};
+using robross_painter::MotionKind;
+using robross_painter::MotionOutcome;
+using robross_painter::MotionStatus;
 
 enum class RetreatOutcome {
     NotNeeded,
@@ -315,7 +313,13 @@ public:
         node_->get_parameter_or("controller_sample_dt", controller_sample_dt_,
                                 controller_sample_dt_);
         node_->get_parameter_or("joint_states_topic", joint_states_topic_,
-                                joint_states_topic_);
+                                 joint_states_topic_);
+        node_->get_parameter_or("driver_health_max_age_sec",
+                                 driver_health_max_age_sec_,
+                                 driver_health_max_age_sec_);
+        node_->get_parameter_or("driver_health_wait_timeout_sec",
+                                 driver_health_wait_timeout_sec_,
+                                 driver_health_wait_timeout_sec_);
         node_->get_parameter_or("state_validity_service",
                                 state_validity_service_,
                                 state_validity_service_);
@@ -396,6 +400,25 @@ public:
                     }
                     joint_state_cv_.notify_all();
                 });
+        auto health_qos = rclcpp::QoS(rclcpp::KeepLast(1));
+        health_qos.reliable().transient_local();
+        driver_health_sub_ =
+            state_node_->create_subscription<aubo_msgs::msg::DriverHealth>(
+                "/aubo_driver/health", health_qos,
+                [this](const aubo_msgs::msg::DriverHealth::SharedPtr msg) {
+                    {
+                        std::lock_guard<std::mutex> lock(driver_health_mutex_);
+                        driver_health_ = *msg;
+                        driver_health_received_at_ =
+                            std::chrono::steady_clock::now();
+                        have_driver_health_ = true;
+                    }
+                    driver_health_cv_.notify_all();
+                    stopForUnhealthyDriver();
+                });
+        driver_health_timer_ = state_node_->create_wall_timer(
+            std::chrono::milliseconds(50),
+            [this]() { stopForUnhealthyDriver(); });
         state_validity_client_ =
             state_node_->create_client<moveit_msgs::srv::GetStateValidity>(
                 state_validity_service_);
@@ -420,6 +443,9 @@ public:
 
     bool run()
     {
+        if (!dry_run_ && !waitForHealthyDriver()) {
+            return false;
+        }
         if (!initializeMotionPolicy()) {
             return false;
         }
@@ -464,6 +490,7 @@ public:
             active_command_type_ = type;
             active_command_label_ = label;
             active_cartesian_call_ordinal_ = 0;
+            last_failed_motion_.reset();
             pending_cartesian_failures_.clear();
             RCLCPP_INFO(node_->get_logger(), "[%d/%d] %s (%s)", index,
                         static_cast<int>(commands.size()), type.c_str(),
@@ -492,6 +519,11 @@ public:
                              index, type.c_str(), label.c_str());
                 const RetreatOutcome retreat = attemptRetreat();
                 processPendingCartesianFailures(retreat);
+                if (last_failed_motion_) {
+                    emitMotionOutcome(*last_failed_motion_,
+                                      recoveryName(*last_failed_motion_,
+                                                   retreat));
+                }
                 return false;
             }
             pending_cartesian_failures_.clear();
@@ -511,6 +543,175 @@ public:
     }
 
 private:
+    robross_painter::DriverHealthAssessment driverHealthAssessment() const
+    {
+        robross_painter::DriverHealthSample sample;
+        aubo_msgs::msg::DriverHealth health;
+        std::chrono::steady_clock::time_point received_at;
+        {
+            std::lock_guard<std::mutex> lock(driver_health_mutex_);
+            sample.received = have_driver_health_;
+            if (!have_driver_health_) {
+                return robross_painter::DriverHealthAssessment::Missing;
+            }
+            health = driver_health_;
+            received_at = driver_health_received_at_;
+        }
+        const auto finite = [](double value) { return std::isfinite(value); };
+        sample.state = health.state;
+        sample.fault_code = health.fault_code;
+        sample.writes_enabled = health.writes_enabled;
+        sample.finite =
+            finite(health.source_age_sec) && finite(health.max_source_age_sec) &&
+            finite(health.callback_age_sec) && finite(health.observed_rate_hz) &&
+            finite(health.interval_mean_ms) && finite(health.interval_p95_ms) &&
+            finite(health.interval_p99_ms) && finite(health.interval_max_ms);
+        sample.source_age_sec = health.source_age_sec;
+        sample.callback_age_sec = health.callback_age_sec;
+        sample.receipt_age_sec = std::chrono::duration<double>(
+                                     std::chrono::steady_clock::now() -
+                                     received_at)
+                                     .count();
+        sample.stamp_age_sec =
+            node_->now().seconds() - rclcpp::Time(health.stamp).seconds();
+        return robross_painter::assessDriverHealth(
+            sample, aubo_msgs::msg::DriverHealth::READY,
+            driver_health_max_age_sec_);
+    }
+
+    bool driverHealthy(const char *operation, bool log_failure = true)
+    {
+        const auto assessment = driverHealthAssessment();
+        const bool ready =
+            assessment == robross_painter::DriverHealthAssessment::Ready &&
+            !driver_health_failure_latched_.load(std::memory_order_acquire);
+        if (!ready && log_failure) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Driver health gate rejected %s: %s%s", operation,
+                         robross_painter::driverHealthAssessmentName(assessment),
+                         driver_health_failure_latched_.load(
+                             std::memory_order_acquire)
+                             ? " (latched)"
+                             : "");
+        }
+        return ready;
+    }
+
+    bool waitForHealthyDriver()
+    {
+        const auto deadline = std::chrono::steady_clock::now() +
+                              std::chrono::duration<double>(
+                                  driver_health_wait_timeout_sec_);
+        std::unique_lock<std::mutex> lock(driver_health_mutex_);
+        while (!have_driver_health_) {
+            if (driver_health_cv_.wait_until(lock, deadline) ==
+                std::cv_status::timeout) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Timed out waiting for transient-local "
+                             "/aubo_driver/health");
+                return false;
+            }
+        }
+        lock.unlock();
+        if (!driverHealthy("executor startup")) {
+            return false;
+        }
+        driver_health_monitor_armed_.store(true, std::memory_order_release);
+        RCLCPP_INFO(node_->get_logger(), "Driver health gate is ready");
+        return true;
+    }
+
+    void stopForUnhealthyDriver()
+    {
+        if (!driver_health_monitor_armed_.load(std::memory_order_acquire) ||
+            driverHealthAssessment() ==
+                robross_painter::DriverHealthAssessment::Ready) {
+            return;
+        }
+        driver_health_failure_latched_.store(true, std::memory_order_release);
+        if (execution_active_.load(std::memory_order_acquire)) {
+            if (!health_stop_requested_.exchange(true,
+                                                 std::memory_order_acq_rel)) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Driver health failed during submitted motion; "
+                             "requesting MoveIt stop");
+            }
+            // Repeat while execute() is in flight. The first request can race
+            // goal registration and arrive before MoveIt can cancel it.
+            group_.stop();
+        }
+    }
+
+    std::string nextCorrelationId()
+    {
+        std::ostringstream id;
+        id << "cmd-" << active_command_index_ << "-motion-"
+           << ++motion_correlation_sequence_;
+        return id.str();
+    }
+
+    MotionOutcome preSubmissionFailure(MotionKind kind,
+                                       const std::string &correlation_id,
+                                       std::int32_t code,
+                                       const std::string &detail,
+                                       bool fallback_eligible = false) const
+    {
+        MotionOutcome outcome;
+        outcome.kind = kind;
+        outcome.status = MotionStatus::PreSubmissionFailed;
+        outcome.moveit_code = code;
+        outcome.correlation_id = correlation_id;
+        outcome.detail = detail;
+        outcome.joint_fallback_eligible = fallback_eligible;
+        return outcome;
+    }
+
+    void emitMotionOutcome(const MotionOutcome &outcome,
+                           const std::string &recovery) const
+    {
+        Json::Value record;
+        record["command_index"] = active_command_index_;
+        record["motion_kind"] =
+            robross_painter::motionKindName(outcome.kind);
+        record["execution_started"] = outcome.execution_started;
+        record["moveit_code"] = outcome.moveit_code;
+        record["moveit_code_symbolic"] =
+            robross_painter::moveItCodeName(outcome.moveit_code);
+        record["correlation_id"] = outcome.correlation_id;
+        record["goal_identifier"] = Json::nullValue;
+        record["outcome"] =
+            robross_painter::motionStatusName(outcome.status);
+        record["recovery"] = recovery;
+        record["detail"] = outcome.detail;
+        Json::StreamWriterBuilder builder;
+        builder["indentation"] = "";
+        RCLCPP_INFO(node_->get_logger(), "motion_outcome=%s",
+                    Json::writeString(builder, record).c_str());
+    }
+
+    static std::string recoveryName(const MotionOutcome &outcome,
+                                    RetreatOutcome retreat)
+    {
+        if (retreat == RetreatOutcome::Succeeded) {
+            return outcome.stop_requested ? "stop_then_retreat" : "retreat";
+        }
+        if (retreat == RetreatOutcome::Failed) {
+            return outcome.stop_requested ? "stop_retreat_failed"
+                                          : "retreat_failed";
+        }
+        return outcome.stop_requested ? "stop" : "none";
+    }
+
+    bool acceptMotion(MotionOutcome outcome)
+    {
+        if (outcome.succeeded()) {
+            emitMotionOutcome(outcome, "none");
+            return true;
+        }
+        last_failed_motion_ = std::move(outcome);
+        return false;
+    }
+
     bool removeWorldObjectIfPresent(const std::string &id,
                                     const char *description)
     {
@@ -982,13 +1183,13 @@ private:
             return false;
         }
         const auto target = makePose(x_mm, y_mm, safe_clearance_);
-        bool ok;
+        MotionOutcome outcome;
         if (first_motion_) {
-            ok = moveJointSpace(target);
+            outcome = moveJointSpace(target);
             first_motion_ = false;
         } else {
-            ok = moveCartesian({ target });
-            if (!ok) {
+            outcome = moveCartesian({ target });
+            if (robross_painter::jointFallbackAllowed(outcome)) {
                 processPendingCartesianFailures(RetreatOutcome::NotNeeded);
                 pending_cartesian_failures_.clear();
                 // The pen is up, so a collision-checked joint-space path
@@ -997,9 +1198,11 @@ private:
                 RCLCPP_WARN(node_->get_logger(),
                             "Straight travel infeasible; replanning this "
                             "travel move in joint space");
-                ok = moveJointSpace(target);
+                emitMotionOutcome(outcome, "joint_fallback");
+                outcome = moveJointSpace(target);
             }
         }
+        const bool ok = acceptMotion(std::move(outcome));
         if (ok) {
             cur_x_mm_ = x_mm;
             cur_y_mm_ = y_mm;
@@ -1018,7 +1221,8 @@ private:
         }
         const MotionKind kind =
             (z_off == 0.0) ? MotionKind::Lowering : MotionKind::Lifting;
-        if (!moveCartesian({ makePose(cur_x_mm_, cur_y_mm_, z_off) }, kind)) {
+        if (!acceptMotion(moveCartesian(
+                { makePose(cur_x_mm_, cur_y_mm_, z_off) }, kind))) {
             return false;
         }
         pen_down_ = (z_off == 0.0);
@@ -1044,14 +1248,15 @@ private:
                         "Stroke starts at (%.2f, %.2f) but pen is at "
                         "(%.2f, %.2f); dragging pen to the start point",
                         fx, fy, cur_x_mm_, cur_y_mm_);
-            if (!moveCartesian({ makePose(fx, fy, 0.0) },
-                               MotionKind::Painting)) {
+            if (!acceptMotion(moveCartesian({ makePose(fx, fy, 0.0) },
+                                             MotionKind::Painting))) {
                 return false;
             }
             cur_x_mm_ = fx;
             cur_y_mm_ = fy;
         }
-        if (!moveCartesian({ makePose(tx, ty, 0.0) }, MotionKind::Painting)) {
+        if (!acceptMotion(moveCartesian({ makePose(tx, ty, 0.0) },
+                                        MotionKind::Painting))) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Stroke rejected; refusing an automatic posture "
                          "change while painting");
@@ -1105,7 +1310,7 @@ private:
         for (const auto &target : targets) {
             waypoints.push_back(makePose(target.x_mm, target.y_mm, 0.0));
         }
-        if (!moveCartesian(waypoints, MotionKind::Painting)) {
+        if (!acceptMotion(moveCartesian(waypoints, MotionKind::Painting))) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Paint path rejected; refusing an automatic posture "
                          "change while painting");
@@ -1170,11 +1375,15 @@ private:
         hover.orientation.y = orientation.y();
         hover.orientation.z = orientation.z();
         hover.orientation.w = orientation.w();
-        if (moveCartesian({ hover }, MotionKind::Lifting, false)) {
+        const auto retreat_motion =
+            moveCartesian({ hover }, MotionKind::Lifting, false);
+        if (retreat_motion.succeeded()) {
+            emitMotionOutcome(retreat_motion, "retreat");
             pen_down_ = false;
             RCLCPP_INFO(node_->get_logger(), "Pen retreated to hover height");
             return RetreatOutcome::Succeeded;
         }
+        emitMotionOutcome(retreat_motion, "retreat_failed");
         RCLCPP_ERROR(node_->get_logger(),
                      "Straight retreat failed: refusing a joint-space move "
                       "with the pen down. Jog it clear manually before the "
@@ -1260,11 +1469,16 @@ private:
             acc_scale_ <= 0.0 || acc_scale_ > 1.0 ||
             !std::isfinite(eef_step_) || eef_step_ <= 0.0 ||
             !std::isfinite(jump_threshold_) || jump_threshold_ <= 0.0 ||
-            joint_states_topic_.empty() || state_validity_service_.empty()) {
+            joint_states_topic_.empty() || state_validity_service_.empty() ||
+            !std::isfinite(driver_health_max_age_sec_) ||
+            driver_health_max_age_sec_ <= 0.0 ||
+            !std::isfinite(driver_health_wait_timeout_sec_) ||
+            driver_health_wait_timeout_sec_ <= 0.0) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Invalid motion settings: clearance, scaling, "
                          "eef_step, jump threshold, and joint-state topic "
-                         "must be safe non-empty positive values");
+                          "and driver health timing must be safe non-empty "
+                          "positive values");
             return false;
         }
         if (!std::isfinite(elbow_up_min_deg_) ||
@@ -2328,27 +2542,91 @@ private:
         tracked_state_->update();
     }
 
-    bool executeTrajectory(const moveit_msgs::msg::RobotTrajectory &traj,
-                           MotionKind kind, const char *what)
+    MotionOutcome executeTrajectory(const moveit_msgs::msg::RobotTrajectory &traj,
+                                    MotionKind kind, const char *what,
+                                    const std::string &correlation_id,
+                                    bool fallback_eligible = false)
     {
         const bool contact = kind != MotionKind::Transit;
         if (!validateTrajectory(traj, contact, what)) {
-            return false;
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                std::string(what) + " trajectory validation failed",
+                fallback_eligible);
         }
+        MotionOutcome outcome;
+        outcome.kind = kind;
+        outcome.correlation_id = correlation_id;
         if (dry_run_) {
             trackTrajectoryEnd(traj);
-            return true;
+            outcome.status = MotionStatus::Succeeded;
+            outcome.moveit_code = moveit_msgs::msg::MoveItErrorCodes::SUCCESS;
+            outcome.detail = "dry-run trajectory validated";
+            return outcome;
         }
-        const auto execution_result = group_.execute(traj);
+        if (!driverHealthy("trajectory submission")) {
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::SENSOR_INFO_STALE,
+                "driver health rejected trajectory submission");
+        }
+        health_stop_requested_.store(false, std::memory_order_release);
+        execution_active_.store(true, std::memory_order_release);
+        if (!driverHealthy("armed trajectory submission", false)) {
+            execution_active_.store(false, std::memory_order_release);
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::SENSOR_INFO_STALE,
+                "driver health failed before trajectory submission");
+        }
+        moveit::core::MoveItErrorCode execution_result;
+        try {
+            execution_result = group_.execute(traj);
+        } catch (const std::exception &exception) {
+            execution_active_.store(false, std::memory_order_release);
+            group_.stop();
+            outcome.execution_started = true;
+            outcome.stop_requested = true;
+            outcome.moveit_code = moveit_msgs::msg::MoveItErrorCodes::FAILURE;
+            outcome.status = MotionStatus::ExecutionFailed;
+            outcome.detail = std::string(what) + " execution exception: " +
+                             exception.what();
+            markExecutionFailure(kind);
+            return outcome;
+        } catch (...) {
+            execution_active_.store(false, std::memory_order_release);
+            group_.stop();
+            outcome.execution_started = true;
+            outcome.stop_requested = true;
+            outcome.moveit_code = moveit_msgs::msg::MoveItErrorCodes::FAILURE;
+            outcome.status = MotionStatus::ExecutionFailed;
+            outcome.detail = std::string(what) +
+                             " execution raised an unknown exception";
+            markExecutionFailure(kind);
+            return outcome;
+        }
+        execution_active_.store(false, std::memory_order_release);
         const auto completion_time = std::chrono::steady_clock::now();
         const std::uint64_t completion_seq = jointStateSequence();
-        if (execution_result != moveit::core::MoveItErrorCode::SUCCESS) {
+        outcome.execution_started = true;
+        outcome.moveit_code = execution_result.val;
+        if (execution_result != moveit::core::MoveItErrorCode::SUCCESS ||
+            !driverHealthy("execution completion", false)) {
+            group_.stop();
+            outcome.stop_requested = true;
+            outcome.status = MotionStatus::ExecutionFailed;
+            outcome.detail =
+                execution_result != moveit::core::MoveItErrorCode::SUCCESS
+                    ? std::string(what) + " execution returned non-success"
+                    : "driver health failed during submitted execution";
             RCLCPP_ERROR(node_->get_logger(),
-                         "Execution reported failure (%s); contact state is "
-                         "uncertain",
-                         what);
+                         "Execution failed (%s, MoveIt %s/%d); contact state "
+                         "is uncertain",
+                         what, robross_painter::moveItCodeName(outcome.moveit_code),
+                         outcome.moveit_code);
             markExecutionFailure(kind);
-            return false;
+            return outcome;
         }
         if (endpoint_settle_enabled_) {
             // Wait for the arm to reach and hold the endpoint at rest before
@@ -2358,13 +2636,20 @@ private:
                                   report)) {
                 logSettleFailure(what, report);
                 markExecutionFailure(kind);
-                return false;
+                outcome.status = MotionStatus::PostExecutionFailed;
+                outcome.stop_requested = true;
+                outcome.detail = std::string(what) + " endpoint did not settle";
+                return outcome;
             }
         } else if (!refreshTrackedState(completion_seq, true)) {
             RCLCPP_ERROR(node_->get_logger(),
                          "No fresh post-execution joint state (%s)", what);
             markExecutionFailure(kind);
-            return false;
+            outcome.status = MotionStatus::PostExecutionFailed;
+            outcome.stop_requested = true;
+            outcome.detail = std::string(what) +
+                             " had no fresh post-execution joint state";
+            return outcome;
         }
 
         const auto &jt = traj.joint_trajectory;
@@ -2390,16 +2675,26 @@ private:
                              "(%s)",
                              what);
                 markExecutionFailure(kind);
-                return false;
+                outcome.status = MotionStatus::PostExecutionFailed;
+                outcome.stop_requested = true;
+                outcome.detail = std::string(what) +
+                                 " endpoint violated conformance limits";
+                return outcome;
             }
         }
 
         // Final one-shot collision check remains mandatory in both modes.
         if (!stateIsValid(jt.joint_names, measured, "Measured endpoint")) {
             markExecutionFailure(kind);
-            return false;
+            outcome.status = MotionStatus::PostExecutionFailed;
+            outcome.stop_requested = true;
+            outcome.detail = std::string(what) +
+                             " measured endpoint was invalid";
+            return outcome;
         }
-        return true;
+        outcome.status = MotionStatus::Succeeded;
+        outcome.detail = std::string(what) + " completed and was verified";
+        return outcome;
     }
 
     double trajectoryJointTravel(
@@ -2417,11 +2712,21 @@ private:
         return total;
     }
 
-    bool moveJointSpace(const geometry_msgs::msg::Pose &target)
+    MotionOutcome moveJointSpace(const geometry_msgs::msg::Pose &target)
     {
+        const std::string correlation_id = nextCorrelationId();
+        if (!driverHealthy("joint-space planning")) {
+            return preSubmissionFailure(
+                MotionKind::Transit, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::SENSOR_INFO_STALE,
+                "driver health rejected joint-space planning");
+        }
         std::vector<double> goal;
         if (!computeIkJointGoal(target, goal)) {
-            return false;
+            return preSubmissionFailure(
+                MotionKind::Transit, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::NO_IK_SOLUTION,
+                "joint-space IK goal failed");
         }
         setPlanStartState();
         group_.clearPoseTargets();
@@ -2434,9 +2739,20 @@ private:
         moveit::planning_interface::MoveGroupInterface::Plan best_plan;
         double best_travel = std::numeric_limits<double>::infinity();
         bool have_plan = false;
+        std::int32_t planning_code =
+            moveit_msgs::msg::MoveItErrorCodes::PLANNING_FAILED;
         for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+            if (!driverHealthy("joint-space replanning")) {
+                group_.clearPathConstraints();
+                return preSubmissionFailure(
+                    MotionKind::Transit, correlation_id,
+                    moveit_msgs::msg::MoveItErrorCodes::SENSOR_INFO_STALE,
+                    "driver health failed during joint-space planning");
+            }
             moveit::planning_interface::MoveGroupInterface::Plan plan;
-            if (group_.plan(plan) != moveit::core::MoveItErrorCode::SUCCESS) {
+            const auto plan_result = group_.plan(plan);
+            planning_code = plan_result.val;
+            if (plan_result != moveit::core::MoveItErrorCode::SUCCESS) {
                 RCLCPP_WARN(node_->get_logger(),
                             "Bounded joint-space planning attempt %d/%d failed",
                             attempt, kAttempts);
@@ -2461,14 +2777,16 @@ private:
         if (!have_plan) {
             RCLCPP_ERROR(node_->get_logger(),
                          "No bounded elbow-up joint-space plan found");
-            return false;
+            return preSubmissionFailure(MotionKind::Transit, correlation_id,
+                                        planning_code,
+                                        "no bounded joint-space plan found");
         }
         RCLCPP_INFO(node_->get_logger(),
                     "Selected shortest bounded joint-space candidate: %.1f "
                     "deg total joint travel",
                     best_travel * 180.0 / M_PI);
         return executeTrajectory(best_plan.trajectory_, MotionKind::Transit,
-                                 "Joint-space");
+                                 "Joint-space", correlation_id);
     }
 
     void captureSceneSnapshot(
@@ -2604,12 +2922,13 @@ private:
         const robross_painter::CartesianFailureRecord &record,
         const char *prefix) const
     {
-        const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                   std::chrono::system_clock::now()
-                                       .time_since_epoch())
-                                   .count();
+        const auto monotonic_ns =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count();
         std::ostringstream name;
-        name << prefix << "_" << timestamp << "_cmd" << std::setw(4)
+        name << prefix << "_mono" << monotonic_ns << "_seq"
+             << ++artifact_sequence_ << "_cmd" << std::setw(4)
              << std::setfill('0') << record.command_index << "_call"
              << std::setw(2) << record.cartesian_call_ordinal << ".json";
         return (std::filesystem::path(cartesian_failure_artifact_dir_) /
@@ -2708,14 +3027,27 @@ private:
         return summary;
     }
 
-    bool moveCartesian(const std::vector<geometry_msgs::msg::Pose> &waypoints,
-                       MotionKind kind = MotionKind::Transit,
-                       bool capture_failure = true)
+    MotionOutcome moveCartesian(
+        const std::vector<geometry_msgs::msg::Pose> &waypoints,
+        MotionKind kind = MotionKind::Transit, bool capture_failure = true)
     {
+        const std::string correlation_id = nextCorrelationId();
+        const bool fallback_eligible =
+            kind == MotionKind::Transit && capture_failure;
+        if (!driverHealthy("Cartesian planning")) {
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::SENSOR_INFO_STALE,
+                "driver health rejected Cartesian planning");
+        }
         if (!refreshTrackedState()) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Cannot refresh current state for Cartesian planning");
-            return false;
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::ROBOT_STATE_STALE,
+                "current state unavailable for Cartesian planning",
+                fallback_eligible);
         }
         const moveit::core::RobotState planning_start(*tracked_state_);
         if (capture_failure) {
@@ -2753,7 +3085,22 @@ private:
                 pending_cartesian_failures_.push_back(
                     std::move(request_record));
             }
-            return false;
+            const std::int32_t code =
+                robross_painter::cartesianAttemptSucceeded(normal)
+                    ? moveit_msgs::msg::MoveItErrorCodes::PLANNING_FAILED
+                    : normal.error_code;
+            return preSubmissionFailure(
+                kind, correlation_id, code,
+                robross_painter::cartesianAttemptSucceeded(normal)
+                    ? "Cartesian path fraction was incomplete"
+                    : "Cartesian path service failed",
+                fallback_eligible);
+        }
+        if (!driverHealthy("Cartesian plan validation")) {
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::SENSOR_INFO_STALE,
+                "driver health failed during Cartesian planning");
         }
         if (capture_failure && dry_run_ &&
             active_command_index_ == cartesian_capture_command_index_) {
@@ -2773,12 +3120,19 @@ private:
                             path.c_str());
             } else {
                 RCLCPP_ERROR(node_->get_logger(), "%s", error.c_str());
-                return false;
+                return preSubmissionFailure(
+                    kind, correlation_id,
+                    moveit_msgs::msg::MoveItErrorCodes::FAILURE,
+                    "Cartesian request artifact write failed");
             }
         }
         const bool contact = kind != MotionKind::Transit;
         if (!validateTrajectory(traj, contact, "Cartesian IK")) {
-            return false;
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                "Cartesian IK trajectory validation failed",
+                fallback_eligible);
         }
         // computeCartesianPath ignores the velocity scaling, so retime.
         moveit::core::RobotState start_state(group_.getRobotModel());
@@ -2799,7 +3153,10 @@ private:
             totg_path_tolerance_, controller_sample_dt_);
         if (!totg.computeTimeStamps(rt, vel_scale_, acc_scale_)) {
             RCLCPP_ERROR(node_->get_logger(), "Trajectory retiming failed");
-            return false;
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                "Cartesian trajectory retiming failed", fallback_eligible);
         }
         rt.getRobotTrajectoryMsg(traj);
         // Strip derivatives BEFORE validation and execution so every check
@@ -2810,12 +3167,20 @@ private:
         robross_painter::stripDerivatives(traj.joint_trajectory);
         if (robross_painter::anyCartesianCheckEnabled(cartesianCheckPolicy()) &&
             !validateCartesianPath(traj, waypoints)) {
-            return false;
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                "Cartesian geometric conformance validation failed",
+                fallback_eligible);
         }
         if (!validateCollisionFree(traj)) {
-            return false;
+            return preSubmissionFailure(
+                kind, correlation_id,
+                moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                "Cartesian collision validation failed", fallback_eligible);
         }
-        return executeTrajectory(traj, kind, "Cartesian");
+        return executeTrajectory(traj, kind, "Cartesian", correlation_id,
+                                 fallback_eligible);
     }
 
     void publishCanvasOutline()
@@ -2866,6 +3231,9 @@ private:
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr
         joint_state_sub_;
+    rclcpp::Subscription<aubo_msgs::msg::DriverHealth>::SharedPtr
+        driver_health_sub_;
+    rclcpp::TimerBase::SharedPtr driver_health_timer_;
     rclcpp::Client<moveit_msgs::srv::GetStateValidity>::SharedPtr
         state_validity_client_;
     rclcpp::Client<moveit_msgs::srv::GetCartesianPath>::SharedPtr
@@ -2881,10 +3249,21 @@ private:
     std::chrono::steady_clock::time_point joint_state_received_at_;
     std::uint64_t joint_state_sequence_{ 0 };
     bool have_joint_state_{ false };
+    mutable std::mutex driver_health_mutex_;
+    std::condition_variable driver_health_cv_;
+    aubo_msgs::msg::DriverHealth driver_health_;
+    std::chrono::steady_clock::time_point driver_health_received_at_;
+    bool have_driver_health_{ false };
+    std::atomic<bool> driver_health_monitor_armed_{ false };
+    std::atomic<bool> driver_health_failure_latched_{ false };
+    std::atomic<bool> execution_active_{ false };
+    std::atomic<bool> health_stop_requested_{ false };
 
     std::string paths_file_;
     std::string joint_states_topic_{ "/joint_states" };
     std::string state_validity_service_{ "/check_state_validity" };
+    double driver_health_max_age_sec_{ 0.5 };
+    double driver_health_wait_timeout_sec_{ 5.0 };
     CanvasFrame canvas_;
     tf2::Quaternion tip_orientation_;
     tf2::Transform tool_offset_{ tf2::Quaternion::getIdentity() };
@@ -2952,6 +3331,9 @@ private:
     int active_cartesian_call_ordinal_{ 0 };
     std::vector<robross_painter::CartesianFailureRecord>
         pending_cartesian_failures_;
+    std::optional<MotionOutcome> last_failed_motion_;
+    std::uint64_t motion_correlation_sequence_{ 0 };
+    mutable std::uint64_t artifact_sequence_{ 0 };
 
     double canvas_w_mm_{ 0.0 };
     double canvas_h_mm_{ 0.0 };

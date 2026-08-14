@@ -12,7 +12,12 @@ MoveIt launch). Kinematics is intentionally omitted: computeCartesianPath runs
 IK server-side in move_group; the node only needs URDF+SRDF locally.
 """
 
+import importlib.util
+from pathlib import Path
+import sys
+
 import yaml
+from ament_index_python.packages import get_package_prefix
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import (
@@ -25,8 +30,60 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
+def boolean_value(value, label):
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"{label} must be a boolean")
+
+
+def load_host_module(name):
+    candidates = [
+        Path(__file__).resolve().parents[1] / "scripts" / f"{name}.py",
+        Path(get_package_prefix("robross_painter"))
+        / "lib"
+        / "robross_painter"
+        / f"{name}.py",
+    ]
+    for path in candidates:
+        if path.is_file():
+            if str(path.parent) not in sys.path:
+                sys.path.insert(0, str(path.parent))
+            spec = importlib.util.spec_from_file_location(name, path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+    raise RuntimeError(f"Cannot locate installed {name}.py")
+
+
+def validate_host_gate(session_id, receipt_path, monitor_path):
+    if not session_id:
+        raise RuntimeError("qualification_run requires a non-empty session_id")
+    host_time = load_host_module("host_time_preflight")
+    host_monitor = load_host_module("host_clock_monitor")
+    receipt_errors, _receipt = host_time.validate_receipt(
+        receipt_path, session_id, require_controller_fifo=True)
+    monitor_errors, _monitor = host_monitor.validate_monitor(monitor_path, session_id)
+    if receipt_errors:
+        raise RuntimeError("preflight_receipt rejected: " + "; ".join(receipt_errors))
+    if monitor_errors:
+        raise RuntimeError("clock_monitor_file rejected: " + "; ".join(monitor_errors))
+
+
 def launch_setup(context, *args, **kwargs):
     aubo_type = LaunchConfiguration("aubo_type")
+
+    if boolean_value(
+        LaunchConfiguration("qualification_run").perform(context),
+        "qualification_run",
+    ):
+        validate_host_gate(
+            LaunchConfiguration("session_id").perform(context),
+            LaunchConfiguration("preflight_receipt").perform(context),
+            LaunchConfiguration("clock_monitor_file").perform(context),
+        )
 
     # Same robot_description the driver/moveit/executor launches build, so the
     # MoveGroupInterface in teach_nudge sees an identical model.
@@ -130,6 +187,14 @@ def generate_launch_description():
             default_value="ee_link",
             description="Frame whose +Z (rotated by tool_offset_rpy) is the pen axis.",
         ),
+        DeclareLaunchArgument(
+            "qualification_run",
+            default_value="false",
+            description="Require current host-time evidence before exposing motion services.",
+        ),
+        DeclareLaunchArgument("session_id", default_value=""),
+        DeclareLaunchArgument("preflight_receipt", default_value=""),
+        DeclareLaunchArgument("clock_monitor_file", default_value=""),
     ]
     return LaunchDescription(
         declared_arguments + [OpaqueFunction(function=launch_setup)]

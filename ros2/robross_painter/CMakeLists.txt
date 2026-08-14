@@ -16,6 +16,7 @@ find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
+find_package(aubo_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(jsoncpp REQUIRED)
 
@@ -32,6 +33,10 @@ ament_target_dependencies(cartesian_failure_diagnostics
 )
 target_link_libraries(cartesian_failure_diagnostics jsoncpp_lib)
 
+add_library(executor_safety STATIC src/executor_safety.cpp)
+target_include_directories(executor_safety PUBLIC src)
+ament_target_dependencies(executor_safety moveit_msgs)
+
 add_executable(painting_executor src/painting_executor.cpp)
 ament_target_dependencies(painting_executor
   rclcpp
@@ -45,9 +50,11 @@ ament_target_dependencies(painting_executor
   tf2
   tf2_geometry_msgs
   trajectory_msgs
+  aubo_msgs
 )
 target_link_libraries(painting_executor
   cartesian_failure_diagnostics
+  executor_safety
   jsoncpp_lib)
 
 add_executable(cartesian_path_probe src/cartesian_path_probe.cpp)
@@ -79,6 +86,8 @@ install(TARGETS painting_executor cartesian_path_probe teach_nudge
 install(PROGRAMS scripts/teach_canvas.py scripts/teach_tcp.py
   scripts/extract_cartesian_probe_seeds.py
   scripts/analyze_tracking_bag.py
+  scripts/host_time_preflight.py
+  scripts/host_clock_monitor.py
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch config
@@ -104,6 +113,10 @@ if(BUILD_TESTING)
   target_include_directories(test_cartesian_failure_diagnostics PRIVATE src)
   target_link_libraries(test_cartesian_failure_diagnostics
     cartesian_failure_diagnostics)
+  ament_add_gtest(test_executor_safety test/test_executor_safety.cpp)
+  target_include_directories(test_executor_safety PRIVATE src)
+  ament_target_dependencies(test_executor_safety moveit_msgs)
+  target_link_libraries(test_executor_safety executor_safety)
   ament_add_pytest_test(test_paint_launch test/test_paint_launch.py)
   ament_add_pytest_test(test_cartesian_probe_launch
     test/test_cartesian_probe_launch.py)
@@ -113,6 +126,12 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_teach_tcp_math test/test_teach_tcp_math.py)
   ament_add_pytest_test(test_analyze_tracking_bag
     test/test_analyze_tracking_bag.py)
+  ament_add_pytest_test(test_host_time_preflight
+    test/test_host_time_preflight.py)
+  ament_add_pytest_test(test_host_clock_monitor
+    test/test_host_clock_monitor.py)
+  ament_add_pytest_test(test_teach_nudge_launch
+    test/test_teach_nudge_launch.py)
 endif()
 
 ament_package()

@@ -123,4 +123,4 @@ painting_executor:
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
     # Set true for planning-only validation; false sends trajectories.
-    dry_run: false
+    dry_run: true

@@ -22,6 +22,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ORIGINAL_ARGS=("$@")
 
 # ── 默认值 ──────────────────────────────────────────────────────
 ROBOT_IP=""
@@ -33,6 +35,11 @@ ROBROSS_OUTPUT="/tmp/robross_canvas_calibration_eih.yaml"
 CALIBRATION_FILE=""    # 留空则用 paint.launch.py 的默认值 (rviz_wall_a4.yaml, 仅仿真!)
 PATHS_FILE=""
 ROS_WORKSPACE="${COLCON_WS:-}"
+SESSION_DIR="${HARDWARE_SESSION:-}"
+EXPECTED_CONTROLLER_REPOSITORY="${ROBROSS_EXPECTED_CONTROLLER_REPOSITORY:-}"
+EXPECTED_CONTROLLER_COMMIT="${ROBROSS_EXPECTED_CONTROLLER_COMMIT:-}"
+EXPECTED_DRIVER_REPOSITORY="${ROBROSS_EXPECTED_DRIVER_REPOSITORY:-https://github.com/dwarfguard/aubo_ros2_driver.git}"
+EXPECTED_DRIVER_COMMIT="${ROBROSS_EXPECTED_DRIVER_COMMIT:-}"
 
 # ── 颜色 ────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -56,6 +63,11 @@ while [[ $# -gt 0 ]]; do
         --calibration-file)   CALIBRATION_FILE="$2"; shift 2 ;;
         --paths-file)         PATHS_FILE="$2"; shift 2 ;;
         --ros-workspace)      ROS_WORKSPACE="$2"; shift 2 ;;
+        --session-dir)        SESSION_DIR="$2"; shift 2 ;;
+        --expected-controller-repository) EXPECTED_CONTROLLER_REPOSITORY="$2"; shift 2 ;;
+        --expected-controller-commit) EXPECTED_CONTROLLER_COMMIT="$2"; shift 2 ;;
+        --expected-driver-repository) EXPECTED_DRIVER_REPOSITORY="$2"; shift 2 ;;
+        --expected-driver-commit) EXPECTED_DRIVER_COMMIT="$2"; shift 2 ;;
         --help|-h)
             echo "用法: $0 --robot-ip IP --camera-id ID --paths-file PATH [选项]"
             echo ""
@@ -71,6 +83,11 @@ while [[ $# -gt 0 ]]; do
             echo "  --robross-output PATH 画布标定 YAML 输出路径 (默认 /tmp/...)"
             echo "  --calibration-file PATH ROS 2 硬件参数 YAML"
             echo "  --ros-workspace PATH ROS 2 colcon 工作空间路径"
+            echo "  --session-dir PATH   必需的硬件证据目录 (或 HARDWARE_SESSION)"
+            echo "  --expected-controller-repository URL  已审核 ros2_controllers fork"
+            echo "  --expected-controller-commit SHA      已审核完整 40 字符提交"
+            echo "  --expected-driver-repository URL      已审核 Aubo driver 仓库"
+            echo "  --expected-driver-commit SHA          已审核完整 40 字符提交"
             echo ""
             echo "环境变量:"
             echo "  COLCON_WS            同 --ros-workspace"
@@ -108,6 +125,22 @@ if [[ -z "$PATHS_FILE" ]]; then
     exit 1
 fi
 
+if [[ -z "$CALIBRATION_FILE" ]]; then
+    error "物理启动必须显式指定 --calibration-file，不能使用 RViz 默认值"
+    exit 1
+fi
+
+if [[ -z "$SESSION_DIR" ]]; then
+    error "物理启动必须指定 --session-dir 或 HARDWARE_SESSION"
+    exit 1
+fi
+
+if [[ -z "$EXPECTED_CONTROLLER_REPOSITORY" || -z "$EXPECTED_CONTROLLER_COMMIT" ||
+      -z "$EXPECTED_DRIVER_REPOSITORY" || -z "$EXPECTED_DRIVER_COMMIT" ]]; then
+    error "物理启动必须指定已审核 driver/controller repository 和完整 commit"
+    exit 1
+fi
+
 # ── 检查 ROS 2 环境 ────────────────────────────────────────────
 if ! command -v ros2 &>/dev/null; then
     if [[ -n "$ROS_WORKSPACE" ]]; then
@@ -127,16 +160,23 @@ if ! command -v ros2 &>/dev/null; then
     fi
 fi
 
+# Re-exec once inside the shared host-time gate. Camera detection cannot begin,
+# and painting motion cannot be launched, until this succeeds.
+if [[ -z "${ROBROSS_PREFLIGHT_RECEIPT:-}" ]]; then
+    exec "$REPO_DIR/start_hardware_stack.sh" --session-dir "$SESSION_DIR" -- \
+        "$0" "${ORIGINAL_ARGS[@]}"
+fi
+
 # ── 文件预检查 ──────────────────────────────────────────────────
-CALIB_FILE_OK=true
 for f in "$CAMERA_CALIB" "$HANDEYE_CALIB" "$PATHS_FILE"; do
     if [[ ! -f "$f" ]]; then
-        warn "找不到文件: $f"
-        CALIB_FILE_OK=false
+        error "找不到文件: $f"
+        exit 1
     fi
 done
-if [[ -n "$CALIBRATION_FILE" && ! -f "$CALIBRATION_FILE" ]]; then
-    warn "找不到标定文件: $CALIBRATION_FILE"
+if [[ ! -f "$CALIBRATION_FILE" ]]; then
+    error "找不到标定文件: $CALIBRATION_FILE"
+    exit 1
 fi
 
 # ── Step 1: 臂上相机检测 → 生成画布标定 YAML ──────────────────
@@ -181,6 +221,16 @@ LAUNCH_CMD=(
     "aubo_type:=aubo_i5"
     "paths_file:=$PATHS_FILE"
     "canvas_file:=$ROBROSS_OUTPUT"
+    "qualification_run:=true"
+    "require_qualified_build:=true"
+    "session_id:=$ROBROSS_SESSION_ID"
+    "provenance_dir:=$ROBROSS_PROVENANCE_DIR"
+    "preflight_receipt:=$ROBROSS_PREFLIGHT_RECEIPT"
+    "clock_monitor_file:=$ROBROSS_CLOCK_MONITOR_FILE"
+    "expected_controller_repository:=$EXPECTED_CONTROLLER_REPOSITORY"
+    "expected_controller_commit:=$EXPECTED_CONTROLLER_COMMIT"
+    "expected_driver_repository:=$EXPECTED_DRIVER_REPOSITORY"
+    "expected_driver_commit:=$EXPECTED_DRIVER_COMMIT"
 )
 
 if [[ -n "$CALIBRATION_FILE" ]]; then

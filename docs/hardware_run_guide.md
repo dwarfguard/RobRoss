@@ -74,6 +74,25 @@ source install/setup.bash
 source "$HOME/robross_hardware_session.env"
 ```
 
+Every physical stack command must be wrapped by the checked-in host gate. It
+creates a same-session preflight receipt and monitors
+`CLOCK_REALTIME - CLOCK_MONOTONIC` until that command exits:
+
+```bash
+./src/RobRoss/start_hardware_stack.sh --session-dir "$HARDWARE_SESSION" -- \
+  ros2 launch aubo_ros2_driver aubo_control.launch.py \
+  aubo_type:=$AUBO_TYPE robot_ip:=$ROBOT_IP use_fake_hardware:=false
+```
+
+Use the same wrapper for MoveIt, `teach_nudge.launch.py`, and any physical
+`paint.launch.py`. The wrapper automatically injects the preflight and monitor
+paths for painter/nudge. The painter additionally requires
+`qualification_run:=true`, `require_qualified_build:=true`, the pinned driver
+and controller identities, an explicit canvas, and a provenance directory.
+Install the slew-only host policy from `deployment/chrony/` first. A failed or
+stale receipt, stopped monitor, active competing synchronizer, `makestep`
+directive, disabled conformance check, or timing mismatch blocks motion startup.
+
 ## Step 2 — (Recommended, once) URDF calibration from the controller
 
 ```bash
@@ -121,7 +140,7 @@ Review the complete file against the mounted hardware before launching:
 
 ## Step 3 — Bring up the real-arm stack
 
-Terminal 1 (driver, real hardware):
+Terminal 1 (driver, real hardware; keep the wrapper alive for the entire run):
 ```bash
 export AUBO_SERVOJ_TELEMETRY_CSV=$HARDWARE_SESSION/stationary_servoj.csv
 test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV" || {
@@ -132,6 +151,7 @@ test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV.partial" || {
   echo "Choose a new HARDWARE_SESSION; partial telemetry output already exists"
   exit 1
 }
+./src/RobRoss/start_hardware_stack.sh --session-dir "$HARDWARE_SESSION" -- \
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
   aubo_type:=$AUBO_TYPE robot_ip:=$ROBOT_IP use_fake_hardware:=false \
   controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008 rtde_state_rate:=200 rtde_state_max_age:=0.05
@@ -152,6 +172,7 @@ Keep it at or below the painter's `endpoint_settle_sample_max_age`.
 
 Terminal 2 (MoveIt):
 ```bash
+./src/RobRoss/start_hardware_stack.sh --session-dir "$HARDWARE_SESSION" -- \
 ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=$AUBO_TYPE
 ```
 

@@ -144,6 +144,14 @@ fake-hardware and RViz launch sequence.
 > hardware profile and a freshly taught canvas pose. Complete the
 > [hardware run guide](docs/hardware_run_guide.md) before enabling motion.
 
+Physical stack commands must run through `start_hardware_stack.sh`, which
+requires slew-only Chrony synchronization, starts the realtime/monotonic clock
+monitor, and exports one session identity and evidence paths to child launches.
+`start_painting.sh` delegates to the maintained eye-in-hand flow and enables the
+strict `paint.launch.py` qualification/provenance gate. Fake hardware and direct
+simulation launches remain available without this host gate. Deployment policy:
+[`deployment/chrony/README.md`](deployment/chrony/README.md).
+
 ## Repository Layout
 
 ```text
