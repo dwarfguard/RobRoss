@@ -25,6 +25,7 @@ DEFAULT_SIMPLIFY_EPSILON_RATIO = 0.002
 DEFAULT_SIMPLIFY_MIN_EPSILON_PX = 1.0
 DEFAULT_JOIN_OVERLAPPING_STROKES = True
 DEFAULT_MAX_JOIN_TURN_DEGREES = 60.0
+DEFAULT_SMOOTHING_RADIUS_MM = 0.0
 
 
 class ConfigError(ValueError):
@@ -127,6 +128,18 @@ def validate_config(config: dict) -> list:
         errors.append(
             "path_generation.max_join_turn_degrees must be a number in [0, 180], "
             f"got {max_join_turn!r}."
+        )
+
+    smoothing_radius = path_generation.get(
+        "smoothing_radius_mm", DEFAULT_SMOOTHING_RADIUS_MM
+    )
+    if (
+        not _is_number(smoothing_radius)
+        or not 0 <= smoothing_radius <= 2
+    ):
+        errors.append(
+            "path_generation.smoothing_radius_mm must be a number in [0, 2], "
+            f"got {smoothing_radius!r}."
         )
 
     home_position = path_generation.get("home_position_mm")

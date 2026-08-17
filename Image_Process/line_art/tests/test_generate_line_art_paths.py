@@ -12,6 +12,7 @@ from generate_line_art_paths import (
     build_painting_paths,
     map_points_to_canvas,
     render_svg,
+    smooth_canvas_path,
     stroke_to_commands,
 )
 from path_ordering import order_strokes, total_travel_distance
@@ -40,6 +41,18 @@ class TestMapPointsToCanvas(unittest.TestCase):
         self.assertAlmostEqual(mapped[0][1], 5.0)
         self.assertAlmostEqual(mapped[1][0], 95.0)
         self.assertAlmostEqual(mapped[1][1], 95.0)
+
+
+class TestCanvasSmoothing(unittest.TestCase):
+    def test_reduces_raster_sawteeth_without_moving_open_endpoints(self):
+        points = [(0.0, 0.0), (1.0, 1.0), (2.0, 0.0), (3.0, 1.0), (4.0, 0.0)]
+
+        smoothed, effective = smooth_canvas_path(points, False, 0.8)
+
+        self.assertEqual(smoothed[0], points[0])
+        self.assertEqual(smoothed[-1], points[-1])
+        self.assertLess(max(y for _, y in smoothed[1:-1]), 1.0)
+        self.assertEqual(effective, 0.8)
 
 
 class TestStrokeToCommands(unittest.TestCase):

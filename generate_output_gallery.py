@@ -135,10 +135,25 @@ SEMANTIC_REASON_LABELS = {
 def render_semantic_badge(debug: dict) -> str:
     """Render only known semantic states and sanitized failure categories."""
     status = debug.get("semantic_preprocessing_status")
+    provider = debug.get("semantic_preprocessing_provider")
+    provider_label = {"gemini": "Gemini", "qwen": "Qwen"}.get(
+        provider, "Semantic preprocessing"
+    )
     if status == "used":
-        return "<span class='badge semantic-badge semantic-enhanced'>Gemini enhanced</span>"
+        return (
+            "<span class='badge semantic-badge semantic-enhanced'>"
+            f"{provider_label} enhanced</span>"
+        )
+    if status == "reused":
+        return (
+            "<span class='badge semantic-badge semantic-enhanced'>"
+            f"{provider_label} image reused</span>"
+        )
     if status == "disabled":
-        return "<span class='badge semantic-badge semantic-disabled'>Gemini disabled</span>"
+        return (
+            "<span class='badge semantic-badge semantic-disabled'>"
+            f"{provider_label} disabled</span>"
+        )
     if status == "local_fallback":
         reason = SEMANTIC_REASON_LABELS.get(
             debug.get("semantic_preprocessing_reason"), "unknown reason"
@@ -148,6 +163,82 @@ def render_semantic_badge(debug: dict) -> str:
             f"Local fallback: {escape(reason)}</span>"
         )
     return ""
+
+
+def is_retrace_eligible(run: dict) -> bool:
+    """Return whether a gallery run has all safely contained retrace inputs."""
+    config = run.get("config", {})
+    if config.get("style") != "sketch":
+        return False
+    painting_paths = run.get("painting_paths", {})
+    if painting_paths.get("style") != "sketch" or painting_paths.get(
+        "debug", {}
+    ).get("semantic_preprocessing_status") not in ("used", "reused"):
+        return False
+    run_dir = Path(run.get("run_dir", "")).resolve()
+    output_dir = OUTPUT_DIR.resolve()
+    if run_dir == output_dir or output_dir not in run_dir.parents:
+        return False
+    if not (run_dir / "_config.json").is_file():
+        return False
+    source_value = config.get("source_image", {}).get("path")
+    semantic_name = config.get("output", {}).get("semantic_outline_image_file")
+    if not isinstance(source_value, str) or not isinstance(semantic_name, str):
+        return False
+    source_path = Path(source_value)
+    if not source_path.is_absolute():
+        source_path = REPO_ROOT / source_path
+    semantic_path = run_dir / semantic_name
+    for candidate in (source_path.resolve(), semantic_path.resolve()):
+        try:
+            valid_file = candidate.is_file() and candidate.stat().st_size > 0
+        except OSError:
+            valid_file = False
+        if run_dir not in candidate.parents or not valid_file:
+            return False
+    return True
+
+
+def render_retrace_form(run: dict, base_url: str) -> str:
+    config = run["config"]
+    outline = config.get("outline_extraction", {})
+    paths = config.get("path_generation", {})
+    detail = config.get("detail_extraction", {})
+    threshold = outline.get("line_art_threshold", 210)
+    outline_floor = outline.get("min_path_length_mm", 1.0)
+    smoothing = paths.get("smoothing_radius_mm", 0.0)
+    continuous = paths.get("continuous_paths", False)
+    detail_budget = detail.get("max_paths", 400)
+    checked = " checked" if continuous else ""
+    name = run["name"]
+    return f"""
+  <details class="retrace-panel">
+    <summary>Retrace saved Qwen image</summary>
+    <form class="retrace-form" method="post"
+          action="{escape(base_url)}{escape(name)}/retrace">
+      <label>Line-art threshold
+        <input type="number" name="line_art_threshold" value="{escape(str(threshold))}"
+               min="0" max="255" step="1" required>
+      </label>
+      <label>Outline floor (mm)
+        <input type="number" name="semantic_outline_floor_mm"
+               value="{escape(str(outline_floor))}" min="0" step="0.1" required>
+      </label>
+      <label>Smoothing (mm)
+        <input type="number" name="smoothing_radius_mm" value="{escape(str(smoothing))}"
+               min="0" max="2" step="0.1" required>
+      </label>
+      <label>Maximum detail paths
+        <input type="number" name="maximum_detail_paths"
+               value="{escape(str(detail_budget))}" min="0" step="1" required>
+      </label>
+      <label class="retrace-checkbox">
+        <input type="checkbox" name="continuous_paths"{checked}>
+        Use continuous paths
+      </label>
+      <button type="submit" class="retrace-btn">Create retraced run</button>
+    </form>
+  </details>"""
 
 
 def render_card(run: dict, base_url: str = "", show_delete: bool = False) -> str:
@@ -214,12 +305,15 @@ def render_card(run: dict, base_url: str = "", show_delete: bool = False) -> str
         links.append(f"<a href='{escape(rel(files['animation_svg']))}'>animation</a>")
 
     delete_html = ""
+    retrace_html = ""
     if show_delete:
         delete_html = f"""
   <form class="card-actions" method="post" action="{escape(base_url)}{escape(name)}/delete"
         onsubmit="return confirm('Delete output/{escape(name)}/? This cannot be undone.');">
     <button type="submit" class="delete-btn">Delete run</button>
   </form>"""
+        if is_retrace_eligible(run):
+            retrace_html = render_retrace_form(run, base_url)
 
     return f"""
 <section class="card" data-name="{escape(name.lower())}" data-style="{escape(style)}"
@@ -232,7 +326,7 @@ def render_card(run: dict, base_url: str = "", show_delete: bool = False) -> str
 {semantic_badge_html}  <div class="previews">{preview_html}</div>
   {render_stats_table(visible_debug)}
   <p class="links">{' | '.join(links)}</p>
-  <p class="run-dir">output/{escape(name)}/</p>{delete_html}
+  <p class="run-dir">output/{escape(name)}/</p>{retrace_html}{delete_html}
 </section>
 """
 
@@ -267,6 +361,13 @@ table.stats td:last-child { text-align: right; font-variant-numeric: tabular-num
 .card-actions { margin: 0.5rem 0 0 0; }
 .delete-btn { padding: 0.3rem 0.7rem; border: 1px solid #f3c2c2; border-radius: 4px; background: #fff0f0; color: #a11a1a; font-size: 0.8rem; cursor: pointer; }
 .delete-btn:hover { background: #fde0e0; }
+.retrace-panel { margin-top: 0.75rem; font-size: 0.82rem; }
+.retrace-panel summary { cursor: pointer; color: #1d4ed8; }
+.retrace-form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.6rem; }
+.retrace-form label { display: flex; flex-direction: column; gap: 0.2rem; color: #555; }
+.retrace-form input[type="number"] { min-width: 0; padding: 0.25rem; }
+.retrace-form .retrace-checkbox { grid-column: 1 / -1; flex-direction: row; align-items: center; color: #333; }
+.retrace-btn { grid-column: 1 / -1; padding: 0.35rem 0.6rem; border: 0; border-radius: 4px; background: #2563eb; color: white; cursor: pointer; }
 """
 
 

@@ -37,12 +37,17 @@ jobs and read anything under `output/`.
    (and `source_image.path`, if applicable) pointed at the new run folder,
    and written to `output/upload_.../\_config.json` - **not** into `configs/`,
    which stays reserved for the hand-maintained profile list.
-   For the sketch route, the visible **Enhance overlapping forms with Gemini**
-   checkbox is enabled by default and **Maximum detail paths** defaults to 400;
-   both values are recorded in this config. The path value must be a
+   For the sketch route, the visible **Enhance overlapping forms with Qwen**
+   checkbox is enabled by default and the **Qwen image model** defaults to
+   `qwen-image-2.0-pro`. The form also exposes the 0–255 generated-line-art
+   threshold (210), semantic outline floor (1.0mm), smoothing radius (0.5mm),
+   continuous paths (enabled), and maximum detail paths (400). Every choice is
+   recorded in this config. The path budget must be a
    non-negative integer and remains only a maximum, not a target stroke count.
-   Leave it checked only when the uploaded image may be sent to Gemini. Gemini
-   failures still use the sketch route's configured local fallback.
+   Leave it checked only when the uploaded image may be sent to Alibaba Cloud.
+   Qwen failures still use the sketch route's configured local fallback.
+   Sketch and line-art routes also expose a paper-size selector. A4 remains
+   the default; **4K landscape** selects the 525 mm by 375 mm profile.
 4. The route's existing script(s) run as subprocesses against that config,
    exactly like `python3 Image_Process/<route>/generate_*.py --config <path>`
    from the README/CLAUDE.md docs. If a step fails, its stderr is shown on
@@ -51,6 +56,24 @@ jobs and read anything under `output/`.
    automatically (it looks for a `configs/<name>.json` OR the run's own
    `_config.json`), so it shows up as a new card without any extra
    bookkeeping.
+
+## Retracing a saved Qwen image
+
+Eligible sketch cards have a **Retrace saved Qwen image** panel prefilled from
+that run's config. Submitting it creates a distinct
+`output/retrace_<timestamp>_sketch/` run, copies the original photo and saved
+Qwen bytes, and regenerates JSON, SVG, validation, and gallery state with the
+new threshold, outline floor, smoothing, continuous-mode, and detail-budget
+settings. The source run is never changed.
+
+Retracing invokes the sketch CLI's explicit `--saved-semantic-image` mode, so
+it never calls Qwen or another network API. The server validates the run name,
+resolved `output/` containment, sketch style, saved config, source photo,
+painting-path semantic status, and semantic image before copying anything.
+Only runs whose status is `used` or `reused` are eligible; local-fallback and
+disabled runs do not claim their intermediate is a saved Qwen result. A
+missing or unreadable intermediate fails closed instead of falling back to a
+new Qwen request.
 
 ## Deleting a run
 
@@ -84,8 +107,8 @@ future route needs one new dict entry here - nothing in `app.py` or
 
 ## Not in scope here
 
-Except for the sketch route's Gemini enable/disable checkbox and maximum
-detail-path budget, there is no parameter tuning UI (palette, morphology kernel sizes, Canny thresholds,
+Except for the sketch controls documented above, there is no broader parameter
+tuning UI (palette, morphology kernel sizes, Canny thresholds,
 ...) - every run uses its route's template config's defaults unchanged. No
 persistent database - `output/*/` itself, browsable through the gallery, is
 the "database". No auth, no multi-user isolation, no background job queue -

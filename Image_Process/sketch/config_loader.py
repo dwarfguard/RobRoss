@@ -7,6 +7,7 @@ mondrian's canvas + artwork + path_generation + output.
 """
 
 import json
+import math
 from pathlib import Path
 
 REQUIRED_SECTIONS = ["canvas", "source_image", "path_generation", "output"]
@@ -20,17 +21,25 @@ DEFAULT_SIMPLIFY_EPSILON_RATIO = 0.002
 DEFAULT_SIMPLIFY_MIN_EPSILON_PX = 1.0
 DEFAULT_JOIN_OVERLAPPING_STROKES = True
 DEFAULT_MAX_JOIN_TURN_DEGREES = 60.0
+# These are compatibility defaults for configs created before smoothing and
+# continuous paths were introduced.  New profiles opt in explicitly.
+DEFAULT_SMOOTHING_RADIUS_MM = 0.0
+DEFAULT_CONTINUOUS_PATHS = False
 DEFAULT_SEMANTIC_ENABLED = True
-DEFAULT_SEMANTIC_PROVIDER = "gemini"
-DEFAULT_SEMANTIC_MODEL = "gemini-3.1-flash-image"
+DEFAULT_SEMANTIC_PROVIDER = "qwen"
+DEFAULT_SEMANTIC_MODEL = "qwen-image-2.0-pro"
 DEFAULT_SEMANTIC_PROMPT = (
     "Convert this photo into clean monochrome black line art on a white "
     "background for a drawing robot. Preserve the subject's pose, proportions, "
-    "facial likeness, hair silhouette, and framing. Draw long structural "
-    "outlines clearly. Where limbs or similarly dark garments overlap, infer "
-    "and draw distinct visible boundaries so the foreground and background "
-    "forms remain readable. Do not add shading, hatching, text, borders, or a "
-    "frame. Use sparse, smooth, single-width lines and do not invent objects."
+    "facial likeness, framing, and enough major architecture and background "
+    "contours to keep the scene recognizable. Draw long structural outlines "
+    "clearly. Where limbs or similarly dark garments overlap, infer and draw "
+    "distinct visible boundaries so the forms remain readable. If glasses are "
+    "present, draw one clean glasses frame without lens reflections or duplicate "
+    "rims. Treat hair primarily as an outer silhouette with only a few grouped "
+    "internal lines. Do not draw individual flyaway hairs, shading, hatching, "
+    "texture scribbles, reflections, text, borders, or a frame. Use sparse, "
+    "smooth, single-width lines and do not invent accessories or other objects."
 )
 DEFAULT_SEMANTIC_TIMEOUT_SECONDS = 60.0
 DEFAULT_SEMANTIC_FALLBACK_TO_LOCAL = True
@@ -39,15 +48,16 @@ DEFAULT_OUTLINE_CANNY_THRESHOLD2 = 160
 DEFAULT_OUTLINE_BLUR_KERNEL_SIZE = 5
 DEFAULT_OUTLINE_CONTRAST_CLIP_LIMIT = 2.0
 DEFAULT_OUTLINE_LINE_ART_THRESHOLD = 210
-DEFAULT_OUTLINE_MIN_PATH_LENGTH_MM = 5.0
+DEFAULT_OUTLINE_MIN_PATH_LENGTH_MM = 1.0
 DEFAULT_BORDER_SUPPRESSION_BAND_PX = 6
-DEFAULT_DETAIL_CANNY_THRESHOLD1 = 80
-DEFAULT_DETAIL_CANNY_THRESHOLD2 = 180
-DEFAULT_DETAIL_BLUR_KERNEL_SIZE = 3
+DEFAULT_DETAIL_CANNY_THRESHOLD1 = 120
+DEFAULT_DETAIL_CANNY_THRESHOLD2 = 240
+DEFAULT_DETAIL_BLUR_KERNEL_SIZE = 5
 DEFAULT_DETAIL_MIN_PATH_LENGTH_MM = 0.5
 DETAIL_MIN_PATH_HARD_FLOOR_MM = 0.5
 DEFAULT_DETAIL_MAX_PATHS = 400
-DEFAULT_DETAIL_DEDUPLICATION_DISTANCE_MM = 0.25
+DEFAULT_DETAIL_DEDUPLICATION_DISTANCE_MM = 0.75
+DEFAULT_DETAIL_DEDUPLICATION_PEN_WIDTH_RATIO = 0.75
 DEFAULT_DETAIL_CONNECTION_DISTANCE_MM = 2.0
 DEFAULT_DETAIL_ISOLATION_DISTANCE_MM = 8.0
 DEFAULT_DETAIL_ISOLATED_SPECKLE_MAX_LENGTH_MM = 2.0
@@ -158,6 +168,24 @@ def validate_config(config: dict) -> list:
             f"got {max_join_turn!r}."
         )
 
+    smoothing_radius = path_generation.get(
+        "smoothing_radius_mm", DEFAULT_SMOOTHING_RADIUS_MM
+    )
+    if not _is_number(smoothing_radius) or not (0 <= smoothing_radius <= 2):
+        errors.append(
+            "path_generation.smoothing_radius_mm must be a number in [0, 2], "
+            f"got {smoothing_radius!r}."
+        )
+
+    continuous_paths = path_generation.get(
+        "continuous_paths", DEFAULT_CONTINUOUS_PATHS
+    )
+    if not isinstance(continuous_paths, bool):
+        errors.append(
+            "path_generation.continuous_paths must be a boolean, "
+            f"got {continuous_paths!r}."
+        )
+
     semantic = config.get("semantic_preprocessing", {})
     semantic_enabled = semantic.get("enabled", DEFAULT_SEMANTIC_ENABLED)
     if not isinstance(semantic_enabled, bool):
@@ -166,9 +194,9 @@ def validate_config(config: dict) -> list:
             f"got {semantic_enabled!r}."
         )
     provider = semantic.get("provider", DEFAULT_SEMANTIC_PROVIDER)
-    if provider != "gemini":
+    if provider != "qwen":
         errors.append(
-            "semantic_preprocessing.provider must be 'gemini', "
+            "semantic_preprocessing.provider must be 'qwen', "
             f"got {provider!r}."
         )
     model = semantic.get("model", DEFAULT_SEMANTIC_MODEL)
@@ -230,7 +258,11 @@ def validate_config(config: dict) -> list:
     outline_minimum = outline.get(
         "min_path_length_mm", DEFAULT_OUTLINE_MIN_PATH_LENGTH_MM
     )
-    if not _is_number(outline_minimum) or outline_minimum < 0:
+    if (
+        not _is_number(outline_minimum)
+        or not math.isfinite(outline_minimum)
+        or outline_minimum < 0
+    ):
         errors.append(
             "outline_extraction.min_path_length_mm must be a number >= 0, "
             f"got {outline_minimum!r}."

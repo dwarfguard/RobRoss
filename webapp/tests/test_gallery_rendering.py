@@ -29,13 +29,19 @@ class TestSemanticBadge(unittest.TestCase):
         self.assertIn(
             "Gemini enhanced",
             gallery.render_semantic_badge(
-                {"semantic_preprocessing_status": "used"}
+                {
+                    "semantic_preprocessing_status": "used",
+                    "semantic_preprocessing_provider": "gemini",
+                }
             ),
         )
         self.assertIn(
-            "Gemini disabled",
+            "Qwen disabled",
             gallery.render_semantic_badge(
-                {"semantic_preprocessing_status": "disabled"}
+                {
+                    "semantic_preprocessing_status": "disabled",
+                    "semantic_preprocessing_provider": "qwen",
+                }
             ),
         )
         fallback = gallery.render_semantic_badge(
@@ -45,6 +51,14 @@ class TestSemanticBadge(unittest.TestCase):
             }
         )
         self.assertIn("Local fallback: missing dependency", fallback)
+
+        reused = gallery.render_semantic_badge(
+            {
+                "semantic_preprocessing_status": "reused",
+                "semantic_preprocessing_provider": "qwen",
+            }
+        )
+        self.assertIn("Qwen image reused", reused)
 
     def test_unknown_reason_does_not_expose_raw_exception_or_api_key(self):
         secret = "RuntimeError: request failed with key=SECRET-123"

@@ -3,18 +3,15 @@ painting_paths.json-format file, directly - no intermediate painting_plan.json,
 unlike the mondrian route, since there's no vector design to describe first.
 
     Config profile (configs/*.json)
-      -> optional Gemini line art or deterministic local structural outline
+      -> optional Qwen line art or deterministic local structural outline
       -> original-photo likeness detail extraction + ranking + deduplication
       -> exact-overlap joins and independent per-phase travel ordering
       -> one ordered outline-then-detail robot command list (+ previews)
 
-The output uses the exact same command vocabulary as
-Image_Process/mondrian/generate_painting_paths.py
-(select_tool/dip_paint/move_to/lower_tool/paint_stroke/lift_tool), so it is
-consumable by the same ros2/robross_painter executor: a curved traced line
-becomes one lower_tool/lift_tool bracket containing a straight paint_stroke
-per consecutive point pair (see docs/painting-paths-format.md: "A
-paint_stroke is one straight line; curves are multiple strokes.").
+The output uses the shared painting-path command vocabulary and is consumable
+by the same ros2/robross_painter executor. New profiles emit one continuous
+paint_path per traced line; older configs that omit continuous_paths retain
+the segmented paint_stroke representation.
 """
 
 import argparse
@@ -31,7 +28,7 @@ from canny_edges import (
     edge_strength_map,
     line_art_mask,
     local_outline_mask,
-    read_grayscale,
+    read_grayscale_with_metadata,
     simplify,
     suppress_border_artifacts,
     trace_mask,
@@ -43,12 +40,14 @@ from config_loader import (
     DEFAULT_DETAIL_CANNY_THRESHOLD2,
     DEFAULT_DETAIL_CONNECTION_DISTANCE_MM,
     DEFAULT_DETAIL_DEDUPLICATION_DISTANCE_MM,
+    DEFAULT_DETAIL_DEDUPLICATION_PEN_WIDTH_RATIO,
     DEFAULT_DETAIL_ISOLATED_SPECKLE_MAX_LENGTH_MM,
     DEFAULT_DETAIL_ISOLATION_DISTANCE_MM,
     DEFAULT_DETAIL_MAX_PATHS,
     DEFAULT_DETAIL_MIN_PATH_LENGTH_MM,
     DEFAULT_JOIN_OVERLAPPING_STROKES,
     DEFAULT_MAX_JOIN_TURN_DEGREES,
+    DEFAULT_CONTINUOUS_PATHS,
     DEFAULT_OUTLINE_BLUR_KERNEL_SIZE,
     DEFAULT_OUTLINE_CANNY_THRESHOLD1,
     DEFAULT_OUTLINE_CANNY_THRESHOLD2,
@@ -64,6 +63,7 @@ from config_loader import (
     DEFAULT_SEMANTIC_TIMEOUT_SECONDS,
     DEFAULT_SIMPLIFY_EPSILON_RATIO,
     DEFAULT_SIMPLIFY_MIN_EPSILON_PX,
+    DEFAULT_SMOOTHING_RADIUS_MM,
     load_config,
 )
 from path_ordering import join_overlapping_strokes, order_strokes, total_travel_distance
@@ -106,6 +106,15 @@ def paint_stroke(from_point, to_point, color: str, label: str) -> dict:
     }
 
 
+def paint_path(points, color: str, label: str) -> dict:
+    return {
+        "command": "paint_path",
+        "label": label,
+        "color": color,
+        "points_mm": [[round(x, 2), round(y, 2)] for x, y in points],
+    }
+
+
 def lift_tool(label: str) -> dict:
     return {"command": "lift_tool", "label": label}
 
@@ -141,6 +150,18 @@ def _drawable_box(config: dict):
     )
 
 
+def resolve_detail_deduplication_distance(config: dict) -> float:
+    """Resolve explicit coverage or a pen-width-aware default capped at 0.75mm."""
+    detail = config.get("detail_extraction", {})
+    if "deduplication_distance_mm" in detail:
+        return float(detail["deduplication_distance_mm"])
+    tool_width = float(config["path_generation"]["tool_width_mm"])
+    return min(
+        tool_width * DEFAULT_DETAIL_DEDUPLICATION_PEN_WIDTH_RATIO,
+        DEFAULT_DETAIL_DEDUPLICATION_DISTANCE_MM,
+    )
+
+
 def _canvas_transform(image_size, drawable_origin, drawable_size):
     image_width, image_height = image_size
     box_x, box_y = drawable_origin
@@ -153,6 +174,106 @@ def _canvas_transform(image_size, drawable_origin, drawable_size):
     )
 
 
+def _dedupe_consecutive(points):
+    deduped = []
+    for point in points:
+        point = (float(point[0]), float(point[1]))
+        if not deduped or point != deduped[-1]:
+            deduped.append(point)
+    return deduped
+
+
+def smooth_canvas_path(points, closed: bool, radius_mm: float):
+    """Gaussian-smooth a dense path using arc length as the sample axis.
+
+    Open endpoints are restored exactly, which also fixes every shared
+    skeleton-junction anchor. Closed paths use cyclic padding. The sigma is
+    capped at one sixth of path length so small facial marks cannot be blurred
+    away by a radius intended for long outlines.
+
+    Returns ``(smoothed_points, effective_radius_mm)``.
+    """
+    requested = max(0.0, float(radius_mm))
+    dense = _dedupe_consecutive(points)
+    if closed and len(dense) > 1 and dense[0] == dense[-1]:
+        dense.pop()
+    minimum_points = 3 if closed else 2
+    if requested == 0 or len(dense) < minimum_points:
+        effective = (
+            0.0
+            if requested == 0
+            else min(requested, _path_length(dense) / 6.0)
+        )
+        return dense, effective
+
+    array = np.asarray(dense, dtype=np.float64)
+    if closed:
+        segment_lengths = np.linalg.norm(
+            np.roll(array, -1, axis=0) - array, axis=1
+        )
+    else:
+        segment_lengths = np.linalg.norm(np.diff(array, axis=0), axis=1)
+    total_length = float(segment_lengths.sum())
+    if total_length <= 0:
+        return dense, 0.0
+
+    effective = min(requested, total_length / 6.0)
+    if effective <= 0:
+        return dense, 0.0
+
+    # Resample at uniform arc-length intervals before convolution. Raster
+    # centerlines contain both axial and diagonal pixel steps, so indexing the
+    # raw points directly would give those directions unequal smoothing weight.
+    if closed:
+        extended = np.vstack((array, array[0]))
+        cumulative = np.concatenate(([0.0], np.cumsum(segment_lengths)))
+        sample_distances = np.linspace(0.0, total_length, len(array), endpoint=False)
+    else:
+        extended = array
+        cumulative = np.concatenate(([0.0], np.cumsum(segment_lengths)))
+        sample_distances = np.linspace(0.0, total_length, len(array))
+    uniform = np.column_stack(
+        [np.interp(sample_distances, cumulative, extended[:, axis]) for axis in (0, 1)]
+    )
+
+    spacing = total_length / (len(uniform) if closed else max(1, len(uniform) - 1))
+    sigma_samples = effective / max(spacing, 1e-9)
+    half_width = max(1, int(math.ceil(3.0 * sigma_samples)))
+    offsets = np.arange(-half_width, half_width + 1, dtype=np.float64)
+    kernel = np.exp(-0.5 * (offsets / max(sigma_samples, 1e-9)) ** 2)
+    kernel /= kernel.sum()
+    pad_mode = "wrap" if closed else "edge"
+    smoothed = np.column_stack(
+        [
+            np.convolve(
+                np.pad(uniform[:, axis], half_width, mode=pad_mode),
+                kernel,
+                mode="valid",
+            )
+            for axis in (0, 1)
+        ]
+    )
+    if not closed:
+        smoothed[0] = array[0]
+        smoothed[-1] = array[-1]
+    return [tuple(point) for point in smoothed], effective
+
+
+def _simplify_canvas_points(points, closed, epsilon_ratio, min_epsilon_mm):
+    array = np.asarray(points, dtype=np.float32).reshape(-1, 1, 2)
+    if len(array) < 3:
+        return [tuple(float(v) for v in point) for point in array.reshape(-1, 2)]
+    epsilon = max(
+        float(min_epsilon_mm),
+        float(epsilon_ratio) * cv2.arcLength(array, closed),
+    )
+    approximation = cv2.approxPolyDP(array, epsilon, closed)
+    return [
+        tuple(float(v) for v in point)
+        for point in approximation.reshape(-1, 2)
+    ]
+
+
 def _map_traced_strokes(
     raw_strokes,
     image_size,
@@ -160,19 +281,59 @@ def _map_traced_strokes(
     drawable_size,
     epsilon_ratio,
     min_epsilon_px,
+    smoothing_radius_mm=DEFAULT_SMOOTHING_RADIUS_MM,
 ):
     traced = []
+    points_before = 0
+    points_after_smoothing = 0
+    points_after_simplification = 0
+    effective_radii = []
+    scale, _offset_x, _offset_y = _canvas_transform(
+        image_size, drawable_origin, drawable_size
+    )
     for points_xy, closed in raw_strokes:
-        simplified = simplify(points_xy, closed, epsilon_ratio, min_epsilon_px)
+        points_before += len(points_xy)
+        if smoothing_radius_mm <= 0:
+            # Preserve the pre-feature integer-pixel simplification path exactly
+            # when smoothing is disabled or absent from an older config.
+            simplified = simplify(points_xy, closed, epsilon_ratio, min_epsilon_px)
+            smoothed_count = len(points_xy)
+            effective_radius = 0.0
+            canvas_points = map_points_to_canvas(
+                simplified, image_size, drawable_origin, drawable_size
+            )
+        else:
+            dense_canvas_points = map_points_to_canvas(
+                points_xy, image_size, drawable_origin, drawable_size
+            )
+            smoothed, effective_radius = smooth_canvas_path(
+                dense_canvas_points, closed, smoothing_radius_mm
+            )
+            smoothed_count = len(smoothed)
+            canvas_points = _simplify_canvas_points(
+                smoothed,
+                closed,
+                epsilon_ratio,
+                float(min_epsilon_px) * scale,
+            )
+        points_after_smoothing += smoothed_count
+        effective_radii.append(effective_radius)
+        simplified = canvas_points
         if len(simplified) < 2:
             continue
         if closed and simplified[0] != simplified[-1]:
             simplified = simplified + [simplified[0]]
-        canvas_points = map_points_to_canvas(
-            simplified, image_size, drawable_origin, drawable_size
-        )
-        traced.append((canvas_points, closed))
-    return traced
+        points_after_simplification += len(simplified)
+        traced.append((simplified, closed))
+    return traced, {
+        "points_before_smoothing": points_before,
+        "points_after_smoothing": points_after_smoothing,
+        "points_after_simplification": points_after_simplification,
+        "effective_smoothing_radius_mm": round(max(effective_radii, default=0.0), 4),
+        "minimum_effective_smoothing_radius_mm": round(
+            min(effective_radii, default=0.0), 4
+        ),
+    }
 
 
 def _decode_generated_grayscale(image_bytes: bytes):
@@ -207,6 +368,7 @@ def _structural_mask(
     original_gray,
     output_dir: Path = None,
     semantic_generator=None,
+    saved_semantic_image: Path = None,
 ):
     """Return structural mask, source size, and sanitized semantic metrics."""
     semantic = config.get("semantic_preprocessing", {})
@@ -223,7 +385,20 @@ def _structural_mask(
     status = "disabled"
     reason = "disabled_by_config"
     generated_gray = None
-    if enabled:
+    if saved_semantic_image is not None:
+        saved_semantic_image = Path(saved_semantic_image)
+        try:
+            generated_bytes = saved_semantic_image.read_bytes()
+            if not generated_bytes:
+                raise OSError("empty file")
+            generated_gray = _decode_generated_grayscale(generated_bytes)
+        except (OSError, SemanticPreprocessingError):
+            raise RuntimeError(
+                f"Saved semantic image is missing or unreadable: {saved_semantic_image}"
+            ) from None
+        status = "reused"
+        reason = "saved_semantic_image"
+    elif enabled:
         generator = semantic_generator or generate_outline_image
         try:
             generated_bytes = generator(
@@ -244,13 +419,20 @@ def _structural_mask(
             status = "local_fallback"
 
     if generated_gray is not None:
+        semantic_threshold = outline.get(
+            "line_art_threshold", DEFAULT_OUTLINE_LINE_ART_THRESHOLD
+        )
         mask = line_art_mask(
             generated_gray,
-            outline.get("line_art_threshold", DEFAULT_OUTLINE_LINE_ART_THRESHOLD),
+            semantic_threshold,
         )
         image_size = (generated_gray.shape[1], generated_gray.shape[0])
         if output_path is not None:
-            cv2.imwrite(str(output_path), generated_gray)
+            if status == "reused":
+                if output_path.resolve() != saved_semantic_image.resolve():
+                    output_path.write_bytes(generated_bytes)
+            else:
+                cv2.imwrite(str(output_path), generated_gray)
     else:
         source = config["source_image"]
         threshold1 = outline.get(
@@ -288,6 +470,12 @@ def _structural_mask(
         "semantic_preprocessing_provider": provider,
         "semantic_preprocessing_model": model,
         "semantic_outline_image_file": str(output_path) if output_path else output_filename,
+        "semantic_reused_image_file": (
+            str(saved_semantic_image) if saved_semantic_image is not None else None
+        ),
+        "semantic_line_art_threshold": (
+            semantic_threshold if generated_gray is not None else None
+        ),
         "outline_border_components_filtered": border_metrics[
             "border_components_filtered"
         ],
@@ -501,6 +689,7 @@ def build_two_phase_strokes(
     config: dict,
     output_dir: Path = None,
     semantic_generator=None,
+    saved_semantic_image: Path = None,
 ):
     """Extract ordered-phase inputs: structural outlines, then photo details."""
     source = config["source_image"]
@@ -508,7 +697,7 @@ def build_two_phase_strokes(
     outline_settings = config.get("outline_extraction", {})
     detail_settings = config.get("detail_extraction", {})
     image_path = Path(source["path"])
-    original_gray = read_grayscale(image_path)
+    original_gray, source_metadata = read_grayscale_with_metadata(image_path)
     original_size = (original_gray.shape[1], original_gray.shape[0])
     drawable_origin, drawable_size = _drawable_box(config)
     epsilon_ratio = source.get(
@@ -527,15 +716,20 @@ def build_two_phase_strokes(
         original_gray,
         output_dir=output_dir,
         semantic_generator=semantic_generator,
+        saved_semantic_image=saved_semantic_image,
     )
     raw_outline = trace_mask(outline_mask)
-    traced_outline = _map_traced_strokes(
+    smoothing_radius = path_generation.get(
+        "smoothing_radius_mm", DEFAULT_SMOOTHING_RADIUS_MM
+    )
+    traced_outline, outline_smoothing_stats = _map_traced_strokes(
         raw_outline,
         outline_size,
         drawable_origin,
         drawable_size,
         epsilon_ratio,
         min_epsilon_px,
+        smoothing_radius,
     )
     should_join = path_generation.get(
         "join_overlapping_strokes", DEFAULT_JOIN_OVERLAPPING_STROKES
@@ -553,11 +747,20 @@ def build_two_phase_strokes(
         "min_path_length_mm",
         source.get("min_stroke_length_mm", DEFAULT_OUTLINE_MIN_PATH_LENGTH_MM),
     )
+    joined_outline_lengths = [_path_length(points) for points, _ in joined_outline]
     outline_strokes = [
         (points, closed)
-        for points, closed in joined_outline
-        if _path_length(points) >= outline_minimum
+        for (points, closed), length in zip(joined_outline, joined_outline_lengths)
+        if length >= outline_minimum
     ]
+
+    def length_distribution(lengths):
+        return {
+            "under_1_mm": sum(length < 1.0 for length in lengths),
+            "1_to_under_2_mm": sum(1.0 <= length < 2.0 for length in lengths),
+            "2_to_under_5_mm": sum(2.0 <= length < 5.0 for length in lengths),
+            "5_mm_and_over": sum(length >= 5.0 for length in lengths),
+        }
 
     detail_working = original_gray
     detail_blur = detail_settings.get(
@@ -569,11 +772,11 @@ def build_two_phase_strokes(
         )
     detail_threshold1 = detail_settings.get(
         "canny_threshold1",
-        source.get("canny_threshold1", DEFAULT_DETAIL_CANNY_THRESHOLD1),
+        DEFAULT_DETAIL_CANNY_THRESHOLD1,
     )
     detail_threshold2 = detail_settings.get(
         "canny_threshold2",
-        source.get("canny_threshold2", DEFAULT_DETAIL_CANNY_THRESHOLD2),
+        DEFAULT_DETAIL_CANNY_THRESHOLD2,
     )
     detail_mask = cv2.Canny(
         detail_working,
@@ -587,21 +790,20 @@ def build_two_phase_strokes(
         ),
     )
     raw_detail = trace_mask(detail_mask)
-    traced_detail = _map_traced_strokes(
+    traced_detail, detail_smoothing_stats = _map_traced_strokes(
         raw_detail,
         original_size,
         drawable_origin,
         drawable_size,
         epsilon_ratio,
         min_epsilon_px,
+        smoothing_radius,
     )
+    deduplication_distance = resolve_detail_deduplication_distance(config)
     deduplicated_detail, duplicate_segments = remove_outline_duplicate_segments(
         traced_detail,
         outline_strokes,
-        detail_settings.get(
-            "deduplication_distance_mm",
-            DEFAULT_DETAIL_DEDUPLICATION_DISTANCE_MM,
-        ),
+        deduplication_distance,
     )
     strengths_map = edge_strength_map(original_gray)
     strengths = [
@@ -629,10 +831,77 @@ def build_two_phase_strokes(
 
     stats.update(
         {
+            **source_metadata,
+            "detail_working_dimensions_px": {
+                "width": original_size[0],
+                "height": original_size[1],
+            },
+            "detail_deduplication_distance_mm": deduplication_distance,
+            "smoothing_radius_requested_mm": smoothing_radius,
+            "smoothing_radius_effective_mm": max(
+                outline_smoothing_stats["effective_smoothing_radius_mm"],
+                detail_smoothing_stats["effective_smoothing_radius_mm"],
+            ),
+            "outline_points_before_smoothing": outline_smoothing_stats[
+                "points_before_smoothing"
+            ],
+            "outline_points_after_smoothing": outline_smoothing_stats[
+                "points_after_smoothing"
+            ],
+            "outline_points_after_simplification": outline_smoothing_stats[
+                "points_after_simplification"
+            ],
+            "outline_effective_smoothing_radius_mm": outline_smoothing_stats[
+                "effective_smoothing_radius_mm"
+            ],
+            "detail_points_before_smoothing": detail_smoothing_stats[
+                "points_before_smoothing"
+            ],
+            "detail_points_after_smoothing": detail_smoothing_stats[
+                "points_after_smoothing"
+            ],
+            "detail_points_after_simplification": detail_smoothing_stats[
+                "points_after_simplification"
+            ],
+            "detail_effective_smoothing_radius_mm": detail_smoothing_stats[
+                "effective_smoothing_radius_mm"
+            ],
+            "points_before_smoothing": (
+                outline_smoothing_stats["points_before_smoothing"]
+                + detail_smoothing_stats["points_before_smoothing"]
+            ),
+            "points_after_smoothing": (
+                outline_smoothing_stats["points_after_smoothing"]
+                + detail_smoothing_stats["points_after_smoothing"]
+            ),
+            "points_after_simplification": (
+                outline_smoothing_stats["points_after_simplification"]
+                + detail_smoothing_stats["points_after_simplification"]
+            ),
             "outline_num_raw_paths": len(raw_outline),
             "outline_num_overlap_joins": outline_joins,
+            "outline_min_path_length_mm": outline_minimum,
+            "outline_joined_length_distribution": length_distribution(
+                joined_outline_lengths
+            ),
             "outline_num_short_paths_filtered": len(joined_outline)
             - len(outline_strokes),
+            "outline_short_paths_filtered_distance_mm": round(
+                sum(
+                    length
+                    for length in joined_outline_lengths
+                    if length < outline_minimum
+                ),
+                2,
+            ),
+            "outline_retained_distance_mm": round(
+                sum(
+                    length
+                    for length in joined_outline_lengths
+                    if length >= outline_minimum
+                ),
+                2,
+            ),
             "outline_num_paths": len(outline_strokes),
             "detail_num_raw_paths": len(raw_detail),
             "detail_border_components_filtered": detail_border_metrics[
@@ -647,6 +916,9 @@ def build_two_phase_strokes(
         }
     )
     stats.update(detail_stats)
+    provenance = config.get("retrace_provenance")
+    if isinstance(provenance, dict):
+        stats["retrace_provenance"] = provenance
     return outline_strokes, detail_strokes, image_path, stats
 
 
@@ -664,36 +936,52 @@ def build_canvas_strokes(config: dict, include_stats: bool = False) -> tuple:
 
 # --- Ordered strokes -> path commands -----------------------------------
 
-def stroke_to_commands(points, stroke_index: int, phase: str = "outline") -> list:
-    """One traced line -> move_to + lower_tool + one paint_stroke per
-    consecutive point pair + lift_tool. Consecutive duplicate points
-    (possible after simplification of very short/noisy loops) are
-    collapsed so no zero-length paint_stroke is emitted."""
+def stroke_to_commands(
+    points,
+    stroke_index: int,
+    phase: str = "outline",
+    continuous_paths: bool = DEFAULT_CONTINUOUS_PATHS,
+) -> list:
+    """Turn one traced line into a pen-down command bracket.
+
+    Consecutive duplicate points are collapsed so neither command mode emits
+    zero-length geometry. Older callers remain segmented by default.
+    """
     if phase not in ("outline", "detail"):
         raise ValueError(f"Unknown sketch phase: {phase!r}")
     label = f"sketch_{phase}_{stroke_index}"
-    deduped = [points[0]]
-    for point in points[1:]:
-        if point != deduped[-1]:
-            deduped.append(point)
+    deduped = []
+    for point in points:
+        rounded = (round(point[0], 2), round(point[1], 2))
+        if not deduped or rounded != deduped[-1]:
+            deduped.append(rounded)
     if len(deduped) < 2:
         return []
 
     commands = [move_to(deduped[0][0], deduped[0][1], label), lower_tool(label)]
-    for from_point, to_point in zip(deduped, deduped[1:]):
-        commands.append(paint_stroke(from_point, to_point, LINE_COLOR, label))
+    if continuous_paths:
+        commands.append(paint_path(deduped, LINE_COLOR, label))
+    else:
+        for from_point, to_point in zip(deduped, deduped[1:]):
+            commands.append(paint_stroke(from_point, to_point, LINE_COLOR, label))
     commands.append(lift_tool(label))
     return commands
 
 
-def build_commands(ordered_outline_strokes: list, ordered_detail_strokes=None) -> list:
+def build_commands(
+    ordered_outline_strokes: list,
+    ordered_detail_strokes=None,
+    continuous_paths: bool = DEFAULT_CONTINUOUS_PATHS,
+) -> list:
     """Emit one tool setup followed by every outline and then every detail."""
     ordered_detail_strokes = ordered_detail_strokes or []
     commands = [select_tool(LINE_COLOR, "sketch"), dip_paint(LINE_COLOR, "sketch")]
     for index, points in enumerate(ordered_outline_strokes, start=1):
-        commands.extend(stroke_to_commands(points, index, "outline"))
+        commands.extend(
+            stroke_to_commands(points, index, "outline", continuous_paths)
+        )
     for index, points in enumerate(ordered_detail_strokes, start=1):
-        commands.extend(stroke_to_commands(points, index, "detail"))
+        commands.extend(stroke_to_commands(points, index, "detail", continuous_paths))
     return commands
 
 
@@ -706,7 +994,12 @@ def build_painting_paths(
     optimization_stats: dict = None,
 ) -> dict:
     stroke_commands = [cmd for cmd in commands if cmd["command"] == "paint_stroke"]
-    total_distance = sum(math.dist(cmd["from_mm"], cmd["to_mm"]) for cmd in stroke_commands)
+    path_commands = [cmd for cmd in commands if cmd["command"] == "paint_path"]
+    total_distance = sum(
+        math.dist(cmd["from_mm"], cmd["to_mm"]) for cmd in stroke_commands
+    ) + sum(
+        _path_length(cmd["points_mm"]) for cmd in path_commands
+    )
 
     def count_commands(command_name: str) -> int:
         return sum(1 for cmd in commands if cmd["command"] == command_name)
@@ -717,6 +1010,10 @@ def build_painting_paths(
     debug = {
         "num_commands": len(commands),
         "num_paint_stroke_commands": len(stroke_commands),
+        "num_paint_path_commands": len(path_commands),
+        "continuous_paths": path_generation.get(
+            "continuous_paths", DEFAULT_CONTINUOUS_PATHS
+        ),
         "estimated_total_paint_distance_mm": round(total_distance, 2),
         "num_traced_lines": count_commands("lower_tool"),
         "num_select_tool_commands": count_commands("select_tool"),
@@ -754,17 +1051,20 @@ def build_painting_paths(
             "max_join_turn_degrees": path_generation.get(
                 "max_join_turn_degrees", DEFAULT_MAX_JOIN_TURN_DEGREES
             ),
+            "smoothing_radius_mm": path_generation.get(
+                "smoothing_radius_mm", DEFAULT_SMOOTHING_RADIUS_MM
+            ),
+            "continuous_paths": path_generation.get(
+                "continuous_paths", DEFAULT_CONTINUOUS_PATHS
+            ),
             "detail_min_path_length_mm": config.get("detail_extraction", {}).get(
                 "min_path_length_mm", DEFAULT_DETAIL_MIN_PATH_LENGTH_MM
             ),
             "detail_max_paths": config.get("detail_extraction", {}).get(
                 "max_paths", DEFAULT_DETAIL_MAX_PATHS
             ),
-            "outline_detail_deduplication_distance_mm": config.get(
-                "detail_extraction", {}
-            ).get(
-                "deduplication_distance_mm",
-                DEFAULT_DETAIL_DEDUPLICATION_DISTANCE_MM,
+            "outline_detail_deduplication_distance_mm": (
+                resolve_detail_deduplication_distance(config)
             ),
         },
         "commands": commands,
@@ -775,7 +1075,7 @@ def build_painting_paths(
 # --- SVG preview ---------------------------------------------------------
 
 def render_svg(painting_paths: dict) -> str:
-    """Draw every paint_stroke command as a line, for a quick visual check."""
+    """Draw command geometry exactly as represented in painting_paths JSON."""
     canvas = painting_paths["canvas"]
     width_mm = canvas["width_mm"]
     height_mm = canvas["height_mm"]
@@ -784,15 +1084,22 @@ def render_svg(painting_paths: dict) -> str:
     elements = [f'<rect x="0" y="0" width="{width_mm}" height="{height_mm}" fill="white" />']
 
     for cmd in painting_paths["commands"]:
-        if cmd["command"] != "paint_stroke":
-            continue
-        x1, y1 = cmd["from_mm"]
-        x2, y2 = cmd["to_mm"]
-        elements.append(
-            f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
-            f'stroke="{escape(cmd["color"])}" stroke-width="{tool_width}" '
-            f'stroke-linecap="round" stroke-opacity="{STROKE_PREVIEW_OPACITY}" />'
-        )
+        if cmd["command"] == "paint_stroke":
+            x1, y1 = cmd["from_mm"]
+            x2, y2 = cmd["to_mm"]
+            elements.append(
+                f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+                f'stroke="{escape(cmd["color"])}" stroke-width="{tool_width}" '
+                f'stroke-linecap="round" stroke-opacity="{STROKE_PREVIEW_OPACITY}" />'
+            )
+        elif cmd["command"] == "paint_path":
+            points = " ".join(f"{x},{y}" for x, y in cmd["points_mm"])
+            elements.append(
+                f'<polyline points="{points}" fill="none" '
+                f'stroke="{escape(cmd["color"])}" stroke-width="{tool_width}" '
+                f'stroke-linecap="round" stroke-linejoin="round" '
+                f'stroke-opacity="{STROKE_PREVIEW_OPACITY}" />'
+            )
 
     svg_body = "\n  ".join(elements)
     width_in = canvas["width_in"]
@@ -818,6 +1125,13 @@ def main() -> None:
         default=DEFAULT_CONFIG_FILE,
         help=f"Path to a sketch pipeline config JSON file (default: {DEFAULT_CONFIG_FILE}).",
     )
+    parser.add_argument(
+        "--saved-semantic-image",
+        help=(
+            "Reuse this saved semantic line-art image and bypass Qwen entirely. "
+            "Missing, empty, or undecodable files are fatal."
+        ),
+    )
     args = parser.parse_args()
 
     config_path = Path(args.config)
@@ -830,7 +1144,15 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     outline_strokes, detail_strokes, image_path, optimization_stats = (
-        build_two_phase_strokes(config, output_dir=output_dir)
+        build_two_phase_strokes(
+            config,
+            output_dir=output_dir,
+            saved_semantic_image=(
+                Path(args.saved_semantic_image)
+                if args.saved_semantic_image is not None
+                else None
+            ),
+        )
     )
     if not outline_strokes and not detail_strokes:
         print(f"No traced lines found in {image_path} - nothing to write.")
@@ -878,7 +1200,13 @@ def main() -> None:
         }
     )
 
-    commands = build_commands(ordered_outline, ordered_detail)
+    commands = build_commands(
+        ordered_outline,
+        ordered_detail,
+        continuous_paths=path_generation.get(
+            "continuous_paths", DEFAULT_CONTINUOUS_PATHS
+        ),
+    )
     painting_paths = build_painting_paths(
         commands, config, config_path, image_path,
         {"baseline": baseline_travel, "optimized": optimized_travel},

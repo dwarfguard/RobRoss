@@ -6,7 +6,7 @@ its scripts, tests, and documentation.
 | Module | Purpose | Status |
 | --- | --- | --- |
 | [mondrian](mondrian/README.md) | Generate Mondrian-style artwork, robot paths, and SVG previews. | Active Demo v1 pipeline |
-| [sketch](sketch/README.md) | Two-phase structural outline + ranked likeness details, with optional Gemini overlap enhancement. | Active |
+| [sketch](sketch/README.md) | Two-phase structural outline + ranked likeness details, with optional Qwen overlap enhancement. | Active |
 | [image_to_mondrian](image_to_mondrian/README.md) | Photo quantized to 5-color palette, region-filled with black grid lines. | Active |
 | [gemini_mondrian](gemini_mondrian/README.md) | Gemini image-to-image Mondrian restyle + standalone vectorization. | Active |
 | [line_art](line_art/README.md) | Clean line-art/illustration tracing via threshold + skeletonize (not Canny). | Active |
@@ -21,7 +21,7 @@ and write generated files to `output/`; see the
 Image_Process/
   mondrian/           Recursive-subdivision Mondrian-style line/block artwork
                       generator + path generator (see mondrian/README.md).
-  sketch/             Two-phase photo sketch: optional Gemini structural line
+  sketch/             Two-phase photo sketch: optional Qwen structural line
                       art plus original-photo detail paths (see sketch/README.md).
   image_to_mondrian/  Photo quantized to a configurable palette, segmented and
                       scanline-filled within retained masks, plus black grid lines
@@ -42,8 +42,10 @@ third-party dependencies for image processing or generation —
 `opencv-python` + `numpy` for all three, plus `scikit-image` for `sketch/`
 and `line_art/` (both use a skeletonization-based line tracer;
 `image_to_mondrian/` traces outlines via `cv2.findContours` instead, so it
-doesn't need it). `gemini_mondrian/` requires `google-genai`; `sketch/` uses it
-optionally and falls back locally when unavailable. `mondrian/` stays pure
+doesn't need it). `sketch/` also uses Pillow to normalize EXIF orientation.
+`gemini_mondrian/` requires `google-genai`; `sketch/`
+optionally uses the DashScope HTTP API and falls back locally when it is unavailable.
+`mondrian/` stays pure
 standard library. See each folder's README for
 route-specific installation instructions.
 

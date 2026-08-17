@@ -16,28 +16,87 @@ import cv2
 import numpy as np
 from skimage.morphology import skeletonize
 
+try:
+    from PIL import Image
+except (ImportError, ModuleNotFoundError):  # surfaced when orientation is read
+    Image = None
+
 NEIGHBORS_8 = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+EXIF_ORIENTATION_TAG = 274
 
 
-def read_grayscale(image_path):
-    """Read an image as grayscale, compositing transparent pixels on white.
+def _exif_orientation(image_path) -> int:
+    """Return the source EXIF orientation, defaulting to normal orientation."""
+    if Image is None:
+        raise ImportError(
+            "Pillow is required to normalize image EXIF orientation."
+        )
+    try:
+        with Image.open(image_path) as image:
+            orientation = int(image.getexif().get(EXIF_ORIENTATION_TAG, 1))
+    except (OSError, TypeError, ValueError):
+        return 1
+    return orientation if 1 <= orientation <= 8 else 1
 
-    OpenCV's ordinary grayscale loader ignores alpha. That makes a transparent
-    PNG background look black and can manufacture a strong crop-edge line, so
-    sketch inputs are loaded unchanged and explicitly composited first.
+
+def _apply_exif_orientation(image, orientation: int):
+    """Apply all eight EXIF orientation transforms to an OpenCV array."""
+    if orientation == 2:
+        return cv2.flip(image, 1)
+    if orientation == 3:
+        return cv2.rotate(image, cv2.ROTATE_180)
+    if orientation == 4:
+        return cv2.flip(image, 0)
+    if orientation == 5:
+        return cv2.transpose(image)
+    if orientation == 6:
+        return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+    if orientation == 7:
+        return cv2.flip(cv2.transpose(image), -1)
+    if orientation == 8:
+        return cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return image
+
+
+def read_grayscale_with_metadata(image_path):
+    """Read oriented grayscale plus safe registration metadata.
+
+    Pixel decoding remains in OpenCV so grayscale and alpha behavior stays
+    unchanged. EXIF orientation is applied before alpha compositing and before
+    any local outline/detail operation.
     """
+    orientation = _exif_orientation(image_path)
     image = cv2.imread(str(image_path), cv2.IMREAD_UNCHANGED)
     if image is None:
         raise FileNotFoundError(f"Could not read image: {image_path}")
+    image = _apply_exif_orientation(image, orientation)
     if image.ndim == 2:
-        return image
-    if image.shape[2] == 4:
-        color = image[:, :, :3].astype(np.float32)
-        alpha = image[:, :, 3:4].astype(np.float32) / 255.0
-        image = np.clip(color * alpha + 255.0 * (1.0 - alpha), 0, 255).astype(
-            np.uint8
-        )
-    return cv2.cvtColor(image[:, :, :3], cv2.COLOR_BGR2GRAY)
+        grayscale = image
+    else:
+        if image.shape[2] == 4:
+            color = image[:, :, :3].astype(np.float32)
+            alpha = image[:, :, 3:4].astype(np.float32) / 255.0
+            image = np.clip(
+                color * alpha + 255.0 * (1.0 - alpha), 0, 255
+            ).astype(np.uint8)
+        grayscale = cv2.cvtColor(image[:, :, :3], cv2.COLOR_BGR2GRAY)
+    return grayscale, {
+        "source_exif_orientation": orientation,
+        "source_orientation_normalized": orientation != 1,
+    }
+
+
+def read_grayscale(image_path):
+    """Read an EXIF-oriented image as grayscale, compositing alpha on white.
+
+    OpenCV's ordinary grayscale loader ignores alpha. That makes a transparent
+    PNG background look black and can manufacture a strong crop-edge line, so
+    sketch inputs are loaded unchanged and explicitly composited first. The
+    unchanged loader also ignores EXIF orientation, so that transform is
+    applied explicitly before returning pixels.
+    """
+    grayscale, _metadata = read_grayscale_with_metadata(image_path)
+    return grayscale
 
 
 def suppress_border_artifacts(mask, band_px: int):
@@ -114,14 +173,11 @@ def local_outline_mask(
 def line_art_mask(grayscale, threshold: int = 210):
     """Convert clean black-on-white generated line art to a centerline mask."""
     gray = np.asarray(grayscale, dtype=np.uint8)
-    # Otsu adapts to generated images that are slightly off-white. The
-    # configured threshold remains an upper bound so pale backgrounds do not
-    # become ink when a model returns a low-contrast image.
-    otsu_value, _ = cv2.threshold(
-        gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
-    )
-    effective_threshold = min(int(threshold), int(otsu_value))
-    return gray <= effective_threshold
+    # Qwen line art uses a white background with anti-aliased gray pixels at
+    # the edges of its thinnest marks. Otsu commonly chooses a much darker
+    # cutoff and erases those pixels, so the configured value is the exact ink
+    # threshold rather than merely an upper bound on an adaptive threshold.
+    return gray <= int(threshold)
 
 
 def edge_strength_map(grayscale):

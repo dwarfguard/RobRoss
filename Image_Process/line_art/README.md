@@ -82,11 +82,14 @@ straight from traced pixel strokes to the final command list.
 
 ```bash
 python3 Image_Process/line_art/generate_line_art_paths.py --config configs/line_art_demo_a4.json
+python3 Image_Process/line_art/generate_line_art_paths.py --config configs/line_art_demo_4k_landscape.json
 ```
 
 `--config` defaults to `configs/line_art_demo_a4.json`, which traces
 `Image_Process/assets/hinton.png`. Run from the repo root (paths in the
 config are CWD-relative), same as the other routes' scripts.
+The additional `line_art_demo_4k_landscape.json` profile targets 4K landscape
+paper at 525 mm wide by 375 mm high.
 
 ### Config fields
 
@@ -104,6 +107,7 @@ config are CWD-relative), same as the other routes' scripts.
 | `path_generation.home_position_mm` | Where the pen starts before the first stroke; affects greedy-ordering's first pick. Optional, defaults to the canvas's top-left margin corner. |
 | `path_generation.join_overlapping_strokes` | If true (default), join compatible open strokes only when their endpoints have exactly the same mapped coordinate. This never bridges nearby endpoints or adds ink through blank space. |
 | `path_generation.max_join_turn_degrees` | Maximum heading change allowed at an exact shared endpoint (default 60°). Smaller values require straighter continuations; at multi-way junctions the straightest pairs are chosen first and side branches remain separate. |
+| `path_generation.smoothing_radius_mm` | Optional Gaussian centerline smoothing radius in physical millimetres (0–2mm; default 0 for backward compatibility). Open endpoints and shared junction anchors remain fixed, closed loops wrap cyclically, and short marks cap the effective radius. The 4K profile uses 1.2mm to suppress raster/JPEG stair-steps that become visible when enlarged. |
 | `output.directory`, `.painting_paths_file`, `.preview_svg_file` | Same meaning as the other routes' config schema. |
 
 The checked-in values are the balanced profile. For a more conservative trace,

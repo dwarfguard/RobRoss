@@ -15,6 +15,7 @@ Then open http://127.0.0.1:5050 . Local dev tool only - no auth, binds to
 this to a network.
 """
 
+import math
 import re
 import shutil
 import sys
@@ -38,6 +39,10 @@ def render_upload_form() -> str:
         f'{escape(adapter["label"])}</option>'
         for key, adapter in route_adapters.ROUTE_ADAPTERS.items()
     )
+    paper_options = "\n".join(
+        f'<option value="{escape(key)}">{escape(label)}</option>'
+        for key, label in route_adapters.PAPER_SIZES.items()
+    )
     return f"""
 <section class="upload-form">
   <form method="post" action="/process" enctype="multipart/form-data">
@@ -47,16 +52,46 @@ def render_upload_form() -> str:
     <label id="image-label">Photo:
       <input type="file" name="image" id="image-input" accept="image/*">
     </label>
+    <label id="paper-size-label">Paper size:
+      <select name="paper_size" id="paper-size-select">{paper_options}</select>
+    </label>
     <label id="semantic-label" class="checkbox-label">
       <input type="checkbox" name="enhance_overlapping_forms"
              id="semantic-input" checked>
-      Enhance overlapping forms with Gemini
+      Enhance overlapping forms with Qwen
+    </label>
+    <label id="qwen-model-label">Qwen image model:
+      <input type="text" name="qwen_model" id="qwen-model-input"
+             value="{route_adapters.DEFAULT_SKETCH_QWEN_MODEL}" required>
     </label>
     <label id="detail-max-paths-label">Maximum detail paths:
       <input type="number" name="maximum_detail_paths"
              id="detail-max-paths-input"
              value="{route_adapters.DEFAULT_SKETCH_DETAIL_MAX_PATHS}"
              min="0" step="1" inputmode="numeric">
+    </label>
+    <label id="line-art-threshold-label">Line-art threshold:
+      <input type="number" name="line_art_threshold"
+             id="line-art-threshold-input"
+             value="{route_adapters.DEFAULT_SKETCH_LINE_ART_THRESHOLD}"
+             min="0" max="255" step="1" inputmode="numeric">
+    </label>
+    <label id="outline-floor-label">Semantic outline floor (mm):
+      <input type="number" name="semantic_outline_floor_mm"
+             id="outline-floor-input"
+             value="{route_adapters.DEFAULT_SKETCH_OUTLINE_FLOOR_MM}"
+             min="0" step="0.1">
+    </label>
+    <label id="smoothing-radius-label">Smoothing radius (mm):
+      <input type="number" name="smoothing_radius_mm"
+             id="smoothing-radius-input"
+             value="{route_adapters.DEFAULT_SKETCH_SMOOTHING_RADIUS_MM}"
+             min="0" max="2" step="0.1">
+    </label>
+    <label id="continuous-paths-label" class="checkbox-label">
+      <input type="checkbox" name="continuous_paths"
+             id="continuous-paths-input" checked>
+      Use continuous paths
     </label>
     <button type="submit">Process</button>
   </form>
@@ -65,21 +100,46 @@ def render_upload_form() -> str:
   const routeSelect = document.getElementById('route-select');
   const imageLabel = document.getElementById('image-label');
   const imageInput = document.getElementById('image-input');
+  const paperSizeLabel = document.getElementById('paper-size-label');
+  const paperSizeSelect = document.getElementById('paper-size-select');
   const semanticLabel = document.getElementById('semantic-label');
   const semanticInput = document.getElementById('semantic-input');
+  const qwenModelLabel = document.getElementById('qwen-model-label');
+  const qwenModelInput = document.getElementById('qwen-model-input');
   const detailMaxPathsLabel = document.getElementById('detail-max-paths-label');
   const detailMaxPathsInput = document.getElementById('detail-max-paths-input');
+  const lineArtThresholdLabel = document.getElementById('line-art-threshold-label');
+  const lineArtThresholdInput = document.getElementById('line-art-threshold-input');
+  const outlineFloorLabel = document.getElementById('outline-floor-label');
+  const outlineFloorInput = document.getElementById('outline-floor-input');
+  const smoothingRadiusLabel = document.getElementById('smoothing-radius-label');
+  const smoothingRadiusInput = document.getElementById('smoothing-radius-input');
+  const continuousPathsLabel = document.getElementById('continuous-paths-label');
+  const continuousPathsInput = document.getElementById('continuous-paths-input');
   function syncImageField() {{
     const opt = routeSelect.options[routeSelect.selectedIndex];
     const needsImage = opt.dataset.needsImage === 'true';
     imageLabel.style.display = needsImage ? '' : 'none';
     imageInput.disabled = !needsImage;
     imageInput.required = needsImage;
+    const supportsPaperSize = routeSelect.value === 'sketch' || routeSelect.value === 'line_art';
+    paperSizeLabel.style.display = supportsPaperSize ? '' : 'none';
+    paperSizeSelect.disabled = !supportsPaperSize;
     const supportsSemantic = routeSelect.value === 'sketch';
     semanticLabel.style.display = supportsSemantic ? '' : 'none';
     semanticInput.disabled = !supportsSemantic;
+    qwenModelLabel.style.display = supportsSemantic ? '' : 'none';
+    qwenModelInput.disabled = !supportsSemantic;
     detailMaxPathsLabel.style.display = supportsSemantic ? '' : 'none';
     detailMaxPathsInput.disabled = !supportsSemantic;
+    lineArtThresholdLabel.style.display = supportsSemantic ? '' : 'none';
+    lineArtThresholdInput.disabled = !supportsSemantic;
+    outlineFloorLabel.style.display = supportsSemantic ? '' : 'none';
+    outlineFloorInput.disabled = !supportsSemantic;
+    smoothingRadiusLabel.style.display = supportsSemantic ? '' : 'none';
+    smoothingRadiusInput.disabled = !supportsSemantic;
+    continuousPathsLabel.style.display = supportsSemantic ? '' : 'none';
+    continuousPathsInput.disabled = !supportsSemantic;
   }}
   routeSelect.addEventListener('change', syncImageField);
   syncImageField();
@@ -127,10 +187,57 @@ def process():
 
     uploaded_file = request.files.get("image")
     try:
+        paper_size = request.form.get(
+            "paper_size", route_adapters.DEFAULT_PAPER_SIZE
+        )
         semantic_enabled = None
+        qwen_model = None
+        line_art_threshold = None
+        outline_floor = None
+        smoothing_radius = None
+        continuous_paths = None
         detail_max_paths = None
         if route_key == "sketch":
             semantic_enabled = request.form.get("enhance_overlapping_forms") == "on"
+            qwen_model = request.form.get(
+                "qwen_model", route_adapters.DEFAULT_SKETCH_QWEN_MODEL
+            ).strip()
+            if not qwen_model:
+                raise ValueError("Qwen model must be a non-empty string.")
+            raw_threshold = request.form.get(
+                "line_art_threshold",
+                str(route_adapters.DEFAULT_SKETCH_LINE_ART_THRESHOLD),
+            ).strip()
+            if not re.fullmatch(r"[0-9]+", raw_threshold):
+                raise ValueError("Line-art threshold must be an integer from 0 to 255.")
+            line_art_threshold = int(raw_threshold)
+            if not 0 <= line_art_threshold <= 255:
+                raise ValueError("Line-art threshold must be an integer from 0 to 255.")
+            try:
+                outline_floor = float(
+                    request.form.get(
+                        "semantic_outline_floor_mm",
+                        str(route_adapters.DEFAULT_SKETCH_OUTLINE_FLOOR_MM),
+                    ).strip()
+                )
+            except ValueError:
+                raise ValueError(
+                    "Semantic outline floor must be a non-negative number."
+                ) from None
+            if not math.isfinite(outline_floor) or outline_floor < 0:
+                raise ValueError("Semantic outline floor must be a non-negative number.")
+            try:
+                smoothing_radius = float(
+                    request.form.get(
+                        "smoothing_radius_mm",
+                        str(route_adapters.DEFAULT_SKETCH_SMOOTHING_RADIUS_MM),
+                    ).strip()
+                )
+            except ValueError:
+                raise ValueError("Smoothing radius must be from 0 to 2 mm.") from None
+            if not math.isfinite(smoothing_radius) or not 0 <= smoothing_radius <= 2:
+                raise ValueError("Smoothing radius must be from 0 to 2 mm.")
+            continuous_paths = request.form.get("continuous_paths") == "on"
             raw_detail_max_paths = request.form.get(
                 "maximum_detail_paths",
                 str(route_adapters.DEFAULT_SKETCH_DETAIL_MAX_PATHS),
@@ -144,7 +251,13 @@ def process():
             route_key,
             uploaded_file,
             semantic_preprocessing_enabled=semantic_enabled,
+            qwen_model=qwen_model,
+            line_art_threshold=line_art_threshold,
+            outline_min_path_length_mm=outline_floor,
+            smoothing_radius_mm=smoothing_radius,
+            continuous_paths=continuous_paths,
             detail_max_paths=detail_max_paths,
+            paper_size=paper_size,
         )
     except route_adapters.RouteRunError as error:
         return render_error(
@@ -168,6 +281,54 @@ def render_error(message: str) -> str:
 </body>
 </html>
 """, 400
+
+
+def _parse_retrace_settings():
+    raw_threshold = request.form.get("line_art_threshold", "").strip()
+    if not re.fullmatch(r"[0-9]+", raw_threshold):
+        raise ValueError("Line-art threshold must be an integer from 0 to 255.")
+    threshold = int(raw_threshold)
+    if not 0 <= threshold <= 255:
+        raise ValueError("Line-art threshold must be an integer from 0 to 255.")
+    try:
+        outline_floor = float(
+            request.form.get("semantic_outline_floor_mm", "").strip()
+        )
+    except ValueError:
+        raise ValueError("Semantic outline floor must be a non-negative number.") from None
+    if not math.isfinite(outline_floor) or outline_floor < 0:
+        raise ValueError("Semantic outline floor must be a non-negative number.")
+    try:
+        smoothing_radius = float(request.form.get("smoothing_radius_mm", "").strip())
+    except ValueError:
+        raise ValueError("Smoothing radius must be from 0 to 2 mm.") from None
+    if not math.isfinite(smoothing_radius) or not 0 <= smoothing_radius <= 2:
+        raise ValueError("Smoothing radius must be from 0 to 2 mm.")
+    raw_detail_budget = request.form.get("maximum_detail_paths", "").strip()
+    if not re.fullmatch(r"[0-9]+", raw_detail_budget):
+        raise ValueError("Maximum detail paths must be a non-negative integer.")
+    return {
+        "line_art_threshold": threshold,
+        "outline_min_path_length_mm": outline_floor,
+        "smoothing_radius_mm": smoothing_radius,
+        "continuous_paths": request.form.get("continuous_paths") == "on",
+        "detail_max_paths": int(raw_detail_budget),
+    }
+
+
+@app.route("/output/<name>/retrace", methods=["POST"])
+def retrace_run(name):
+    try:
+        settings = _parse_retrace_settings()
+        route_adapters.retrace_sketch_run(name, **settings)
+        generate_output_gallery.main()
+    except route_adapters.RouteRunError as error:
+        return render_error(
+            f"{error.script} failed (exit {error.returncode}):\n\n{error.stderr}"
+        )
+    except ValueError as error:
+        return render_error(str(error))
+    return redirect(url_for("index"), code=303)
 
 
 @app.route("/output/<path:filename>")

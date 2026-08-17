@@ -26,6 +26,9 @@ import sys
 from html import escape
 from pathlib import Path
 
+import cv2
+import numpy as np
+
 from config_loader import (
     DEFAULT_BINARY_THRESHOLD,
     DEFAULT_JOIN_OVERLAPPING_STROKES,
@@ -35,6 +38,7 @@ from config_loader import (
     DEFAULT_MORPH_CLOSE_KERNEL_PX,
     DEFAULT_SIMPLIFY_EPSILON_RATIO,
     DEFAULT_SIMPLIFY_MIN_EPSILON_PX,
+    DEFAULT_SMOOTHING_RADIUS_MM,
     load_config,
 )
 from line_tracing import (
@@ -106,6 +110,145 @@ def map_points_to_canvas(points_xy, image_size, drawable_origin, drawable_size):
     return [(offset_x + x * scale, offset_y + y * scale) for x, y in points_xy]
 
 
+def _path_length(points) -> float:
+    return sum(math.dist(a, b) for a, b in zip(points, points[1:]))
+
+
+def _canvas_scale(image_size, drawable_size) -> float:
+    image_width, image_height = image_size
+    box_width, box_height = drawable_size
+    return min(box_width / image_width, box_height / image_height)
+
+
+def _dedupe_consecutive(points):
+    deduped = []
+    for point in points:
+        point = (float(point[0]), float(point[1]))
+        if not deduped or point != deduped[-1]:
+            deduped.append(point)
+    return deduped
+
+
+def smooth_canvas_path(points, closed: bool, radius_mm: float):
+    """Gaussian-smooth a dense centerline on a uniform arc-length axis.
+
+    Open endpoints remain exact so separate paths still meet at shared
+    skeleton junctions. Closed paths use cyclic padding. The effective radius
+    is capped at one sixth of path length so short intentional marks survive.
+    """
+    requested = max(0.0, float(radius_mm))
+    dense = _dedupe_consecutive(points)
+    if closed and len(dense) > 1 and dense[0] == dense[-1]:
+        dense.pop()
+    minimum_points = 3 if closed else 2
+    if requested == 0 or len(dense) < minimum_points:
+        effective = 0.0 if requested == 0 else min(requested, _path_length(dense) / 6.0)
+        return dense, effective
+
+    array = np.asarray(dense, dtype=np.float64)
+    if closed:
+        segment_lengths = np.linalg.norm(np.roll(array, -1, axis=0) - array, axis=1)
+    else:
+        segment_lengths = np.linalg.norm(np.diff(array, axis=0), axis=1)
+    total_length = float(segment_lengths.sum())
+    if total_length <= 0:
+        return dense, 0.0
+
+    effective = min(requested, total_length / 6.0)
+    if closed:
+        extended = np.vstack((array, array[0]))
+        cumulative = np.concatenate(([0.0], np.cumsum(segment_lengths)))
+        sample_distances = np.linspace(0.0, total_length, len(array), endpoint=False)
+    else:
+        extended = array
+        cumulative = np.concatenate(([0.0], np.cumsum(segment_lengths)))
+        sample_distances = np.linspace(0.0, total_length, len(array))
+    uniform = np.column_stack(
+        [np.interp(sample_distances, cumulative, extended[:, axis]) for axis in (0, 1)]
+    )
+
+    spacing = total_length / (len(uniform) if closed else max(1, len(uniform) - 1))
+    sigma_samples = effective / max(spacing, 1e-9)
+    half_width = max(1, int(math.ceil(3.0 * sigma_samples)))
+    offsets = np.arange(-half_width, half_width + 1, dtype=np.float64)
+    kernel = np.exp(-0.5 * (offsets / max(sigma_samples, 1e-9)) ** 2)
+    kernel /= kernel.sum()
+    pad_mode = "wrap" if closed else "edge"
+    smoothed = np.column_stack(
+        [
+            np.convolve(
+                np.pad(uniform[:, axis], half_width, mode=pad_mode),
+                kernel,
+                mode="valid",
+            )
+            for axis in (0, 1)
+        ]
+    )
+    if not closed:
+        smoothed[0] = array[0]
+        smoothed[-1] = array[-1]
+    return [tuple(point) for point in smoothed], effective
+
+
+def _simplify_canvas_points(points, closed, epsilon_ratio, min_epsilon_mm):
+    array = np.asarray(points, dtype=np.float32).reshape(-1, 1, 2)
+    if len(array) < 3:
+        return [tuple(float(value) for value in point) for point in array.reshape(-1, 2)]
+    epsilon = max(
+        float(min_epsilon_mm),
+        float(epsilon_ratio) * cv2.arcLength(array, closed),
+    )
+    approximation = cv2.approxPolyDP(array, epsilon, closed)
+    return [tuple(float(value) for value in point) for point in approximation.reshape(-1, 2)]
+
+
+def _map_traced_strokes(
+    strokes,
+    image_size,
+    drawable_origin,
+    drawable_size,
+    epsilon_ratio,
+    min_epsilon_px,
+    smoothing_radius_mm,
+):
+    traced = []
+    effective_radii = []
+    points_before = 0
+    points_after = 0
+    scale = _canvas_scale(image_size, drawable_size)
+    for points_xy, closed in strokes:
+        points_before += len(points_xy)
+        if smoothing_radius_mm <= 0:
+            simplified = simplify(points_xy, closed, epsilon_ratio, min_epsilon_px)
+            canvas_points = map_points_to_canvas(
+                simplified, image_size, drawable_origin, drawable_size
+            )
+            effective_radius = 0.0
+        else:
+            dense_canvas_points = map_points_to_canvas(
+                points_xy, image_size, drawable_origin, drawable_size
+            )
+            smoothed, effective_radius = smooth_canvas_path(
+                dense_canvas_points, closed, smoothing_radius_mm
+            )
+            canvas_points = _simplify_canvas_points(
+                smoothed, closed, epsilon_ratio, float(min_epsilon_px) * scale
+            )
+        if len(canvas_points) < 2:
+            continue
+        if closed and canvas_points[0] != canvas_points[-1]:
+            canvas_points = canvas_points + [canvas_points[0]]
+        points_after += len(canvas_points)
+        effective_radii.append(effective_radius)
+        traced.append((canvas_points, closed))
+    return traced, {
+        "smoothing_radius_mm": float(smoothing_radius_mm),
+        "effective_smoothing_radius_mm": round(max(effective_radii, default=0.0), 4),
+        "points_before_smoothing": points_before,
+        "points_after_smoothing_and_simplification": points_after,
+    }
+
+
 def build_canvas_strokes(config: dict, include_stats: bool = False) -> tuple:
     """Run binarize + skeletonize + trace + prune + simplify + canvas
     mapping. Returns (strokes_data, image_path) where strokes_data is a
@@ -134,25 +277,19 @@ def build_canvas_strokes(config: dict, include_stats: bool = False) -> tuple:
     drawable_origin = (margin, margin)
     drawable_size = (canvas["width_mm"] - 2 * margin, canvas["height_mm"] - 2 * margin)
 
-    traced_strokes = []
-    for points_xy, closed in pruned_strokes:
-        simplified = simplify(points_xy, closed, epsilon_ratio, min_epsilon_px)
-        if len(simplified) < 2:
-            continue
-        if closed and simplified[0] != simplified[-1]:
-            # simplify()'s Douglas-Peucker (cv2.approxPolyDP) returns a
-            # closed loop as a bare polygon - vertices only, no repeated
-            # closing point. Everything downstream (order_strokes,
-            # paint_path) only sees a flat point list with no memory of
-            # "closed", so without explicitly repeating the first point
-            # here, the pen would lift one edge short of a full loop -
-            # even after extract_strokes() correctly identifies it as
-            # closed, the rendered stroke would still look open.
-            simplified = simplified + [simplified[0]]
-        canvas_points = map_points_to_canvas(simplified, image_size, drawable_origin, drawable_size)
-        traced_strokes.append((canvas_points, closed))
-
     path_generation = config["path_generation"]
+    smoothing_radius_mm = path_generation.get(
+        "smoothing_radius_mm", DEFAULT_SMOOTHING_RADIUS_MM
+    )
+    traced_strokes, smoothing_stats = _map_traced_strokes(
+        pruned_strokes,
+        image_size,
+        drawable_origin,
+        drawable_size,
+        epsilon_ratio,
+        min_epsilon_px,
+        smoothing_radius_mm,
+    )
     should_join = path_generation.get(
         "join_overlapping_strokes", DEFAULT_JOIN_OVERLAPPING_STROKES
     )
@@ -177,6 +314,7 @@ def build_canvas_strokes(config: dict, include_stats: bool = False) -> tuple:
         "num_overlap_joins": num_joins,
         "num_short_lines_filtered": len(joined_strokes) - len(strokes_data),
         "num_traced_lines_after_optimization": len(strokes_data),
+        **smoothing_stats,
     }
     if include_stats:
         return strokes_data, image_path, stats
@@ -268,6 +406,9 @@ def build_painting_paths(
         },
         "path_settings": {
             "tool_width_mm": path_generation["tool_width_mm"],
+            "smoothing_radius_mm": path_generation.get(
+                "smoothing_radius_mm", DEFAULT_SMOOTHING_RADIUS_MM
+            ),
             "join_overlapping_strokes": path_generation.get(
                 "join_overlapping_strokes", DEFAULT_JOIN_OVERLAPPING_STROKES
             ),

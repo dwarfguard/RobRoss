@@ -48,6 +48,23 @@ class TestValidateConfig(unittest.TestCase):
         config = load_config(CONFIGS_DIR / "line_art_demo_a4.json")
         self.assertEqual(validate_config(config), [])
 
+    def test_4k_landscape_config_is_valid(self):
+        config = load_config(CONFIGS_DIR / "line_art_demo_4k_landscape.json")
+        self.assertEqual(validate_config(config), [])
+        self.assertEqual(config["canvas"]["width_mm"], 525.0)
+        self.assertEqual(config["canvas"]["height_mm"], 375.0)
+        self.assertEqual(config["path_generation"]["smoothing_radius_mm"], 1.2)
+
+    def test_smoothing_radius_is_optional_and_bounded(self):
+        config = make_valid_config()
+        self.assertEqual(validate_config(config), [])
+        for invalid in (-0.1, 2.1, True):
+            with self.subTest(invalid=invalid):
+                config["path_generation"]["smoothing_radius_mm"] = invalid
+                self.assertTrue(
+                    any("smoothing_radius_mm" in error for error in validate_config(config))
+                )
+
     def test_missing_section_is_reported(self):
         config = make_valid_config()
         del config["source_image"]

@@ -1,0 +1,69 @@
+{
+  "profile_name": "retrace_1786628023_sketch",
+  "project": "R.O.B Ross",
+  "style": "sketch",
+  "canvas": {
+    "name": "A4 portrait",
+    "width_mm": 210.0,
+    "height_mm": 297.0,
+    "margin_mm": 20.0,
+    "origin": "top-left"
+  },
+  "source_image": {
+    "path": "output/retrace_1786628023_sketch/source_photo.jpg",
+    "canny_threshold1": 100,
+    "canny_threshold2": 200,
+    "min_stroke_length_mm": 2.0,
+    "simplify_epsilon_ratio": 0.002,
+    "simplify_min_epsilon_px": 1.0
+  },
+  "semantic_preprocessing": {
+    "enabled": true,
+    "provider": "qwen",
+    "model": "qwen-image-2.0-pro",
+    "prompt": "Convert this photo into clean monochrome black line art on a white background for a drawing robot. Preserve the subject's pose, proportions, facial likeness, framing, and enough major architecture and background contours to keep the scene recognizable. Draw long structural outlines clearly. Where limbs or similarly dark garments overlap, infer and draw distinct visible boundaries so the forms remain readable. If glasses are present, draw one clean glasses frame without lens reflections or duplicate rims. Treat hair primarily as an outer silhouette with only a few grouped internal lines. Do not draw individual flyaway hairs, shading, hatching, texture scribbles, reflections, text, borders, or a frame. Use sparse, smooth, single-width lines and do not invent accessories or other objects.",
+    "timeout_seconds": 60,
+    "fallback_to_local": true
+  },
+  "outline_extraction": {
+    "canny_threshold1": 60,
+    "canny_threshold2": 160,
+    "blur_kernel_size": 5,
+    "contrast_clip_limit": 2.0,
+    "line_art_threshold": 210,
+    "min_path_length_mm": 1.0,
+    "border_suppression_band_px": 6
+  },
+  "detail_extraction": {
+    "canny_threshold1": 120,
+    "canny_threshold2": 240,
+    "blur_kernel_size": 5,
+    "min_path_length_mm": 0.5,
+    "max_paths": 400,
+    "connection_distance_mm": 2.0,
+    "isolation_distance_mm": 8.0,
+    "isolated_speckle_max_length_mm": 2.0
+  },
+  "path_generation": {
+    "tool_width_mm": 1.0,
+    "home_position_mm": [
+      20.0,
+      20.0
+    ],
+    "join_overlapping_strokes": true,
+    "max_join_turn_degrees": 60.0,
+    "smoothing_radius_mm": 0.5,
+    "continuous_paths": true
+  },
+  "output": {
+    "directory": "output/retrace_1786628023_sketch",
+    "semantic_outline_image_file": "saved_semantic.png",
+    "painting_paths_file": "sketch_painting_paths.json",
+    "preview_svg_file": "sketch_path_preview.svg"
+  },
+  "retrace_provenance": {
+    "source_run": "upload_1786521820_sketch",
+    "source_config": "output/upload_1786521820_sketch/_config.json",
+    "saved_semantic_image": "output/upload_1786521820_sketch/sketch_outline_intermediate.png"
+  }
+}
