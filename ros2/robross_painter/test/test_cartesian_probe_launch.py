@@ -48,7 +48,9 @@ def test_executor_retreats_before_running_failure_probes():
     source = (PACKAGE_ROOT / "src" / "painting_executor.cpp").read_text(
         encoding="utf-8"
     )
-    failure_log = source.index('"Command %d (\'%s\', label \'%s\') failed, aborting"')
+    failure_log = source.index(
+        '"Command %d (\'%s\', label \'%s\') failed; evaluating bounded "'
+    )
     retreat = source.index("attemptRetreat()", failure_log)
     diagnostics = source.index("processPendingCartesianFailures(retreat)", failure_log)
     assert retreat < diagnostics
@@ -66,3 +68,18 @@ def test_executor_diagnoses_failed_pen_up_travel_before_fallback():
     )
     fallback = source.index("outcome = moveJointSpace(target)", diagnostics)
     assert cartesian < diagnostics < fallback
+
+
+def test_automatic_recovery_keeps_jump_check_and_retreat_ordering():
+    source = (PACKAGE_ROOT / "src" / "painting_executor.cpp").read_text(
+        encoding="utf-8"
+    )
+    recovery = source.index("bool attemptPaintPathRecovery")
+    transition = source.index("moveJointSpace(candidate.hover_joint_goal)", recovery)
+    lowering = source.index("doVertical(0.0)", transition)
+    painting = source.index("doPath(retry)", lowering)
+    assert transition < lowering < painting
+    assert "record.jump_threshold = jump_threshold_" in source
+    assert 'command == "paint_path"' in (
+        PACKAGE_ROOT / "src" / "executor_safety.cpp"
+    ).read_text(encoding="utf-8")

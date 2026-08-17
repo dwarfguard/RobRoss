@@ -54,6 +54,9 @@ painting_executor:
     # Never set to 0: that disables the check and a flip executes as the
     # arm sweeping through unchecked space (self/ground collision).
     cartesian_jump_threshold: 2.0
+    automatic_jump_recovery_enabled: true
+    automatic_jump_recovery_allow_reverse: true
+    automatic_jump_recovery_max_candidates: 12
     # Hard elbow-up policy: startup and every trajectory must remain in this
     # band. An out-of-band start aborts without moving the arm.
     elbow_up_enabled: true

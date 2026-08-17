@@ -1,20 +1,13 @@
 # RobRoss hardware profile: A4 paper on any taught surface (wall, table,
-# ground, slanted stand), pen held by the custom claw. This is a dry-run
-# template with 2026-07-16 seed measurements, not a qualified contact profile.
-# Keep the `rviz_wall_a4.yaml`, `rviz_taught_a4.yaml`, and `demo_v1_rviz.yaml`
-# tool/claw copies identical, and re-verify every measured value before running
-# with dry_run: false.
+# ground, slanted stand), pen held by the custom claw. Template for the
+# first real-arm tests - measure and edit every value marked TODO before
+# running with dry_run: false.
 #
 # The canvas pose itself does NOT live here. Teach it on the real setup:
-#   1. Run teach_canvas.py with the same tool_offset_xyz as below and
-#      plane_bias_mm:=1.0, plus the teach_nudge node. Freedrive to hover
-#      near each corner, nudge the pen in to just-touch (first visible
-#      spring movement), record ALL FOUR corners, then optionally
-#      ~/record_sample at ~5-9 interior points spread across the paper
-#      (recorded in the saved YAML as a flatness diagnostic — the executor
-#      does NOT apply a correction surface during motion; see
-#      docs/aubo-painting-current-status-2026-07-31.md), then
-#      ~/save (full loop: docs/hardware_run_guide.md Step 4).
+#   1. Put the arm in freedrive, run teach_canvas.py with the same
+#      tool_offset_xyz as below, touch the pen tip to the paper's top-left,
+#      top-right and bottom-left corners, call the record services, then
+#      ~/save (see the package README).
 #   2. Launch with both files:
 #        ros2 launch robross_painter paint.launch.py \
 #          calibration_file:=<this file> \
@@ -27,7 +20,7 @@ painting_executor:
     canvas_x_yaw_deg: -90.0
 
     # Pen hover distance off the paper for travel moves (meters).
-    safe_clearance_m: 0.02
+    safe_clearance_m: 0.01
 
     # No global ground plane: the taught canvas may lie on or near the
     # mounting surface, and the backing patch below protects the surface
@@ -44,27 +37,23 @@ painting_executor:
     canvas_backing_size_xy_m: [0.0, 0.0]
     canvas_backing_margin_m: 0.05
 
-    # Pen tip position (and axis, if angled) in ee_link. Calibrate with a sharp
-    # pin via teach_tcp.py (pivot method: docs/hardware_run_guide.md Step 3.5 /
-    # package README "Teach The Pen-Tip TCP") — far more accurate
-    # than a ruler. Re-calibrate after any pen or claw change, keep the hardware,
-    # rviz_wall, rviz_taught, and demo_v1_rviz profiles identical, and re-teach the canvas (it is taught in tip
-    # coordinates). Values below are the 2026-07-16 hand-measured seed.
+    # TODO: pen tip position (and axis, if angled) in ee_link, from the
+    # claw CAD or measured on the flange. Example: pen sticking 120 mm
+    # straight out along ee_link z.
     tool_offset_xyz: [0.001208, -0.06034, 0.090753]
     tool_offset_rpy: [0.0, 0.0, 0.0]
     # Spin of the claw about the pen axis, degrees. Pick the value that
     # keeps the claw and cable clear of the wrist and wall.
     tool_spin_deg: -90.0
 
-    # Box that fully encloses the claw, attached to ee_link so MoveIt
-    # collision-checks it against the wall (the claw is not in the URDF).
-    # Size in meters, offset = box center in ee_link. Measured on the real
-    # claw (2026-07-16 hardware session).
+    # TODO: box that fully encloses the claw, attached to ee_link so
+    # MoveIt collision-checks it against the wall (the claw is not in the
+    # URDF). Size in meters, offset = box center in ee_link.
     claw_collision_size_xyz: [0.02, 0.06, 0.02]
     claw_collision_offset_xyz: [0.0, -0.03, 0.0]
 
     # Slow for first contact tests; raise once trusted.
-    velocity_scaling: 0.05
+    velocity_scaling: 0.06
     acceleration_scaling: 0.025
     # Cartesian interpolation resolution (meters).
     eef_step_m: 0.0002
@@ -87,11 +76,7 @@ painting_executor:
     max_guarded_joint_paint_travel_deg: 90.0
     max_guarded_joint_step_deg: 45.0
     # Verify the trajectory after time parameterization still follows the
-    # requested pen-tip path and orientation. Cartesian trajectories are sent
-    # position-only at controller_sample_dt so the controller interpolates
-    # linearly — exactly what the validator checks.
-    # The canvas-normal limit is much tighter than the tangential one: normal
-    # excursions rip or gap the paper.
+    # requested pen-tip path and orientation.
     cartesian_deviation_check_enabled: true
     max_cartesian_deviation_mm: 2.0
     cartesian_normal_deviation_check_enabled: true
@@ -105,22 +90,14 @@ painting_executor:
     execution_tip_orientation_error_check_enabled: true
     max_execution_tip_orientation_error_deg: 1.0
     totg_path_tolerance: 0.01
-    # Match the selected 125 Hz hardware controller period.
     controller_sample_dt: 0.008
-    # Endpoint settling, when enabled, requires the arm to reach and HOLD the
-    # planned endpoint at rest (measured feedback trails the command by
-    # ~88-120 ms). Endpoint tolerance, low joint speed, and fresh feedback must
-    # all hold together, continuously, for the dwell.
-    # Contact moves use the shorter timeout (dwelling while the pen is pressed
-    # to the canvas carries risk). On timeout the move fails closed. Confirm the
-    # dwell/velocity threshold from analyze_tracking_bag.py telemetry.
     endpoint_settle_enabled: true
     endpoint_settle_velocity_tolerance: 0.02   # rad/s "stationary" threshold
-    endpoint_settle_dwell: 0.075                # s continuous in-tolerance hold
+    endpoint_settle_dwell: 0.015               # s continuous in-tolerance hold
     endpoint_settle_timeout: 1.5               # s transit/lift budget
     endpoint_settle_contact_timeout: 0.6       # s lowering/painting budget
     endpoint_settle_sample_max_age: 0.05       # s max feedback age / sample gap
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
-    # Set true for planning-only validation; false sends trajectories.
-    dry_run: true
+    # Keep true for the first run: plans everything, executes nothing.
+    dry_run: false

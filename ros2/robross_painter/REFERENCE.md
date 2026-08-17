@@ -41,6 +41,9 @@ object disabled by the active profile is removed from MoveIt's planning scene.
 | `velocity_scaling`, `acceleration_scaling` | MoveIt trajectory scaling factors. Use `0.1` for first contact. |
 | `eef_step_m` | Cartesian interpolation resolution. |
 | `cartesian_jump_threshold` | Relative joint-jump detector for Cartesian paths. Never set it to zero. |
+| `automatic_jump_recovery_enabled` | After a pre-submission jump-limited `paint_path`, retreat and attempt one bounded pen-up posture transition before retrying. Defaults to `true`. |
+| `automatic_jump_recovery_allow_reverse` | If no original-direction posture works, approach the opposite endpoint and draw the same polyline in reverse. Defaults to `true`. |
+| `automatic_jump_recovery_max_candidates` | Maximum deterministic IK candidates evaluated per path direction. |
 | `dry_run` | Plans a coherent command sequence without sending trajectory goals. |
 | `joint_states_topic` | Joint feedback topic, including any robot namespace. |
 | `state_validity_service` | MoveIt state-validity service, including any namespace. |

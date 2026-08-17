@@ -90,3 +90,8 @@ skipped no-ops and do not affect pen state.
   pen to safe height; ending with the pen down is an error.
 - A redundant `lower_tool` (pen already down) or `lift_tool` (pen already up) is a
   warning.
+
+The ROS 2 executor preflights the bounds of every coordinate in the complete
+file before motion begins, using the dimensions in the JSON. Boundary points
+are inclusive. This applies equally to larger canvases such as 525 x 375 mm;
+the executor does not rescale preadjusted coordinates.

@@ -54,6 +54,30 @@ TEST(MotionOutcome, FallbackRequiresExplicitPreSubmissionEligibility)
     EXPECT_FALSE(robross_painter::jointFallbackAllowed(preflight));
 }
 
+TEST(MotionOutcome, AutomaticPaintRecoveryIsStrictlyBounded)
+{
+    MotionOutcome outcome;
+    outcome.kind = robross_painter::MotionKind::Painting;
+    outcome.status = MotionStatus::PreSubmissionFailed;
+
+    EXPECT_TRUE(robross_painter::automaticPaintRecoveryAllowed(
+        true, "paint_path", outcome, true, true, 0));
+    EXPECT_FALSE(robross_painter::automaticPaintRecoveryAllowed(
+        false, "paint_path", outcome, true, true, 0));
+    EXPECT_FALSE(robross_painter::automaticPaintRecoveryAllowed(
+        true, "paint_stroke", outcome, true, true, 0));
+    EXPECT_FALSE(robross_painter::automaticPaintRecoveryAllowed(
+        true, "paint_path", outcome, false, true, 0));
+    EXPECT_FALSE(robross_painter::automaticPaintRecoveryAllowed(
+        true, "paint_path", outcome, true, false, 0));
+    EXPECT_FALSE(robross_painter::automaticPaintRecoveryAllowed(
+        true, "paint_path", outcome, true, true, 1));
+
+    outcome.execution_started = true;
+    EXPECT_FALSE(robross_painter::automaticPaintRecoveryAllowed(
+        true, "paint_path", outcome, true, true, 0));
+}
+
 TEST(DriverHealth, HealthyFreshSampleIsReady)
 {
     EXPECT_EQ(robross_painter::assessDriverHealth(healthy(), 1, 0.5),
@@ -92,4 +116,27 @@ TEST(ExecutorSafety, MoveItCodeHasStableSymbol)
                      moveit_msgs::msg::MoveItErrorCodes::CONTROL_FAILED),
                  "CONTROL_FAILED");
     EXPECT_STREQ(robross_painter::moveItCodeName(123456), "UNKNOWN");
+}
+
+TEST(ExecutorSafety, CanvasBoundsIncludeLandscapeEdges)
+{
+    EXPECT_TRUE(robross_painter::pointInsideCanvas(0.0, 0.0, 525.0, 375.0));
+    EXPECT_TRUE(
+        robross_painter::pointInsideCanvas(525.0, 375.0, 525.0, 375.0));
+    EXPECT_TRUE(
+        robross_painter::pointInsideCanvas(262.5, 187.5, 525.0, 375.0));
+}
+
+TEST(ExecutorSafety, CanvasBoundsRejectInvalidPointsAndDimensions)
+{
+    EXPECT_FALSE(
+        robross_painter::pointInsideCanvas(-0.01, 100.0, 525.0, 375.0));
+    EXPECT_FALSE(
+        robross_painter::pointInsideCanvas(525.01, 100.0, 525.0, 375.0));
+    EXPECT_FALSE(
+        robross_painter::pointInsideCanvas(100.0, 375.01, 525.0, 375.0));
+    EXPECT_FALSE(robross_painter::pointInsideCanvas(
+        std::numeric_limits<double>::infinity(), 100.0, 525.0, 375.0));
+    EXPECT_FALSE(
+        robross_painter::pointInsideCanvas(100.0, 100.0, 0.0, 375.0));
 }

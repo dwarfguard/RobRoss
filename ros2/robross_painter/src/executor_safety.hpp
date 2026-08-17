@@ -37,6 +37,12 @@ struct MotionOutcome
 };
 
 bool jointFallbackAllowed(const MotionOutcome &outcome);
+bool automaticPaintRecoveryAllowed(bool enabled, const std::string &command,
+                                   const MotionOutcome &outcome,
+                                   bool retreat_succeeded, bool jump_limited,
+                                   unsigned int attempts);
+bool pointInsideCanvas(double x_mm, double y_mm, double width_mm,
+                       double height_mm);
 const char *motionKindName(MotionKind kind);
 const char *motionStatusName(MotionStatus status);
 const char *moveItCodeName(std::int32_t code);

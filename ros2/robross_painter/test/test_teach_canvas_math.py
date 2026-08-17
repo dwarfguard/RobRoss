@@ -80,6 +80,20 @@ def test_canvas_pose_zero_bias_keeps_top_left_as_origin():
     np.testing.assert_allclose(rot[:, 2], [1.0, 0.0, 0.0], atol=1e-9)   # zc
 
 
+def test_4k_landscape_canvas_pose_preserves_525_by_375_dimensions():
+    tl = np.array([0.4, 0.2625, 0.7])
+    tr = np.array([0.4, -0.2625, 0.7])
+    bl = np.array([0.4, 0.2625, 0.325])
+    br = np.array([0.4, -0.2625, 0.325])
+    _origin, _quat, width_m, height_m, _coeffs, before, after = (
+        teach_canvas.compute_canvas_calibration(tl, tr, bl, br)
+    )
+    np.testing.assert_allclose(width_m, 0.525, atol=1e-9)
+    np.testing.assert_allclose(height_m, 0.375, atol=1e-9)
+    assert before < 1e-9
+    assert after < 1e-9
+
+
 def test_plane_bias_shifts_origin_into_wall_only():
     unbiased = teach_canvas.compute_canvas_pose(_WALL_TL, _WALL_TR, _WALL_BL)
     biased = teach_canvas.compute_canvas_pose(

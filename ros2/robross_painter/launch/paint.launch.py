@@ -2,6 +2,7 @@ import datetime as dt
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -97,6 +98,16 @@ def nonnegative_integer(value, label):
     return parsed
 
 
+def nonnegative_number(value, label):
+    try:
+        parsed = float(value)
+    except ValueError as error:
+        raise RuntimeError(f"{label} must be a non-negative number") from error
+    if not math.isfinite(parsed) or parsed < 0.0:
+        raise RuntimeError(f"{label} must be a non-negative number")
+    return parsed
+
+
 def boolean_value(value, label):
     normalized = value.strip().lower()
     if normalized in {"1", "true", "yes", "on"}:
@@ -188,6 +199,54 @@ def load_parameter_file(file_path, label):
     return parameters
 
 
+def load_path_canvas_dimensions(file_path):
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            contents = json.load(file)
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"Cannot load paths_file '{file_path}': {error}") from error
+
+    if not isinstance(contents, dict):
+        raise RuntimeError(f"paths_file '{file_path}' must contain a JSON object")
+    canvas = contents.get("canvas")
+    if not isinstance(canvas, dict):
+        raise RuntimeError(f"paths_file '{file_path}' has no canvas object")
+    dimensions = []
+    for name in ("width_mm", "height_mm"):
+        value = canvas.get(name)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value <= 0.0
+        ):
+            raise RuntimeError(
+                f"paths_file '{file_path}' has invalid canvas.{name}"
+            )
+        dimensions.append(float(value))
+    return tuple(dimensions)
+
+
+def canvas_dimension_warnings(path_dimensions, canvas_parameters, tolerance_mm):
+    width = canvas_parameters.get("taught_canvas_width_mm")
+    height = canvas_parameters.get("taught_canvas_height_mm")
+    if width is None and height is None:
+        return []
+
+    warnings = []
+    for label, planned, taught in (
+        ("width", path_dimensions[0], width),
+        ("height", path_dimensions[1], height),
+    ):
+        if abs(planned - taught) > tolerance_mm:
+            warnings.append(
+                f"JSON canvas {label} {planned:.1f} mm differs from taught "
+                f"canvas {label} {taught:.1f} mm by more than "
+                f"{tolerance_mm:.1f} mm"
+            )
+    return warnings
+
+
 def validate_calibration_file(file_path):
     parameters = load_parameter_file(file_path, "calibration_file")
     required = {
@@ -212,6 +271,23 @@ def validate_canvas_file(file_path):
             f"canvas_file '{file_path}' is missing required parameter(s): "
             + ", ".join(missing)
         )
+    dimension_names = {"taught_canvas_width_mm", "taught_canvas_height_mm"}
+    present = dimension_names.intersection(parameters)
+    if present and present != dimension_names:
+        raise RuntimeError(
+            f"canvas_file '{file_path}' must provide both taught canvas dimensions"
+        )
+    for name in dimension_names:
+        if name not in parameters:
+            continue
+        value = parameters[name]
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value <= 0.0
+        ):
+            raise RuntimeError(f"canvas_file '{file_path}' has invalid {name}")
 
 
 def validate_qualification_parameters(
@@ -327,7 +403,9 @@ def write_provenance_manifest(
     manifest = {
         "schema_version": 1,
         "kind": "robross_painting_startup_provenance",
-        "status": "qualified",
+        "status": (
+            "qualified" if qualified_build_identities is not None else "engineering"
+        ),
         "session_id": session_id,
         "created_utc": dt.datetime.now(dt.timezone.utc).isoformat().replace(
             "+00:00", "Z"
@@ -345,6 +423,7 @@ def write_provenance_manifest(
             "robot_descriptions": True,
             "joint_order": True,
             "timing_tuple": True,
+            "qualified_build_identity": qualified_build_identities is not None,
         },
         "host_time_preflight": preflight_receipt,
         "host_clock_monitor": clock_monitor,
@@ -422,8 +501,6 @@ def launch_setup(context, *args, **kwargs):
         LaunchConfiguration("require_qualified_build").perform(context),
         "require_qualified_build",
     )
-    if qualification_run and not require_qualified_build:
-        raise RuntimeError("qualification_run requires require_qualified_build=true")
     qualified_build_identities = None
     if require_qualified_build:
         qualified_build_identities = validate_qualified_build(
@@ -476,6 +553,7 @@ def launch_setup(context, *args, **kwargs):
         calibration_file_path, "calibration_file"
     )
     paths_file_path = require_file(paths_file.perform(context), "paths_file")
+    path_canvas_dimensions = load_path_canvas_dimensions(paths_file_path)
 
     parameters = [
         robot_description,
@@ -489,6 +567,15 @@ def launch_setup(context, *args, **kwargs):
     if canvas_file_path:
         canvas_file_path = require_file(canvas_file_path, "canvas_file")
         validate_canvas_file(canvas_file_path)
+        canvas_parameters = load_parameter_file(canvas_file_path, "canvas_file")
+        dimension_tolerance_mm = nonnegative_number(
+            LaunchConfiguration("canvas_dimension_tolerance_mm").perform(context),
+            "canvas_dimension_tolerance_mm",
+        )
+        for warning in canvas_dimension_warnings(
+            path_canvas_dimensions, canvas_parameters, dimension_tolerance_mm
+        ):
+            print(f"WARNING: {warning}")
         parameters.append(canvas_file_path)
     artifact_dir_path = require_directory(
         artifact_dir.perform(context), "cartesian_failure_artifact_dir"
@@ -611,6 +698,12 @@ def generate_launch_description():
             default_value="",
             description="Optional taught canvas pose YAML from "
             "teach_canvas.py; overrides the canvas pose in calibration_file.",
+        ),
+        DeclareLaunchArgument(
+            "canvas_dimension_tolerance_mm",
+            default_value="5.0",
+            description="Warn when JSON and taught canvas dimensions differ by more "
+            "than this many millimeters.",
         ),
         DeclareLaunchArgument(
             "cartesian_failure_artifact_dir",

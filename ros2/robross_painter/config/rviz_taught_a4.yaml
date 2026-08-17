@@ -33,6 +33,9 @@ painting_executor:
     acceleration_scaling: 0.3
     eef_step_m: 0.005
     cartesian_jump_threshold: 2.0
+    automatic_jump_recovery_enabled: true
+    automatic_jump_recovery_allow_reverse: true
+    automatic_jump_recovery_max_candidates: 12
     joint_states_topic: /joint_states
     state_validity_service: /check_state_validity
     elbow_up_enabled: true

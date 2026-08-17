@@ -121,8 +121,15 @@ confirms fresh, low-speed feedback; if the arm is still moving or feedback is
 stale it refuses the autonomous retreat and escalates (operator / protective
 stop required). Pen-up failures hold and require operator recovery.
 
-The executor does not move through an automatic home pose, switch elbow family,
-or retry an unconstrained IK goal.
+The executor does not move through an automatic home pose, leave the configured
+elbow band, or retry an unconstrained IK goal. A pre-submission
+`jump_limited` failure on a `paint_path` is the only exception to immediate
+abort: after a verified straight retreat, the executor may move pen-up to a
+bounded, collision-checked IK posture whose lowering and complete stroke both
+pass the normal jump filter. It retries once, preferring the original direction
+and optionally drawing the identical polyline in reverse. Execution or
+post-execution failures, failed retreats, and every other failure
+classification remain non-recoverable.
 
 ### Cartesian failure diagnostics
 
@@ -141,7 +148,8 @@ The resulting JSON records the normal/no-jump/no-jump-no-collision fractions,
 classification, exact request, and owned planning-scene boxes. The
 classification distinguishes jump-limited, collision-limited, mixed, and
 IK/kinematic evidence; it is diagnostic evidence rather than permission to
-weaken a safety limit.
+weaken a safety limit. Automatic recovery never executes either no-jump probe;
+it generates new candidates that must pass the configured nonzero jump limit.
 
 For an offline request template, run the executor with fake hardware and a
 `dry_run: true` profile, then request one command index:
@@ -151,7 +159,7 @@ mkdir -p /tmp/robross_cartesian_probe
 ros2 launch robross_painter paint.launch.py \
   paths_file:=$ROBROSS_REPO/output/robot_path.json \
   calibration_file:=<dry-run-profile.yaml> \
-  canvas_file:=$HOME/canvas_hover_10mm.yaml \
+  canvas_file:=$HOME/canvas_hover_20mm.yaml \
   cartesian_failure_artifact_dir:=/tmp/robross_cartesian_probe \
   cartesian_capture_command_index:=157
 ```
@@ -195,6 +203,7 @@ limit merely to make a rejected trajectory execute.
 | `config/rviz_taught_a4.yaml` | Fake-hardware tests with a taught canvas on any plane (slanted, ground). No ground collision plane, auto-sized backing patch, relaxed base-axis guards. Simulation only. |
 | `config/demo_v1_rviz.yaml` | Fake-hardware horizontal-paper setup. Carries the same tool/claw geometry as `hardware_a4.yaml`. |
 | `config/hardware_a4.yaml` | Dry-run real-arm template for any taught surface. Its seed geometry must be measured before contact; copy measured tool geometry to all three RViz profiles above so the four stay identical. |
+| `config/hardware_4k_landscape.yaml` | Dry-run real-arm template for a taught 525 x 375 mm landscape sheet. Uses auto-sized backing and the same conservative motion guards as the A4 hardware profile. |
 
 `paint.launch.py` defaults to `rviz_wall_a4.yaml`. Never use that default on a
 real arm. A real-arm launch must explicitly pass both `calibration_file` and a
@@ -393,6 +402,8 @@ pen preload as `plane_bias_mm`, plus the nudge helper in another terminal
 ```bash
 ros2 run robross_painter teach_canvas.py --ros-args \
   -p tool_offset_xyz:="[<x>, <y>, <z>]" \
+  -p canvas_width_mm:=210.0 \
+  -p canvas_height_mm:=297.0 \
   -p plane_bias_mm:=1.0 \
   -p output_file:=$HOME/canvas_calibration.yaml
 
@@ -448,7 +459,8 @@ ros2 service call /teach_canvas/save std_srvs/srv/Trigger
 ```
 
 `save` writes `canvas_origin_xyz` (the top-left corner pushed `plane_bias_mm`
-behind the paper along the canvas normal), `canvas_quat_xyzw`, and
+behind the paper along the canvas normal), `canvas_quat_xyzw`, measured
+`taught_canvas_width_mm` / `taught_canvas_height_mm`, and
 `canvas_z_correction_coeffs`. All four corners feed the least-squares plane fit
 (so no single noisy corner tips the plane); the interior samples fit a smooth
 quadratic Z-correction surface that is **recorded as a flatness diagnostic
@@ -463,6 +475,23 @@ warns above `flatness_warn_mm` (0.3 mm), and **refuses** above
 when bottom-right lies more than 2 mm from where the other three predict it.
 Re-teach if the reported dimensions differ materially from A4 or any warning
 appears.
+
+For the 525 x 375 mm landscape sheet, use the physical top-left corner and
+teach x across the 525 mm edge and y down the 375 mm edge:
+
+```bash
+ros2 run robross_painter teach_canvas.py --ros-args \
+  -p tool_offset_xyz:="[<x>, <y>, <z>]" \
+  -p canvas_width_mm:=525.0 \
+  -p canvas_height_mm:=375.0 \
+  -p plane_bias_mm:=1.0 \
+  -p output_file:=$HOME/canvas_4k_landscape.yaml
+```
+
+When `canvas_file` contains measured dimensions, `paint.launch.py` compares
+them with the path JSON and warns when either differs by more than 5 mm. The
+warning is intentionally non-blocking; investigate and re-teach rather than
+ignoring it. Existing canvas files without measured dimensions remain valid.
 
 Disable freedrive on the pendant before returning control to ROS, then
 reactivate the trajectory controller. The driver resumes from the measured
@@ -486,6 +515,12 @@ ros2 launch robross_painter paint.launch.py \
   canvas_file:=$HOME/canvas_calibration.yaml \
   paths_file:=$ROBROSS_REPO/output/demo_v1_a4_pen/painting_paths.json
 ```
+
+For the larger landscape sheet, substitute
+`hardware_4k_landscape.yaml`, `canvas_4k_landscape.yaml`, and the preadjusted
+525 x 375 mm path JSON. Every command must plan successfully. An unreachable
+edge, partial Cartesian path, collision, or guarded-joint rejection means the
+sheet must be repositioned; do not weaken a safety limit to make it pass.
 
 Dry-run success alone does not authorize contact. The July 31 stationary, repeated-hover, and
 supervised-contact evidence is recorded in

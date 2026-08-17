@@ -99,9 +99,19 @@ git -C ~/robross_aubo_ws/src/aubo_ros2_driver submodule update --init --recursiv
 source /opt/ros/humble/setup.bash
 cd ~/robross_aubo_ws
 rosdep install --from-paths src --ignore-src --rosdistro humble -r -y
-colcon build --event-handlers console_direct+
+colcon build \
+  --packages-select \
+    aubo_dashboard_msgs aubo_description aubo_msgs \
+    joint_trajectory_controller ros2_controllers_test_nodes \
+    aubo_ros2_driver aubo_moveit_config robross_painter \
+  --allow-overriding joint_trajectory_controller \
+  --event-handlers console_direct+
 source install/setup.bash
 ```
+
+Do not use a bare `colcon build` with the qualification checkout. It would also
+build every unrelated package in the upstream `ros2_controllers` monorepo,
+including controllers with additional dependencies that RobRoss does not use.
 
 Before approving a hardware build, record all three source revisions. Use the
 same revisions on every computer; do not assume a moving branch still contains

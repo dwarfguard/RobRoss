@@ -78,11 +78,20 @@ namespace {
 using robross_painter::MotionKind;
 using robross_painter::MotionOutcome;
 using robross_painter::MotionStatus;
+using robross_painter::pointInsideCanvas;
 
 enum class RetreatOutcome {
     NotNeeded,
     Succeeded,
     Failed
+};
+
+struct PaintRecoveryCandidate
+{
+    bool reversed{ false };
+    double start_x_mm{ 0.0 };
+    double start_y_mm{ 0.0 };
+    std::vector<double> hover_joint_goal;
 };
 
 moveit::planning_interface::MoveGroupInterface
@@ -330,6 +339,15 @@ public:
         node_->get_parameter_or("cartesian_capture_command_index",
                                 cartesian_capture_command_index_,
                                 cartesian_capture_command_index_);
+        node_->get_parameter_or("automatic_jump_recovery_enabled",
+                                automatic_jump_recovery_enabled_,
+                                automatic_jump_recovery_enabled_);
+        node_->get_parameter_or("automatic_jump_recovery_allow_reverse",
+                                automatic_jump_recovery_allow_reverse_,
+                                automatic_jump_recovery_allow_reverse_);
+        node_->get_parameter_or("automatic_jump_recovery_max_candidates",
+                                automatic_jump_recovery_max_candidates_,
+                                automatic_jump_recovery_max_candidates_);
 
         node_->get_parameter_or("endpoint_settle_velocity_tolerance",
                                 endpoint_settle_velocity_tolerance_,
@@ -484,6 +502,7 @@ public:
         int index = 0;
         for (const auto &cmd : commands) {
             ++index;
+            unsigned int recovery_attempts = 0;
             const std::string type = cmd["command"].asString();
             const std::string label = cmd.get("label", "").asString();
             active_command_index_ = index;
@@ -514,11 +533,47 @@ public:
                             "Unknown command '%s', skipping", type.c_str());
             }
             if (!ok) {
-                RCLCPP_ERROR(node_->get_logger(),
-                             "Command %d ('%s', label '%s') failed, aborting",
-                             index, type.c_str(), label.c_str());
+                RCLCPP_ERROR(
+                    node_->get_logger(),
+                    "Command %d ('%s', label '%s') failed; evaluating bounded "
+                    "recovery",
+                    index, type.c_str(), label.c_str());
+                const std::optional<MotionOutcome> original_failure =
+                    last_failed_motion_;
                 const RetreatOutcome retreat = attemptRetreat();
                 processPendingCartesianFailures(retreat);
+                const bool jump_limited =
+                    pending_cartesian_failures_.size() == 1 &&
+                    pending_cartesian_failures_.front().classification ==
+                        robross_painter::CartesianFailureClass::JumpLimited;
+                if (original_failure &&
+                    robross_painter::automaticPaintRecoveryAllowed(
+                        automatic_jump_recovery_enabled_, type,
+                        *original_failure,
+                        retreat == RetreatOutcome::Succeeded,
+                        jump_limited, recovery_attempts) &&
+                    (dry_run_ || driverHealthy("automatic jump recovery"))) {
+                    ++recovery_attempts;
+                    pending_cartesian_failures_.clear();
+                    last_failed_motion_.reset();
+                    const bool recovered = attemptPaintPathRecovery(cmd);
+                    emitMotionOutcome(
+                        *original_failure,
+                        recovered ? "pen_up_posture_retry"
+                                  : "pen_up_posture_retry_failed");
+                    if (recovered) {
+                        continue;
+                    }
+                    const RetreatOutcome recovery_retreat = attemptRetreat();
+                    processPendingCartesianFailures(recovery_retreat);
+                    if (last_failed_motion_) {
+                        emitMotionOutcome(
+                            *last_failed_motion_,
+                            recoveryName(*last_failed_motion_,
+                                         recovery_retreat));
+                    }
+                    return false;
+                }
                 if (last_failed_motion_) {
                     emitMotionOutcome(*last_failed_motion_,
                                       recoveryName(*last_failed_motion_,
@@ -1036,6 +1091,8 @@ private:
                          "paths_file has invalid canvas dimensions");
             return false;
         }
+        const double canvas_width_mm = root["canvas"]["width_mm"].asDouble();
+        const double canvas_height_mm = root["canvas"]["height_mm"].asDouble();
         // Preflight structure AND the pen-state machine so a malformed
         // sequence is rejected before any motion, instead of aborting partway
         // through after the arm has already moved and lowered the pen. The
@@ -1054,15 +1111,30 @@ private:
             const std::string type = command["command"].asString();
             bool known = true;
             bool valid = true;
+            bool inside_canvas = true;
             if (type == "select_tool" || type == "dip_paint" ||
                 type == "lower_tool" || type == "lift_tool") {
                 // No coordinate fields to check.
             } else if (type == "move_to") {
                 valid = finite_number(command["x_mm"]) &&
                         finite_number(command["y_mm"]);
+                if (valid) {
+                    inside_canvas = pointInsideCanvas(
+                        command["x_mm"].asDouble(), command["y_mm"].asDouble(),
+                        canvas_width_mm, canvas_height_mm);
+                }
             } else if (type == "paint_stroke") {
                 valid = point(command["from_mm"]) &&
                         point(command["to_mm"]);
+                if (valid) {
+                    inside_canvas =
+                        pointInsideCanvas(command["from_mm"][0].asDouble(),
+                                          command["from_mm"][1].asDouble(),
+                                          canvas_width_mm, canvas_height_mm) &&
+                        pointInsideCanvas(command["to_mm"][0].asDouble(),
+                                          command["to_mm"][1].asDouble(),
+                                          canvas_width_mm, canvas_height_mm);
+                }
             } else if (type == "paint_path") {
                 const auto &points = command["points_mm"];
                 valid = points.isArray() && points.size() >= 2;
@@ -1071,6 +1143,12 @@ private:
                         if (!point(path_point)) {
                             valid = false;
                             break;
+                        }
+                        if (!pointInsideCanvas(
+                                path_point[0].asDouble(),
+                                path_point[1].asDouble(), canvas_width_mm,
+                                canvas_height_mm)) {
+                            inside_canvas = false;
                         }
                     }
                 }
@@ -1086,6 +1164,14 @@ private:
                              "Command %zu ('%s') has invalid or unsupported "
                              "fields",
                              index, type.c_str());
+                return false;
+            }
+            if (known && !inside_canvas) {
+                RCLCPP_ERROR(node_->get_logger(),
+                             "Command %zu ('%s') has a point outside canvas "
+                             "%.1fx%.1f mm",
+                             index, type.c_str(), canvas_width_mm,
+                             canvas_height_mm);
                 return false;
             }
 
@@ -1139,8 +1225,7 @@ private:
 
     bool checkBounds(double x_mm, double y_mm)
     {
-        if (x_mm < 0.0 || x_mm > canvas_w_mm_ || y_mm < 0.0 ||
-            y_mm > canvas_h_mm_) {
+        if (!pointInsideCanvas(x_mm, y_mm, canvas_w_mm_, canvas_h_mm_)) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Point (%.2f, %.2f) mm outside canvas %.0fx%.0f mm",
                          x_mm, y_mm, canvas_w_mm_, canvas_h_mm_);
@@ -1329,8 +1414,18 @@ private:
     // A joint-space fallback is deliberately forbidden while in contact.
     RetreatOutcome attemptRetreat()
     {
-        if (dry_run_ || !pen_down_) {
+        if (!pen_down_) {
             return RetreatOutcome::NotNeeded;
+        }
+        if (dry_run_) {
+            if (!have_position_ ||
+                !acceptMotion(moveCartesian(
+                    { makePose(cur_x_mm_, cur_y_mm_, safe_clearance_) },
+                    MotionKind::Lifting, false))) {
+                return RetreatOutcome::Failed;
+            }
+            pen_down_ = false;
+            return RetreatOutcome::Succeeded;
         }
         if (!have_position_) {
             RCLCPP_FATAL(node_->get_logger(),
@@ -1507,6 +1602,11 @@ private:
                 node_->get_logger(),
                 "cartesian_capture_command_index requires dry_run=true and "
                 "a cartesian_failure_artifact_dir");
+            return false;
+        }
+        if (automatic_jump_recovery_max_candidates_ <= 0) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "automatic_jump_recovery_max_candidates must be > 0");
             return false;
         }
         if (guarded_joints_.empty()) {
@@ -2335,13 +2435,13 @@ private:
         group_.setStartState(*tracked_state_);
     }
 
-    bool computeIkJointGoal(const geometry_msgs::msg::Pose &target,
-                            std::vector<double> &goal)
+    std::vector<std::vector<double>> computeIkJointGoals(
+        const geometry_msgs::msg::Pose &target)
     {
         if (!refreshTrackedState()) {
             RCLCPP_ERROR(node_->get_logger(),
                          "Cannot refresh current state for IK seeding");
-            return false;
+            return {};
         }
         const auto *jmg =
             group_.getRobotModel()->getJointModelGroup(group_.getName());
@@ -2356,78 +2456,118 @@ private:
             elbow_seeds.push_back(lo + 0.75 * (hi - lo));
         }
 
-        std::unique_ptr<moveit::core::RobotState> best;
-        double best_cost = std::numeric_limits<double>::infinity();
+        std::vector<std::pair<double, std::vector<double>>> ranked;
+        const std::vector<double> shoulder_offsets{ 0.0, M_PI / 2.0,
+                                                    -M_PI / 2.0 };
         for (const double elbow_seed : elbow_seeds) {
-            moveit::core::RobotState candidate(*tracked_state_);
-            if (elbow_up_enabled_) {
-                candidate.setVariablePosition(elbow_joint_, elbow_seed);
+            for (const double shoulder_offset : shoulder_offsets) {
+                moveit::core::RobotState candidate(*tracked_state_);
+                if (elbow_up_enabled_) {
+                    candidate.setVariablePosition(elbow_joint_, elbow_seed);
+                }
+                candidate.setVariablePosition(
+                    "shoulder_joint",
+                    tracked_state_->getVariablePosition("shoulder_joint") +
+                        shoulder_offset);
+                candidate.enforceBounds(jmg);
                 candidate.update();
-            }
-            if (!candidate.setFromIK(jmg, target,
-                                     group_.getEndEffectorLink(), 0.2)) {
-                continue;
-            }
+                if (!candidate.setFromIK(jmg, target,
+                                         group_.getEndEffectorLink(), 0.2)) {
+                    continue;
+                }
 
-            // Prefer the equivalent revolution nearest the measured state.
-            // The Aubo model permits +/-2pi, so an IK solution can otherwise
-            // be mathematically correct but almost a full turn away.
-            double cost = 0.0;
-            for (const auto &joint : jmg->getVariableNames()) {
-                double value = candidate.getVariablePosition(joint);
-                const double current =
-                    tracked_state_->getVariablePosition(joint);
-                const auto &bounds =
-                    group_.getRobotModel()->getVariableBounds(joint);
-                double nearest = value;
-                double nearest_delta = std::abs(value - current);
-                if (bounds.position_bounded_) {
-                    for (int turn = -2; turn <= 2; ++turn) {
-                        const double equivalent = value + turn * 2.0 * M_PI;
-                        if (equivalent < bounds.min_position_ ||
-                            equivalent > bounds.max_position_) {
-                            continue;
-                        }
-                        const double delta = std::abs(equivalent - current);
-                        if (delta < nearest_delta) {
-                            nearest = equivalent;
-                            nearest_delta = delta;
+                // Prefer the equivalent revolution nearest the measured state.
+                // The Aubo model permits +/-2pi, so an IK solution can otherwise
+                // be mathematically correct but almost a full turn away.
+                double cost = 0.0;
+                for (const auto &joint : jmg->getVariableNames()) {
+                    double value = candidate.getVariablePosition(joint);
+                    const double current =
+                        tracked_state_->getVariablePosition(joint);
+                    const auto &bounds =
+                        group_.getRobotModel()->getVariableBounds(joint);
+                    double nearest = value;
+                    double nearest_delta = std::abs(value - current);
+                    if (bounds.position_bounded_) {
+                        for (int turn = -2; turn <= 2; ++turn) {
+                            const double equivalent = value + turn * 2.0 * M_PI;
+                            if (equivalent < bounds.min_position_ ||
+                                equivalent > bounds.max_position_) {
+                                continue;
+                            }
+                            const double delta = std::abs(equivalent - current);
+                            if (delta < nearest_delta) {
+                                nearest = equivalent;
+                                nearest_delta = delta;
+                            }
                         }
                     }
+                    candidate.setVariablePosition(joint, nearest);
+                    cost += nearest_delta * nearest_delta;
                 }
-                candidate.setVariablePosition(joint, nearest);
-                cost += nearest_delta * nearest_delta;
-            }
-            candidate.update();
-            if (elbow_up_enabled_ && !elbowInsideBand(candidate)) {
-                continue;
-            }
-            if (cost < best_cost) {
-                best =
-                    std::make_unique<moveit::core::RobotState>(candidate);
-                best_cost = cost;
+                candidate.update();
+                if (elbow_up_enabled_ && !elbowInsideBand(candidate)) {
+                    continue;
+                }
+                bool guarded = false;
+                for (const auto &joint : guarded_joints_) {
+                    const double delta_deg =
+                        std::abs(candidate.getVariablePosition(joint) -
+                                 tracked_state_->getVariablePosition(joint)) *
+                        180.0 / M_PI;
+                    guarded = guarded ||
+                              delta_deg > max_guarded_joint_goal_delta_deg_;
+                }
+                if (guarded) {
+                    continue;
+                }
+                std::vector<double> positions;
+                candidate.copyJointGroupPositions(jmg, positions);
+                const bool duplicate = std::any_of(
+                    ranked.begin(), ranked.end(), [&positions](const auto &entry) {
+                        if (entry.second.size() != positions.size()) {
+                            return false;
+                        }
+                        for (std::size_t i = 0; i < positions.size(); ++i) {
+                            if (std::abs(entry.second[i] - positions[i]) > 1e-4) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    });
+                if (!duplicate) {
+                    ranked.emplace_back(cost, std::move(positions));
+                }
             }
         }
 
-        if (!best) {
+        std::sort(ranked.begin(), ranked.end(),
+                  [](const auto &left, const auto &right) {
+                      return left.first < right.first;
+                  });
+        std::vector<std::vector<double>> goals;
+        const std::size_t limit = std::min(
+            ranked.size(),
+            static_cast<std::size_t>(automatic_jump_recovery_max_candidates_));
+        goals.reserve(limit);
+        for (std::size_t i = 0; i < limit; ++i) {
+            goals.push_back(std::move(ranked[i].second));
+        }
+        if (goals.empty()) {
             RCLCPP_ERROR(node_->get_logger(),
                          "No nearby IK solution in the elbow-up band");
+        }
+        return goals;
+    }
+
+    bool computeIkJointGoal(const geometry_msgs::msg::Pose &target,
+                            std::vector<double> &goal)
+    {
+        auto goals = computeIkJointGoals(target);
+        if (goals.empty()) {
             return false;
         }
-        for (const auto &joint : guarded_joints_) {
-            const double delta_deg =
-                std::abs(best->getVariablePosition(joint) -
-                         tracked_state_->getVariablePosition(joint)) *
-                180.0 / M_PI;
-            if (delta_deg > max_guarded_joint_goal_delta_deg_) {
-                RCLCPP_ERROR(node_->get_logger(),
-                             "IK goal moves %s by %.1f deg (limit %.1f deg)",
-                             joint.c_str(), delta_deg,
-                             max_guarded_joint_goal_delta_deg_);
-                return false;
-            }
-        }
-        best->copyJointGroupPositions(jmg, goal);
+        goal = std::move(goals.front());
         return true;
     }
 
@@ -2714,6 +2854,18 @@ private:
 
     MotionOutcome moveJointSpace(const geometry_msgs::msg::Pose &target)
     {
+        std::vector<double> goal;
+        if (!computeIkJointGoal(target, goal)) {
+            return preSubmissionFailure(
+                MotionKind::Transit, nextCorrelationId(),
+                moveit_msgs::msg::MoveItErrorCodes::NO_IK_SOLUTION,
+                "joint-space IK goal failed");
+        }
+        return moveJointSpace(goal);
+    }
+
+    MotionOutcome moveJointSpace(const std::vector<double> &goal)
+    {
         const std::string correlation_id = nextCorrelationId();
         if (!driverHealthy("joint-space planning")) {
             return preSubmissionFailure(
@@ -2721,12 +2873,11 @@ private:
                 moveit_msgs::msg::MoveItErrorCodes::SENSOR_INFO_STALE,
                 "driver health rejected joint-space planning");
         }
-        std::vector<double> goal;
-        if (!computeIkJointGoal(target, goal)) {
+        if (!refreshTrackedState()) {
             return preSubmissionFailure(
                 MotionKind::Transit, correlation_id,
-                moveit_msgs::msg::MoveItErrorCodes::NO_IK_SOLUTION,
-                "joint-space IK goal failed");
+                moveit_msgs::msg::MoveItErrorCodes::ROBOT_STATE_STALE,
+                "current state unavailable for joint-space planning");
         }
         setPlanStartState();
         group_.clearPoseTargets();
@@ -2990,6 +3141,168 @@ private:
                 }
             }
         }
+    }
+
+    robross_painter::CartesianFailureRecord recoveryRequest(
+        const std::vector<std::string> &joint_names,
+        const std::vector<double> &joint_positions,
+        const std::vector<geometry_msgs::msg::Pose> &waypoints)
+    {
+        robross_painter::CartesianFailureRecord record;
+        record.command_index = active_command_index_;
+        record.command = active_command_type_;
+        record.label = active_command_label_;
+        record.planning_group = group_.getName();
+        record.planning_frame = group_.getPoseReferenceFrame();
+        if (record.planning_frame.empty()) {
+            record.planning_frame = group_.getPlanningFrame();
+        }
+        record.end_effector_link = group_.getEndEffectorLink();
+        record.joint_names = joint_names;
+        record.joint_positions_rad = joint_positions;
+        record.waypoints = waypoints;
+        record.eef_step_m = eef_step_;
+        record.jump_threshold = jump_threshold_;
+        captureSceneSnapshot(record);
+        return record;
+    }
+
+    bool recoveryCartesianRequest(
+        const std::vector<std::string> &joint_names,
+        const std::vector<double> &joint_positions,
+        const std::vector<geometry_msgs::msg::Pose> &waypoints,
+        moveit_msgs::msg::RobotTrajectory &trajectory, const char *what)
+    {
+        const auto record = recoveryRequest(joint_names, joint_positions,
+                                            waypoints);
+        const auto summary = computeCartesianRequest(record, trajectory);
+        if (!robross_painter::cartesianAttemptComplete(summary)) {
+            RCLCPP_INFO(node_->get_logger(),
+                        "Recovery candidate rejected: %s Cartesian fraction "
+                        "%.3f (%zu points)",
+                        what, summary.fraction, summary.point_count);
+            return false;
+        }
+        return validateTrajectory(trajectory, true, what);
+    }
+
+    std::vector<PaintRecoveryCandidate> findPaintRecoveryCandidates(
+        const Json::Value &cmd)
+    {
+        std::vector<robross_painter::CanvasPoint> original;
+        for (const auto &point : cmd["points_mm"]) {
+            original.push_back({ point[0].asDouble(), point[1].asDouble() });
+        }
+        std::vector<PaintRecoveryCandidate> result;
+        const int direction_count = automatic_jump_recovery_allow_reverse_ ? 2 : 1;
+        const auto *jmg =
+            group_.getRobotModel()->getJointModelGroup(group_.getName());
+        const auto &joint_names = jmg->getVariableNames();
+
+        for (int direction = 0; direction < direction_count; ++direction) {
+            auto points = original;
+            const bool reversed = direction == 1;
+            if (reversed) {
+                std::reverse(points.begin(), points.end());
+            }
+            const auto start = points.front();
+            const auto hover = makePose(start.x_mm, start.y_mm,
+                                        safe_clearance_);
+            auto goals = computeIkJointGoals(hover);
+            int accepted_in_direction = 0;
+            for (auto &goal : goals) {
+                if (accepted_in_direction >=
+                    automatic_jump_recovery_max_candidates_) {
+                    break;
+                }
+                moveit_msgs::msg::RobotTrajectory lowering;
+                if (!recoveryCartesianRequest(
+                        joint_names, goal,
+                        { makePose(start.x_mm, start.y_mm, 0.0) }, lowering,
+                        "Recovery lowering IK")) {
+                    continue;
+                }
+                const auto &lowered = lowering.joint_trajectory;
+                if (lowered.points.empty()) {
+                    continue;
+                }
+                const auto targets = robross_painter::selectPaintPathTargets(
+                    points, start.x_mm, start.y_mm);
+                std::vector<geometry_msgs::msg::Pose> waypoints;
+                waypoints.reserve(targets.size());
+                for (const auto &target : targets) {
+                    waypoints.push_back(
+                        makePose(target.x_mm, target.y_mm, 0.0));
+                }
+                moveit_msgs::msg::RobotTrajectory painting;
+                if (!recoveryCartesianRequest(
+                        lowered.joint_names, lowered.points.back().positions,
+                        waypoints, painting, "Recovery painting IK")) {
+                    continue;
+                }
+                result.push_back(
+                    { reversed, start.x_mm, start.y_mm, std::move(goal) });
+                ++accepted_in_direction;
+            }
+        }
+        return result;
+    }
+
+    bool attemptPaintPathRecovery(const Json::Value &cmd)
+    {
+        auto candidates = findPaintRecoveryCandidates(cmd);
+        if (candidates.empty()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "No jump-safe pen-up posture found for paint_path");
+            return false;
+        }
+
+        for (std::size_t index = 0; index < candidates.size(); ++index) {
+            const auto &candidate = candidates[index];
+            RCLCPP_WARN(node_->get_logger(),
+                        "Automatic jump recovery candidate %zu/%zu: %s path",
+                        index + 1, candidates.size(),
+                        candidate.reversed ? "reversed" : "original-direction");
+            MotionOutcome transit = moveJointSpace(candidate.hover_joint_goal);
+            if (!transit.succeeded()) {
+                const bool safe_to_continue =
+                    transit.status == MotionStatus::PreSubmissionFailed &&
+                    !transit.execution_started;
+                last_failed_motion_ = std::move(transit);
+                if (safe_to_continue) {
+                    continue;
+                }
+                return false;
+            }
+            emitMotionOutcome(transit, "pen_up_posture_transition");
+            pen_down_ = false;
+            have_position_ = true;
+            cur_x_mm_ = candidate.start_x_mm;
+            cur_y_mm_ = candidate.start_y_mm;
+
+            if (!doVertical(0.0)) {
+                return false;
+            }
+            Json::Value retry = cmd;
+            if (candidate.reversed) {
+                Json::Value reversed(Json::arrayValue);
+                const auto &points = cmd["points_mm"];
+                for (Json::ArrayIndex i = points.size(); i > 0; --i) {
+                    reversed.append(points[i - 1]);
+                }
+                retry["points_mm"] = std::move(reversed);
+            }
+            if (!doPath(retry)) {
+                return false;
+            }
+            RCLCPP_INFO(node_->get_logger(),
+                        "Automatic jump recovery succeeded using %s path",
+                        candidate.reversed ? "reversed" : "original-direction");
+            return true;
+        }
+        RCLCPP_ERROR(node_->get_logger(),
+                     "No recovery posture had a bounded joint-space plan");
+        return false;
     }
 
     robross_painter::CartesianAttemptSummary computeCartesianRequest(
@@ -3323,6 +3636,9 @@ private:
     bool dry_run_{ false };
     std::string cartesian_failure_artifact_dir_;
     int cartesian_capture_command_index_{ 0 };
+    bool automatic_jump_recovery_enabled_{ true };
+    bool automatic_jump_recovery_allow_reverse_{ true };
+    int automatic_jump_recovery_max_candidates_{ 12 };
     std::unique_ptr<moveit::core::RobotState> tracked_state_;
 
     int active_command_index_{ 0 };

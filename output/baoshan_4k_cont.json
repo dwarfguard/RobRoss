@@ -1,0 +1,5505 @@
+{
+  "project": "R.O.B Ross",
+  "style": "line_art_continuation",
+  "version": "0.1",
+  "config": {
+    "profile_name": "line_art_demo_4k_landscape",
+    "source_file": "output/upload_1786690614_line_art/_config.json"
+  },
+  "source_file": "output/upload_1786690614_line_art/upload_Gemini_Generated_Image_2zn8612zn8612zn8.jpeg",
+  "units": "mm",
+  "canvas": {
+    "width_mm": 525.0,
+    "height_mm": 375.0,
+    "width_in": 20.669291338582678,
+    "height_in": 14.763779527559056,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 1.0,
+    "smoothing_radius_mm": 1.2,
+    "join_overlapping_strokes": true,
+    "max_join_turn_degrees": 60.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "line_art",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "line_art",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1046",
+      "x_mm": 474.63,
+      "y_mm": 336.7
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1046"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1046",
+      "color": "black",
+      "points_mm": [
+        [
+          474.63,
+          336.7
+        ],
+        [
+          473.44,
+          336.9
+        ],
+        [
+          471.86,
+          337.1
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1046"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1047",
+      "x_mm": 474.04,
+      "y_mm": 334.73
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1047"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1047",
+      "color": "black",
+      "points_mm": [
+        [
+          474.04,
+          334.73
+        ],
+        [
+          473.44,
+          336.9
+        ],
+        [
+          471.85,
+          338.42
+        ],
+        [
+          468.2,
+          340.54
+        ],
+        [
+          464.89,
+          341.8
+        ],
+        [
+          461.97,
+          342.25
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1047"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1048",
+      "x_mm": 464.14,
+      "y_mm": 348.58
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1048"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1048",
+      "color": "black",
+      "points_mm": [
+        [
+          464.14,
+          348.58
+        ],
+        [
+          463.73,
+          348.32
+        ],
+        [
+          463.35,
+          347.39
+        ],
+        [
+          463.21,
+          346.27
+        ],
+        [
+          462.0,
+          344.11
+        ],
+        [
+          461.97,
+          342.25
+        ],
+        [
+          460.97,
+          340.76
+        ],
+        [
+          458.21,
+          339.28
+        ],
+        [
+          456.13,
+          339.19
+        ],
+        [
+          453.85,
+          340.07
+        ],
+        [
+          452.86,
+          342.44
+        ],
+        [
+          454.95,
+          345.61
+        ],
+        [
+          455.24,
+          347.05
+        ],
+        [
+          455.04,
+          348.58
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1048"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1049",
+      "x_mm": 452.86,
+      "y_mm": 342.44
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1049"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1049",
+      "color": "black",
+      "points_mm": [
+        [
+          452.86,
+          342.44
+        ],
+        [
+          451.88,
+          342.44
+        ],
+        [
+          449.88,
+          342.94
+        ],
+        [
+          447.62,
+          344.46
+        ],
+        [
+          446.56,
+          345.71
+        ],
+        [
+          446.33,
+          346.99
+        ],
+        [
+          446.53,
+          347.95
+        ],
+        [
+          446.04,
+          348.21
+        ],
+        [
+          445.54,
+          347.98
+        ],
+        [
+          444.56,
+          347.71
+        ],
+        [
+          443.76,
+          346.99
+        ],
+        [
+          443.52,
+          346.06
+        ],
+        [
+          442.77,
+          345.41
+        ],
+        [
+          441.02,
+          345.04
+        ],
+        [
+          439.41,
+          345.21
+        ],
+        [
+          433.08,
+          346.01
+        ],
+        [
+          429.11,
+          345.82
+        ],
+        [
+          427.14,
+          346.2
+        ],
+        [
+          422.19,
+          346.6
+        ],
+        [
+          419.62,
+          346.6
+        ],
+        [
+          418.83,
+          346.6
+        ],
+        [
+          404.98,
+          346.8
+        ],
+        [
+          403.79,
+          346.8
+        ],
+        [
+          396.86,
+          346.99
+        ],
+        [
+          390.93,
+          346.99
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1049"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1050",
+      "x_mm": 390.93,
+      "y_mm": 348.78
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1050"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1050",
+      "color": "black",
+      "points_mm": [
+        [
+          390.93,
+          348.78
+        ],
+        [
+          390.26,
+          348.12
+        ],
+        [
+          390.93,
+          346.99
+        ],
+        [
+          390.8,
+          345.36
+        ],
+        [
+          388.95,
+          342.25
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1050"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1051",
+      "x_mm": 398.64,
+      "y_mm": 342.25
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1051"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1051",
+      "color": "black",
+      "points_mm": [
+        [
+          398.64,
+          342.25
+        ],
+        [
+          397.97,
+          340.75
+        ],
+        [
+          396.15,
+          338.88
+        ],
+        [
+          390.91,
+          335.94
+        ],
+        [
+          387.76,
+          333.37
+        ],
+        [
+          386.5,
+          332.81
+        ],
+        [
+          383.01,
+          332.15
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1051"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1052",
+      "x_mm": 382.22,
+      "y_mm": 332.94
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1052"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1052",
+      "color": "black",
+      "points_mm": [
+        [
+          382.22,
+          332.94
+        ],
+        [
+          381.63,
+          330.57
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1052"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1053",
+      "x_mm": 379.85,
+      "y_mm": 331.96
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1053"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1053",
+      "color": "black",
+      "points_mm": [
+        [
+          379.85,
+          331.96
+        ],
+        [
+          381.63,
+          330.57
+        ],
+        [
+          382.22,
+          328.99
+        ],
+        [
+          382.02,
+          327.01
+        ],
+        [
+          382.42,
+          325.43
+        ],
+        [
+          382.22,
+          324.63
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1053"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1055",
+      "x_mm": 379.85,
+      "y_mm": 327.6
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1055"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1055",
+      "color": "black",
+      "points_mm": [
+        [
+          379.85,
+          327.6
+        ],
+        [
+          380.04,
+          328.59
+        ],
+        [
+          379.67,
+          330.26
+        ],
+        [
+          379.85,
+          331.96
+        ],
+        [
+          379.51,
+          334.54
+        ],
+        [
+          380.04,
+          335.91
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1055"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1056",
+      "x_mm": 377.27,
+      "y_mm": 339.28
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1056"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1056",
+      "color": "black",
+      "points_mm": [
+        [
+          377.27,
+          339.28
+        ],
+        [
+          377.27,
+          329.38
+        ],
+        [
+          383.8,
+          321.27
+        ],
+        [
+          385.39,
+          318.89
+        ],
+        [
+          387.76,
+          316.32
+        ],
+        [
+          388.31,
+          315.22
+        ],
+        [
+          389.94,
+          313.35
+        ],
+        [
+          391.19,
+          311.5
+        ],
+        [
+          392.11,
+          310.78
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1056"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1066",
+      "x_mm": 385.98,
+      "y_mm": 328.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1066"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1066",
+      "color": "black",
+      "points_mm": [
+        [
+          385.98,
+          328.0
+        ],
+        [
+          387.0,
+          326.95
+        ],
+        [
+          387.76,
+          325.43
+        ],
+        [
+          388.9,
+          324.36
+        ],
+        [
+          390.14,
+          322.46
+        ],
+        [
+          392.31,
+          319.69
+        ],
+        [
+          394.09,
+          317.11
+        ],
+        [
+          395.08,
+          316.92
+        ],
+        [
+          396.27,
+          317.11
+        ],
+        [
+          400.82,
+          320.87
+        ],
+        [
+          404.39,
+          326.84
+        ],
+        [
+          405.33,
+          329.81
+        ],
+        [
+          405.77,
+          332.75
+        ],
+        [
+          406.36,
+          342.05
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1066"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1067",
+      "x_mm": 407.55,
+      "y_mm": 339.08
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1067"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1067",
+      "color": "black",
+      "points_mm": [
+        [
+          407.55,
+          339.08
+        ],
+        [
+          411.3,
+          339.25
+        ],
+        [
+          414.28,
+          340.27
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1067"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1068",
+      "x_mm": 414.67,
+      "y_mm": 338.49
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1068"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1068",
+      "color": "black",
+      "points_mm": [
+        [
+          414.67,
+          338.49
+        ],
+        [
+          411.14,
+          337.8
+        ],
+        [
+          407.94,
+          337.69
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1068"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1069",
+      "x_mm": 407.35,
+      "y_mm": 336.11
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1069"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1069",
+      "color": "black",
+      "points_mm": [
+        [
+          407.35,
+          336.11
+        ],
+        [
+          411.46,
+          336.25
+        ],
+        [
+          415.07,
+          337.1
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1069"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1070",
+      "x_mm": 415.07,
+      "y_mm": 335.12
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1070"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1070",
+      "color": "black",
+      "points_mm": [
+        [
+          415.07,
+          335.12
+        ],
+        [
+          412.13,
+          334.04
+        ],
+        [
+          411.8,
+          333.55
+        ],
+        [
+          411.9,
+          332.75
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1070"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1071",
+      "x_mm": 414.67,
+      "y_mm": 332.15
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1071"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1071",
+      "color": "black",
+      "points_mm": [
+        [
+          414.67,
+          332.15
+        ],
+        [
+          411.9,
+          332.75
+        ],
+        [
+          405.77,
+          332.75
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1071"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1072",
+      "x_mm": 406.96,
+      "y_mm": 331.36
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1072"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1072",
+      "color": "black",
+      "points_mm": [
+        [
+          406.96,
+          331.36
+        ],
+        [
+          414.08,
+          330.77
+        ],
+        [
+          417.25,
+          330.57
+        ],
+        [
+          418.23,
+          330.57
+        ],
+        [
+          423.1,
+          330.64
+        ],
+        [
+          423.66,
+          330.93
+        ],
+        [
+          423.8,
+          331.47
+        ],
+        [
+          422.69,
+          332.78
+        ],
+        [
+          420.9,
+          333.34
+        ],
+        [
+          419.56,
+          332.82
+        ],
+        [
+          418.04,
+          331.36
+        ],
+        [
+          417.31,
+          331.13
+        ],
+        [
+          417.25,
+          330.57
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1072"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1073",
+      "x_mm": 418.04,
+      "y_mm": 331.36
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1073"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1073",
+      "color": "black",
+      "points_mm": [
+        [
+          418.04,
+          331.36
+        ],
+        [
+          418.23,
+          330.57
+        ],
+        [
+          417.44,
+          329.47
+        ],
+        [
+          416.2,
+          329.17
+        ],
+        [
+          414.97,
+          329.67
+        ],
+        [
+          414.08,
+          330.77
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1073"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1098",
+      "x_mm": 426.94,
+      "y_mm": 296.53
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1098"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1098",
+      "color": "black",
+      "points_mm": [
+        [
+          426.94,
+          296.53
+        ],
+        [
+          426.41,
+          295.82
+        ],
+        [
+          425.7,
+          295.56
+        ],
+        [
+          424.66,
+          295.83
+        ],
+        [
+          423.78,
+          296.53
+        ],
+        [
+          422.39,
+          296.73
+        ],
+        [
+          421.4,
+          296.53
+        ],
+        [
+          418.9,
+          297.0
+        ],
+        [
+          417.92,
+          297.86
+        ],
+        [
+          417.44,
+          298.91
+        ],
+        [
+          416.88,
+          299.82
+        ],
+        [
+          416.84,
+          301.01
+        ],
+        [
+          417.26,
+          302.27
+        ],
+        [
+          418.21,
+          303.56
+        ],
+        [
+          420.95,
+          305.69
+        ],
+        [
+          425.83,
+          307.97
+        ],
+        [
+          427.38,
+          309.61
+        ],
+        [
+          429.53,
+          314.07
+        ],
+        [
+          434.32,
+          321.32
+        ],
+        [
+          435.4,
+          324.04
+        ],
+        [
+          435.77,
+          326.3
+        ],
+        [
+          435.51,
+          328.33
+        ],
+        [
+          434.56,
+          329.76
+        ],
+        [
+          428.24,
+          334.32
+        ],
+        [
+          421.97,
+          337.4
+        ],
+        [
+          419.42,
+          339.82
+        ],
+        [
+          418.43,
+          341.85
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1098"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1099",
+      "x_mm": 417.64,
+      "y_mm": 338.88
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1099"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1099",
+      "color": "black",
+      "points_mm": [
+        [
+          417.64,
+          338.88
+        ],
+        [
+          420.91,
+          335.71
+        ],
+        [
+          428.27,
+          330.26
+        ],
+        [
+          430.39,
+          327.52
+        ],
+        [
+          431.01,
+          325.31
+        ],
+        [
+          430.84,
+          322.73
+        ],
+        [
+          429.97,
+          320.62
+        ],
+        [
+          427.93,
+          317.51
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1099"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1101",
+      "x_mm": 426.74,
+      "y_mm": 341.26
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1101"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1101",
+      "color": "black",
+      "points_mm": [
+        [
+          426.74,
+          341.26
+        ],
+        [
+          427.5,
+          340.09
+        ],
+        [
+          429.06,
+          338.82
+        ],
+        [
+          436.44,
+          334.79
+        ],
+        [
+          439.02,
+          332.92
+        ],
+        [
+          440.33,
+          330.59
+        ],
+        [
+          440.4,
+          327.6
+        ],
+        [
+          440.0,
+          326.02
+        ],
+        [
+          437.52,
+          320.08
+        ],
+        [
+          432.25,
+          312.42
+        ],
+        [
+          431.18,
+          309.04
+        ],
+        [
+          431.1,
+          307.02
+        ],
+        [
+          431.8,
+          305.02
+        ],
+        [
+          433.63,
+          302.82
+        ],
+        [
+          435.12,
+          301.89
+        ],
+        [
+          436.64,
+          301.88
+        ],
+        [
+          441.59,
+          299.11
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1101"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1108",
+      "x_mm": 469.88,
+      "y_mm": 325.43
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1108"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1108",
+      "color": "black",
+      "points_mm": [
+        [
+          469.88,
+          325.43
+        ],
+        [
+          468.76,
+          327.89
+        ],
+        [
+          468.89,
+          329.38
+        ],
+        [
+          469.09,
+          332.75
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1108"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1218",
+      "x_mm": 360.85,
+      "y_mm": 321.86
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1218"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1218",
+      "color": "black",
+      "points_mm": [
+        [
+          360.85,
+          321.86
+        ],
+        [
+          361.84,
+          321.67
+        ],
+        [
+          364.81,
+          323.25
+        ],
+        [
+          366.41,
+          323.43
+        ],
+        [
+          368.97,
+          323.15
+        ],
+        [
+          370.2,
+          323.46
+        ],
+        [
+          373.48,
+          326.33
+        ],
+        [
+          374.7,
+          328.0
+        ],
+        [
+          374.7,
+          328.79
+        ],
+        [
+          374.2,
+          330.55
+        ],
+        [
+          372.52,
+          333.34
+        ],
+        [
+          372.52,
+          334.13
+        ],
+        [
+          370.35,
+          337.3
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1218"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1219",
+      "x_mm": 366.59,
+      "y_mm": 335.91
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1219"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1219",
+      "color": "black",
+      "points_mm": [
+        [
+          366.59,
+          335.91
+        ],
+        [
+          364.91,
+          335.0
+        ],
+        [
+          362.64,
+          332.94
+        ],
+        [
+          361.05,
+          329.18
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1219"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1220",
+      "x_mm": 361.64,
+      "y_mm": 326.41
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1220"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1220",
+      "color": "black",
+      "points_mm": [
+        [
+          361.64,
+          326.41
+        ],
+        [
+          361.05,
+          329.18
+        ],
+        [
+          360.33,
+          331.09
+        ],
+        [
+          360.85,
+          334.73
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1220"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1221",
+      "x_mm": 365.99,
+      "y_mm": 333.14
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1221"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1221",
+      "color": "black",
+      "points_mm": [
+        [
+          365.99,
+          333.14
+        ],
+        [
+          367.44,
+          333.73
+        ],
+        [
+          370.58,
+          332.76
+        ],
+        [
+          371.93,
+          333.34
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1221"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1222",
+      "x_mm": 371.93,
+      "y_mm": 333.34
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1222"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1222",
+      "color": "black",
+      "points_mm": [
+        [
+          371.93,
+          333.34
+        ],
+        [
+          369.49,
+          334.91
+        ],
+        [
+          366.59,
+          335.91
+        ],
+        [
+          365.99,
+          336.9
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1222"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1243",
+      "x_mm": 383.8,
+      "y_mm": 321.27
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1243"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1243",
+      "color": "black",
+      "points_mm": [
+        [
+          383.8,
+          321.27
+        ],
+        [
+          384.4,
+          322.85
+        ],
+        [
+          384.0,
+          324.44
+        ],
+        [
+          384.2,
+          326.02
+        ],
+        [
+          383.61,
+          328.0
+        ],
+        [
+          384.2,
+          330.37
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1243"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1244",
+      "x_mm": 393.1,
+      "y_mm": 331.36
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1244"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1244",
+      "color": "black",
+      "points_mm": [
+        [
+          393.1,
+          331.36
+        ],
+        [
+          390.54,
+          329.78
+        ],
+        [
+          385.98,
+          328.59
+        ],
+        [
+          384.2,
+          330.37
+        ],
+        [
+          383.01,
+          332.15
+        ],
+        [
+          382.22,
+          332.94
+        ],
+        [
+          381.24,
+          334.68
+        ],
+        [
+          380.04,
+          335.91
+        ],
+        [
+          378.76,
+          338.0
+        ],
+        [
+          377.27,
+          339.28
+        ],
+        [
+          374.99,
+          338.92
+        ],
+        [
+          370.35,
+          337.3
+        ],
+        [
+          367.45,
+          337.72
+        ],
+        [
+          365.99,
+          336.9
+        ],
+        [
+          363.43,
+          336.44
+        ],
+        [
+          360.85,
+          334.73
+        ],
+        [
+          358.93,
+          334.49
+        ],
+        [
+          357.21,
+          334.69
+        ],
+        [
+          355.7,
+          333.54
+        ],
+        [
+          354.36,
+          333.08
+        ],
+        [
+          352.95,
+          332.02
+        ],
+        [
+          352.14,
+          330.93
+        ],
+        [
+          351.79,
+          329.66
+        ],
+        [
+          351.87,
+          328.59
+        ],
+        [
+          352.44,
+          327.41
+        ],
+        [
+          355.11,
+          324.83
+        ],
+        [
+          356.89,
+          324.63
+        ],
+        [
+          360.16,
+          325.57
+        ],
+        [
+          361.64,
+          326.41
+        ],
+        [
+          362.79,
+          325.95
+        ],
+        [
+          363.22,
+          325.03
+        ],
+        [
+          364.12,
+          324.43
+        ],
+        [
+          364.81,
+          323.25
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1244"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1284",
+      "x_mm": 294.36,
+      "y_mm": 320.08
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1284"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1284",
+      "color": "black",
+      "points_mm": [
+        [
+          294.36,
+          320.08
+        ],
+        [
+          295.12,
+          321.05
+        ],
+        [
+          296.73,
+          321.67
+        ],
+        [
+          298.57,
+          323.06
+        ],
+        [
+          303.72,
+          325.9
+        ],
+        [
+          311.97,
+          329.44
+        ],
+        [
+          319.39,
+          331.17
+        ],
+        [
+          327.21,
+          331.56
+        ],
+        [
+          328.99,
+          331.96
+        ],
+        [
+          331.78,
+          330.43
+        ],
+        [
+          332.84,
+          330.31
+        ],
+        [
+          333.87,
+          330.59
+        ],
+        [
+          338.65,
+          334.68
+        ],
+        [
+          339.67,
+          336.7
+        ],
+        [
+          340.47,
+          337.29
+        ],
+        [
+          341.4,
+          338.64
+        ],
+        [
+          342.25,
+          339.08
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1284"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1285",
+      "x_mm": 342.25,
+      "y_mm": 340.07
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1285"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1285",
+      "color": "black",
+      "points_mm": [
+        [
+          342.25,
+          340.07
+        ],
+        [
+          343.91,
+          340.91
+        ],
+        [
+          346.28,
+          342.91
+        ],
+        [
+          349.17,
+          342.84
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1285"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1286",
+      "x_mm": 350.36,
+      "y_mm": 344.82
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1286"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1286",
+      "color": "black",
+      "points_mm": [
+        [
+          350.36,
+          344.82
+        ],
+        [
+          350.8,
+          343.82
+        ],
+        [
+          352.14,
+          342.84
+        ],
+        [
+          352.59,
+          341.87
+        ],
+        [
+          353.33,
+          341.45
+        ],
+        [
+          362.23,
+          343.81
+        ],
+        [
+          376.48,
+          346.2
+        ],
+        [
+          377.42,
+          345.43
+        ],
+        [
+          378.66,
+          342.05
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1286"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1287",
+      "x_mm": 376.48,
+      "y_mm": 346.2
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1287"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1287",
+      "color": "black",
+      "points_mm": [
+        [
+          376.48,
+          346.2
+        ],
+        [
+          377.07,
+          348.38
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1287"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1288",
+      "x_mm": 377.07,
+      "y_mm": 348.38
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1288"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1288",
+      "color": "black",
+      "points_mm": [
+        [
+          377.07,
+          348.38
+        ],
+        [
+          373.13,
+          348.51
+        ],
+        [
+          361.94,
+          347.48
+        ],
+        [
+          355.23,
+          346.34
+        ],
+        [
+          350.36,
+          344.82
+        ],
+        [
+          348.58,
+          345.21
+        ],
+        [
+          347.39,
+          345.21
+        ],
+        [
+          345.6,
+          344.8
+        ],
+        [
+          343.83,
+          343.83
+        ],
+        [
+          338.29,
+          342.25
+        ],
+        [
+          334.93,
+          343.23
+        ],
+        [
+          333.52,
+          344.04
+        ],
+        [
+          331.76,
+          343.43
+        ],
+        [
+          331.39,
+          342.71
+        ],
+        [
+          330.37,
+          342.25
+        ],
+        [
+          330.18,
+          340.46
+        ],
+        [
+          329.13,
+          338.83
+        ],
+        [
+          328.4,
+          334.13
+        ],
+        [
+          328.99,
+          331.96
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1288"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1289",
+      "x_mm": 327.21,
+      "y_mm": 331.56
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1289"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1289",
+      "color": "black",
+      "points_mm": [
+        [
+          327.21,
+          331.56
+        ],
+        [
+          325.53,
+          330.13
+        ],
+        [
+          320.88,
+          328.2
+        ],
+        [
+          319.22,
+          327.4
+        ],
+        [
+          318.11,
+          327.4
+        ],
+        [
+          317.07,
+          326.55
+        ],
+        [
+          314.94,
+          326.02
+        ],
+        [
+          313.97,
+          325.39
+        ],
+        [
+          312.56,
+          325.23
+        ],
+        [
+          310.4,
+          324.12
+        ],
+        [
+          306.83,
+          323.25
+        ],
+        [
+          306.29,
+          322.76
+        ],
+        [
+          305.24,
+          322.65
+        ],
+        [
+          302.87,
+          321.86
+        ],
+        [
+          301.01,
+          321.23
+        ],
+        [
+          299.7,
+          321.27
+        ],
+        [
+          298.66,
+          320.68
+        ],
+        [
+          296.93,
+          320.48
+        ],
+        [
+          295.59,
+          319.95
+        ],
+        [
+          294.36,
+          320.08
+        ],
+        [
+          290.6,
+          319.09
+        ],
+        [
+          286.74,
+          317.77
+        ],
+        [
+          279.72,
+          316.32
+        ],
+        [
+          270.22,
+          314.94
+        ],
+        [
+          268.81,
+          314.71
+        ],
+        [
+          267.57,
+          314.92
+        ],
+        [
+          265.83,
+          315.88
+        ],
+        [
+          264.48,
+          317.11
+        ],
+        [
+          264.18,
+          318.36
+        ],
+        [
+          263.29,
+          319.29
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1289"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1295",
+      "x_mm": 237.37,
+      "y_mm": 326.61
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1295"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1295",
+      "color": "black",
+      "points_mm": [
+        [
+          237.37,
+          326.61
+        ],
+        [
+          242.15,
+          329.85
+        ],
+        [
+          243.5,
+          331.16
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1295"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1296",
+      "x_mm": 245.09,
+      "y_mm": 330.57
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1296"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1296",
+      "color": "black",
+      "points_mm": [
+        [
+          245.09,
+          330.57
+        ],
+        [
+          244.53,
+          331.01
+        ],
+        [
+          243.5,
+          331.16
+        ],
+        [
+          241.11,
+          332.5
+        ],
+        [
+          238.79,
+          335.38
+        ],
+        [
+          238.71,
+          336.29
+        ],
+        [
+          239.73,
+          338.83
+        ],
+        [
+          239.15,
+          341.26
+        ],
+        [
+          239.15,
+          342.05
+        ],
+        [
+          238.56,
+          342.84
+        ],
+        [
+          234.85,
+          345.99
+        ],
+        [
+          234.14,
+          347.35
+        ],
+        [
+          234.2,
+          348.58
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1296"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1297",
+      "x_mm": 231.63,
+      "y_mm": 348.38
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1297"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1297",
+      "color": "black",
+      "points_mm": [
+        [
+          231.63,
+          348.38
+        ],
+        [
+          232.91,
+          346.06
+        ],
+        [
+          236.78,
+          342.25
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1297"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1298",
+      "x_mm": 239.15,
+      "y_mm": 342.05
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1298"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1298",
+      "color": "black",
+      "points_mm": [
+        [
+          239.15,
+          342.05
+        ],
+        [
+          243.65,
+          343.83
+        ],
+        [
+          245.19,
+          343.99
+        ],
+        [
+          246.89,
+          343.01
+        ],
+        [
+          248.25,
+          340.86
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1298"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1299",
+      "x_mm": 250.63,
+      "y_mm": 342.44
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1299"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1299",
+      "color": "black",
+      "points_mm": [
+        [
+          250.63,
+          342.44
+        ],
+        [
+          254.0,
+          343.05
+        ],
+        [
+          256.7,
+          344.11
+        ],
+        [
+          258.1,
+          345.28
+        ],
+        [
+          260.92,
+          348.58
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1299"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1300",
+      "x_mm": 263.49,
+      "y_mm": 348.78
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1300"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1300",
+      "color": "black",
+      "points_mm": [
+        [
+          263.49,
+          348.78
+        ],
+        [
+          257.89,
+          343.12
+        ],
+        [
+          255.62,
+          342.01
+        ],
+        [
+          251.62,
+          340.86
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1300"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1301",
+      "x_mm": 251.62,
+      "y_mm": 340.07
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1301"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1301",
+      "color": "black",
+      "points_mm": [
+        [
+          251.62,
+          340.07
+        ],
+        [
+          248.25,
+          340.86
+        ],
+        [
+          245.81,
+          340.45
+        ],
+        [
+          242.71,
+          341.06
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1301"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1302",
+      "x_mm": 239.15,
+      "y_mm": 341.26
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1302"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1302",
+      "color": "black",
+      "points_mm": [
+        [
+          239.15,
+          341.26
+        ],
+        [
+          237.33,
+          340.72
+        ],
+        [
+          230.66,
+          337.37
+        ],
+        [
+          229.4,
+          336.22
+        ],
+        [
+          229.5,
+          335.53
+        ],
+        [
+          230.27,
+          334.42
+        ],
+        [
+          237.37,
+          326.61
+        ],
+        [
+          237.96,
+          325.82
+        ],
+        [
+          245.28,
+          316.92
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1302"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1360",
+      "x_mm": 417.25,
+      "y_mm": 277.74
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1360"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1360",
+      "color": "black",
+      "points_mm": [
+        [
+          417.25,
+          277.74
+        ],
+        [
+          416.04,
+          278.68
+        ],
+        [
+          415.07,
+          280.51
+        ],
+        [
+          414.27,
+          281.1
+        ],
+        [
+          413.88,
+          282.09
+        ],
+        [
+          413.22,
+          282.5
+        ],
+        [
+          412.69,
+          283.47
+        ],
+        [
+          410.54,
+          286.06
+        ],
+        [
+          409.33,
+          288.03
+        ],
+        [
+          406.04,
+          291.99
+        ],
+        [
+          404.58,
+          294.36
+        ],
+        [
+          402.65,
+          296.46
+        ],
+        [
+          399.04,
+          301.48
+        ],
+        [
+          397.46,
+          303.66
+        ],
+        [
+          396.11,
+          305.05
+        ],
+        [
+          395.68,
+          306.03
+        ],
+        [
+          393.7,
+          308.41
+        ],
+        [
+          392.47,
+          309.83
+        ],
+        [
+          392.11,
+          310.78
+        ],
+        [
+          392.31,
+          312.36
+        ],
+        [
+          392.11,
+          313.75
+        ],
+        [
+          392.11,
+          315.73
+        ],
+        [
+          391.72,
+          317.11
+        ],
+        [
+          391.85,
+          318.92
+        ],
+        [
+          392.31,
+          319.69
+        ],
+        [
+          395.92,
+          322.97
+        ],
+        [
+          399.44,
+          327.6
+        ],
+        [
+          400.7,
+          329.23
+        ],
+        [
+          401.54,
+          331.75
+        ],
+        [
+          403.0,
+          342.25
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1360"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1361",
+      "x_mm": 400.62,
+      "y_mm": 342.25
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1361"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1361",
+      "color": "black",
+      "points_mm": [
+        [
+          400.62,
+          342.25
+        ],
+        [
+          399.63,
+          336.51
+        ],
+        [
+          398.39,
+          334.86
+        ],
+        [
+          396.86,
+          334.13
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1361"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1363",
+      "x_mm": 406.36,
+      "y_mm": 348.78
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1363"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1363",
+      "color": "black",
+      "points_mm": [
+        [
+          406.36,
+          348.78
+        ],
+        [
+          411.9,
+          348.78
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1363"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1364",
+      "x_mm": 417.84,
+      "y_mm": 348.58
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1364"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1364",
+      "color": "black",
+      "points_mm": [
+        [
+          417.84,
+          348.58
+        ],
+        [
+          418.57,
+          347.56
+        ],
+        [
+          418.83,
+          346.6
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1364"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1365",
+      "x_mm": 420.61,
+      "y_mm": 348.58
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1365"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1365",
+      "color": "black",
+      "points_mm": [
+        [
+          420.61,
+          348.58
+        ],
+        [
+          421.52,
+          347.82
+        ],
+        [
+          422.19,
+          346.6
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1365"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1366",
+      "x_mm": 427.14,
+      "y_mm": 346.2
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1366"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1366",
+      "color": "black",
+      "points_mm": [
+        [
+          427.14,
+          346.2
+        ],
+        [
+          428.29,
+          346.69
+        ],
+        [
+          430.44,
+          346.78
+        ],
+        [
+          431.91,
+          346.61
+        ],
+        [
+          433.08,
+          346.01
+        ],
+        [
+          434.01,
+          346.44
+        ],
+        [
+          438.2,
+          346.54
+        ],
+        [
+          439.61,
+          346.2
+        ],
+        [
+          442.57,
+          346.99
+        ],
+        [
+          443.76,
+          346.99
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1366"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1367",
+      "x_mm": 439.61,
+      "y_mm": 346.2
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1367"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1367",
+      "color": "black",
+      "points_mm": [
+        [
+          439.61,
+          346.2
+        ],
+        [
+          439.41,
+          345.21
+        ],
+        [
+          439.09,
+          343.53
+        ],
+        [
+          439.8,
+          341.06
+        ],
+        [
+          441.39,
+          338.88
+        ],
+        [
+          442.91,
+          337.48
+        ],
+        [
+          445.28,
+          336.16
+        ],
+        [
+          447.14,
+          335.63
+        ],
+        [
+          449.39,
+          336.31
+        ],
+        [
+          451.75,
+          338.9
+        ],
+        [
+          453.85,
+          340.07
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1367"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1368",
+      "x_mm": 450.29,
+      "y_mm": 331.76
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1368"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1368",
+      "color": "black",
+      "points_mm": [
+        [
+          450.29,
+          331.76
+        ],
+        [
+          449.66,
+          331.13
+        ],
+        [
+          449.3,
+          329.78
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1368"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1410",
+      "x_mm": 320.88,
+      "y_mm": 328.2
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1410"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1410",
+      "color": "black",
+      "points_mm": [
+        [
+          320.88,
+          328.2
+        ],
+        [
+          320.74,
+          329.48
+        ],
+        [
+          320.23,
+          330.05
+        ],
+        [
+          319.56,
+          329.67
+        ],
+        [
+          319.69,
+          328.59
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1410"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1411",
+      "x_mm": 318.5,
+      "y_mm": 330.17
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1411"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1411",
+      "color": "black",
+      "points_mm": [
+        [
+          318.5,
+          330.17
+        ],
+        [
+          317.51,
+          329.78
+        ],
+        [
+          317.11,
+          329.72
+        ],
+        [
+          316.72,
+          328.99
+        ],
+        [
+          316.64,
+          328.25
+        ],
+        [
+          315.93,
+          327.6
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1411"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1474",
+      "x_mm": 266.26,
+      "y_mm": 306.03
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1474"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1474",
+      "color": "black",
+      "points_mm": [
+        [
+          266.26,
+          306.03
+        ],
+        [
+          265.47,
+          306.63
+        ],
+        [
+          264.36,
+          307.17
+        ],
+        [
+          263.69,
+          308.21
+        ],
+        [
+          260.52,
+          309.79
+        ],
+        [
+          253.6,
+          308.41
+        ],
+        [
+          250.46,
+          306.46
+        ],
+        [
+          249.37,
+          306.11
+        ],
+        [
+          248.3,
+          306.28
+        ],
+        [
+          246.27,
+          307.42
+        ],
+        [
+          245.6,
+          308.79
+        ],
+        [
+          242.71,
+          311.57
+        ],
+        [
+          242.71,
+          313.55
+        ],
+        [
+          243.88,
+          315.36
+        ],
+        [
+          244.29,
+          316.72
+        ],
+        [
+          237.07,
+          324.53
+        ],
+        [
+          235.39,
+          325.62
+        ],
+        [
+          234.28,
+          327.66
+        ],
+        [
+          228.27,
+          334.29
+        ],
+        [
+          225.69,
+          336.7
+        ],
+        [
+          224.87,
+          338.35
+        ],
+        [
+          224.0,
+          339.34
+        ],
+        [
+          220.15,
+          341.45
+        ],
+        [
+          218.97,
+          341.45
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1474"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1475",
+      "x_mm": 218.97,
+      "y_mm": 341.45
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1475"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1475",
+      "color": "black",
+      "points_mm": [
+        [
+          218.97,
+          341.45
+        ],
+        [
+          218.93,
+          340.5
+        ],
+        [
+          218.57,
+          340.07
+        ],
+        [
+          218.18,
+          339.52
+        ],
+        [
+          216.79,
+          338.88
+        ],
+        [
+          215.6,
+          337.1
+        ],
+        [
+          215.4,
+          335.12
+        ],
+        [
+          215.36,
+          334.31
+        ],
+        [
+          214.81,
+          333.93
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1475"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1476",
+      "x_mm": 214.81,
+      "y_mm": 332.35
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1476"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1476",
+      "color": "black",
+      "points_mm": [
+        [
+          214.81,
+          332.35
+        ],
+        [
+          213.87,
+          331.67
+        ],
+        [
+          213.34,
+          330.67
+        ],
+        [
+          213.82,
+          327.21
+        ],
+        [
+          213.62,
+          325.43
+        ],
+        [
+          214.35,
+          322.62
+        ],
+        [
+          215.87,
+          320.86
+        ],
+        [
+          217.41,
+          320.35
+        ],
+        [
+          221.34,
+          320.68
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1476"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_1634",
+      "x_mm": 10.99,
+      "y_mm": 317.71
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_1634"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_1634",
+      "color": "black",
+      "points_mm": [
+        [
+          10.99,
+          317.71
+        ],
+        [
+          49.51,
+          329.28
+        ],
+        [
+          50.96,
+          330.17
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_1634"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2030",
+      "x_mm": 439.8,
+      "y_mm": 341.06
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2030"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2030",
+      "color": "black",
+      "points_mm": [
+        [
+          439.8,
+          341.06
+        ],
+        [
+          426.74,
+          341.26
+        ],
+        [
+          418.43,
+          341.85
+        ],
+        [
+          406.36,
+          342.05
+        ],
+        [
+          403.0,
+          342.25
+        ],
+        [
+          400.62,
+          342.25
+        ],
+        [
+          398.64,
+          342.25
+        ],
+        [
+          388.95,
+          342.25
+        ],
+        [
+          385.59,
+          340.97
+        ],
+        [
+          383.09,
+          340.66
+        ],
+        [
+          380.77,
+          340.98
+        ],
+        [
+          378.66,
+          342.05
+        ],
+        [
+          365.24,
+          339.91
+        ],
+        [
+          352.34,
+          336.51
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2030"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2031",
+      "x_mm": 353.33,
+      "y_mm": 341.45
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2031"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2031",
+      "color": "black",
+      "points_mm": [
+        [
+          353.33,
+          341.45
+        ],
+        [
+          353.55,
+          339.13
+        ],
+        [
+          352.34,
+          336.51
+        ],
+        [
+          351.16,
+          334.96
+        ],
+        [
+          349.5,
+          334.06
+        ],
+        [
+          346.61,
+          333.37
+        ],
+        [
+          344.03,
+          333.74
+        ],
+        [
+          330.69,
+          327.6
+        ],
+        [
+          316.32,
+          321.67
+        ],
+        [
+          297.33,
+          315.73
+        ],
+        [
+          293.57,
+          314.74
+        ],
+        [
+          292.78,
+          314.54
+        ],
+        [
+          289.02,
+          313.75
+        ],
+        [
+          286.05,
+          313.16
+        ],
+        [
+          281.5,
+          312.36
+        ],
+        [
+          276.15,
+          311.38
+        ],
+        [
+          274.57,
+          311.18
+        ],
+        [
+          271.4,
+          310.78
+        ],
+        [
+          269.03,
+          310.58
+        ],
+        [
+          267.61,
+          309.89
+        ],
+        [
+          266.66,
+          308.61
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2031"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2033",
+      "x_mm": 272.2,
+      "y_mm": 318.3
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2033"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2033",
+      "color": "black",
+      "points_mm": [
+        [
+          272.2,
+          318.3
+        ],
+        [
+          276.37,
+          319.2
+        ],
+        [
+          277.93,
+          319.88
+        ],
+        [
+          280.51,
+          319.69
+        ],
+        [
+          282.83,
+          320.78
+        ],
+        [
+          284.66,
+          323.25
+        ],
+        [
+          284.29,
+          324.37
+        ],
+        [
+          283.08,
+          325.82
+        ],
+        [
+          281.98,
+          326.45
+        ],
+        [
+          278.92,
+          329.18
+        ],
+        [
+          278.92,
+          330.17
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2033"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2037",
+      "x_mm": 277.93,
+      "y_mm": 319.88
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2037"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2037",
+      "color": "black",
+      "points_mm": [
+        [
+          277.93,
+          319.88
+        ],
+        [
+          277.17,
+          320.74
+        ],
+        [
+          275.76,
+          321.47
+        ],
+        [
+          275.16,
+          323.45
+        ],
+        [
+          275.16,
+          324.83
+        ],
+        [
+          275.55,
+          325.68
+        ],
+        [
+          275.36,
+          327.01
+        ],
+        [
+          275.37,
+          328.4
+        ],
+        [
+          276.03,
+          329.66
+        ],
+        [
+          277.1,
+          330.19
+        ],
+        [
+          278.92,
+          330.17
+        ],
+        [
+          280.11,
+          330.77
+        ],
+        [
+          280.49,
+          332.58
+        ],
+        [
+          281.61,
+          333.53
+        ],
+        [
+          284.68,
+          333.98
+        ],
+        [
+          286.64,
+          333.54
+        ],
+        [
+          290.12,
+          333.67
+        ],
+        [
+          294.76,
+          331.76
+        ],
+        [
+          295.15,
+          330.97
+        ],
+        [
+          295.55,
+          327.4
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2037"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2038",
+      "x_mm": 295.15,
+      "y_mm": 330.97
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2038"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2038",
+      "color": "black",
+      "points_mm": [
+        [
+          295.15,
+          330.97
+        ],
+        [
+          299.5,
+          332.55
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2038"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2039",
+      "x_mm": 298.91,
+      "y_mm": 333.74
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2039"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2039",
+      "color": "black",
+      "points_mm": [
+        [
+          298.91,
+          333.74
+        ],
+        [
+          295.88,
+          332.54
+        ],
+        [
+          294.76,
+          331.76
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2039"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2040",
+      "x_mm": 302.08,
+      "y_mm": 330.57
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2040"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2040",
+      "color": "black",
+      "points_mm": [
+        [
+          302.08,
+          330.57
+        ],
+        [
+          300.95,
+          331.8
+        ],
+        [
+          299.5,
+          332.55
+        ],
+        [
+          298.91,
+          333.74
+        ],
+        [
+          298.83,
+          335.76
+        ],
+        [
+          299.32,
+          336.84
+        ],
+        [
+          305.24,
+          341.26
+        ],
+        [
+          306.23,
+          341.26
+        ],
+        [
+          309.44,
+          340.23
+        ],
+        [
+          311.77,
+          338.09
+        ],
+        [
+          311.97,
+          336.7
+        ],
+        [
+          311.16,
+          335.11
+        ],
+        [
+          310.98,
+          333.74
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2040"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2041",
+      "x_mm": 311.97,
+      "y_mm": 336.7
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2041"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2041",
+      "color": "black",
+      "points_mm": [
+        [
+          311.97,
+          336.7
+        ],
+        [
+          319.49,
+          338.49
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2041"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2042",
+      "x_mm": 321.47,
+      "y_mm": 336.11
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2042"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2042",
+      "color": "black",
+      "points_mm": [
+        [
+          321.47,
+          336.11
+        ],
+        [
+          310.98,
+          333.74
+        ],
+        [
+          305.58,
+          330.96
+        ],
+        [
+          302.08,
+          330.57
+        ],
+        [
+          295.55,
+          327.4
+        ],
+        [
+          292.62,
+          324.66
+        ],
+        [
+          290.6,
+          323.64
+        ],
+        [
+          288.53,
+          323.08
+        ],
+        [
+          284.66,
+          323.25
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2042"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2043",
+      "x_mm": 283.08,
+      "y_mm": 325.82
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2043"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2043",
+      "color": "black",
+      "points_mm": [
+        [
+          283.08,
+          325.82
+        ],
+        [
+          283.19,
+          326.87
+        ],
+        [
+          282.68,
+          329.18
+        ],
+        [
+          280.11,
+          330.77
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2043"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2044",
+      "x_mm": 282.68,
+      "y_mm": 329.18
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2044"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2044",
+      "color": "black",
+      "points_mm": [
+        [
+          282.68,
+          329.18
+        ],
+        [
+          286.64,
+          333.54
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2044"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2045",
+      "x_mm": 293.17,
+      "y_mm": 341.26
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2045"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2045",
+      "color": "black",
+      "points_mm": [
+        [
+          293.17,
+          341.26
+        ],
+        [
+          285.79,
+          338.79
+        ],
+        [
+          269.95,
+          331.29
+        ],
+        [
+          264.2,
+          329.37
+        ],
+        [
+          260.36,
+          328.83
+        ],
+        [
+          255.48,
+          328.94
+        ],
+        [
+          251.55,
+          329.8
+        ],
+        [
+          247.46,
+          331.36
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2045"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2046",
+      "x_mm": 252.41,
+      "y_mm": 337.3
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2046"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2046",
+      "color": "black",
+      "points_mm": [
+        [
+          252.41,
+          337.3
+        ],
+        [
+          256.99,
+          336.62
+        ],
+        [
+          260.32,
+          336.51
+        ],
+        [
+          261.36,
+          336.33
+        ],
+        [
+          262.1,
+          336.7
+        ],
+        [
+          264.48,
+          337.1
+        ],
+        [
+          265.67,
+          337.3
+        ],
+        [
+          266.34,
+          337.45
+        ],
+        [
+          266.66,
+          338.09
+        ],
+        [
+          267.32,
+          338.78
+        ],
+        [
+          268.24,
+          338.68
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2046"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2047",
+      "x_mm": 270.02,
+      "y_mm": 339.47
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2047"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2047",
+      "color": "black",
+      "points_mm": [
+        [
+          270.02,
+          339.47
+        ],
+        [
+          270.44,
+          340.33
+        ],
+        [
+          271.4,
+          340.27
+        ],
+        [
+          272.31,
+          340.47
+        ],
+        [
+          272.59,
+          341.06
+        ],
+        [
+          272.72,
+          341.66
+        ],
+        [
+          273.58,
+          341.65
+        ],
+        [
+          274.45,
+          341.67
+        ],
+        [
+          274.97,
+          342.44
+        ],
+        [
+          275.49,
+          343.22
+        ],
+        [
+          277.81,
+          344.36
+        ],
+        [
+          278.73,
+          344.22
+        ],
+        [
+          279.5,
+          344.09
+        ],
+        [
+          279.91,
+          344.42
+        ],
+        [
+          281.5,
+          345.02
+        ],
+        [
+          283.28,
+          345.61
+        ],
+        [
+          286.05,
+          346.4
+        ],
+        [
+          295.4,
+          348.35
+        ],
+        [
+          299.11,
+          348.78
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2047"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2048",
+      "x_mm": 292.58,
+      "y_mm": 348.78
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2048"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2048",
+      "color": "black",
+      "points_mm": [
+        [
+          292.58,
+          348.78
+        ],
+        [
+          286.05,
+          347.19
+        ],
+        [
+          283.28,
+          346.4
+        ],
+        [
+          281.5,
+          345.81
+        ],
+        [
+          279.91,
+          345.21
+        ],
+        [
+          278.97,
+          344.89
+        ],
+        [
+          278.73,
+          344.22
+        ],
+        [
+          276.78,
+          342.91
+        ],
+        [
+          274.97,
+          342.44
+        ],
+        [
+          273.88,
+          342.4
+        ],
+        [
+          273.58,
+          341.65
+        ],
+        [
+          273.25,
+          341.01
+        ],
+        [
+          272.59,
+          341.06
+        ],
+        [
+          271.77,
+          341.08
+        ],
+        [
+          271.4,
+          340.27
+        ],
+        [
+          270.86,
+          339.61
+        ],
+        [
+          270.02,
+          339.47
+        ],
+        [
+          268.24,
+          338.68
+        ],
+        [
+          267.67,
+          337.96
+        ],
+        [
+          266.66,
+          338.09
+        ],
+        [
+          265.67,
+          338.09
+        ],
+        [
+          264.88,
+          337.85
+        ],
+        [
+          264.48,
+          337.1
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2048"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2049",
+      "x_mm": 262.1,
+      "y_mm": 336.7
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2049"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2049",
+      "color": "black",
+      "points_mm": [
+        [
+          262.1,
+          336.7
+        ],
+        [
+          261.26,
+          337.22
+        ],
+        [
+          260.32,
+          336.51
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2049"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2050",
+      "x_mm": 257.95,
+      "y_mm": 348.78
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2050"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2050",
+      "color": "black",
+      "points_mm": [
+        [
+          257.95,
+          348.78
+        ],
+        [
+          256.18,
+          348.14
+        ],
+        [
+          254.19,
+          348.78
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2050"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2051",
+      "x_mm": 245.09,
+      "y_mm": 347.39
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2051"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2051",
+      "color": "black",
+      "points_mm": [
+        [
+          245.09,
+          347.39
+        ],
+        [
+          245.28,
+          346.01
+        ],
+        [
+          250.63,
+          342.44
+        ],
+        [
+          251.62,
+          340.86
+        ],
+        [
+          251.62,
+          340.07
+        ],
+        [
+          252.41,
+          337.3
+        ],
+        [
+          251.11,
+          334.98
+        ],
+        [
+          247.46,
+          331.36
+        ],
+        [
+          245.09,
+          330.57
+        ],
+        [
+          237.96,
+          325.82
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2051"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2052",
+      "x_mm": 245.28,
+      "y_mm": 346.01
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2052"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2052",
+      "color": "black",
+      "points_mm": [
+        [
+          245.28,
+          346.01
+        ],
+        [
+          238.56,
+          342.84
+        ],
+        [
+          237.61,
+          342.3
+        ],
+        [
+          236.78,
+          342.25
+        ],
+        [
+          234.1,
+          340.66
+        ],
+        [
+          225.69,
+          336.7
+        ],
+        [
+          224.7,
+          333.74
+        ],
+        [
+          223.71,
+          329.78
+        ],
+        [
+          221.02,
+          328.19
+        ],
+        [
+          219.07,
+          328.19
+        ],
+        [
+          216.75,
+          329.7
+        ],
+        [
+          214.81,
+          332.35
+        ],
+        [
+          214.81,
+          333.93
+        ],
+        [
+          214.15,
+          334.62
+        ],
+        [
+          214.22,
+          335.52
+        ],
+        [
+          214.41,
+          337.3
+        ],
+        [
+          215.21,
+          339.67
+        ],
+        [
+          211.86,
+          344.97
+        ],
+        [
+          210.46,
+          348.58
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2052"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2053",
+      "x_mm": 215.21,
+      "y_mm": 339.67
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2053"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2053",
+      "color": "black",
+      "points_mm": [
+        [
+          215.21,
+          339.67
+        ],
+        [
+          216.2,
+          339.67
+        ],
+        [
+          216.97,
+          340.45
+        ],
+        [
+          217.98,
+          340.86
+        ],
+        [
+          218.97,
+          341.45
+        ],
+        [
+          219.7,
+          342.66
+        ],
+        [
+          220.17,
+          342.39
+        ],
+        [
+          220.15,
+          341.45
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2053"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2054",
+      "x_mm": 213.82,
+      "y_mm": 327.21
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2054"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2054",
+      "color": "black",
+      "points_mm": [
+        [
+          213.82,
+          327.21
+        ],
+        [
+          206.95,
+          329.92
+        ],
+        [
+          204.24,
+          331.58
+        ],
+        [
+          201.72,
+          333.64
+        ],
+        [
+          199.89,
+          335.77
+        ],
+        [
+          198.57,
+          337.89
+        ],
+        [
+          196.21,
+          344.42
+        ],
+        [
+          197.01,
+          346.89
+        ],
+        [
+          198.39,
+          348.78
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2054"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2055",
+      "x_mm": 196.21,
+      "y_mm": 344.42
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2055"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2055",
+      "color": "black",
+      "points_mm": [
+        [
+          196.21,
+          344.42
+        ],
+        [
+          193.85,
+          343.16
+        ],
+        [
+          189.88,
+          343.04
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2055"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2056",
+      "x_mm": 186.71,
+      "y_mm": 347.59
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2056"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2056",
+      "color": "black",
+      "points_mm": [
+        [
+          186.71,
+          347.59
+        ],
+        [
+          185.87,
+          346.52
+        ],
+        [
+          186.41,
+          344.01
+        ],
+        [
+          186.04,
+          342.63
+        ],
+        [
+          184.38,
+          340.8
+        ],
+        [
+          182.15,
+          339.41
+        ],
+        [
+          180.77,
+          338.09
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2056"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2057",
+      "x_mm": 175.23,
+      "y_mm": 342.44
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2057"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2057",
+      "color": "black",
+      "points_mm": [
+        [
+          175.23,
+          342.44
+        ],
+        [
+          175.23,
+          341.26
+        ],
+        [
+          176.78,
+          334.81
+        ],
+        [
+          178.62,
+          331.67
+        ],
+        [
+          182.35,
+          328.48
+        ],
+        [
+          188.69,
+          325.43
+        ],
+        [
+          190.67,
+          325.62
+        ],
+        [
+          191.46,
+          324.83
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2057"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2061",
+      "x_mm": 191.46,
+      "y_mm": 316.52
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2061"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2061",
+      "color": "black",
+      "points_mm": [
+        [
+          191.46,
+          316.52
+        ],
+        [
+          185.09,
+          318.34
+        ],
+        [
+          176.15,
+          322.0
+        ],
+        [
+          170.54,
+          325.08
+        ],
+        [
+          166.72,
+          328.2
+        ],
+        [
+          162.76,
+          328.95
+        ],
+        [
+          160.29,
+          330.97
+        ],
+        [
+          159.3,
+          332.49
+        ],
+        [
+          158.52,
+          334.94
+        ],
+        [
+          157.42,
+          337.07
+        ],
+        [
+          157.23,
+          339.28
+        ],
+        [
+          155.37,
+          341.64
+        ],
+        [
+          154.88,
+          343.14
+        ],
+        [
+          154.86,
+          344.49
+        ],
+        [
+          156.03,
+          346.67
+        ],
+        [
+          158.81,
+          348.78
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2061"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2062",
+      "x_mm": 165.54,
+      "y_mm": 348.78
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2062"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2062",
+      "color": "black",
+      "points_mm": [
+        [
+          165.54,
+          348.78
+        ],
+        [
+          168.73,
+          347.27
+        ],
+        [
+          173.45,
+          343.83
+        ],
+        [
+          173.93,
+          342.4
+        ],
+        [
+          175.23,
+          341.26
+        ],
+        [
+          178.07,
+          338.83
+        ],
+        [
+          180.77,
+          338.09
+        ],
+        [
+          181.5,
+          335.56
+        ],
+        [
+          182.8,
+          333.01
+        ],
+        [
+          184.79,
+          330.24
+        ],
+        [
+          188.02,
+          326.75
+        ],
+        [
+          188.69,
+          325.43
+        ],
+        [
+          188.34,
+          323.82
+        ],
+        [
+          188.52,
+          322.55
+        ],
+        [
+          192.05,
+          316.72
+        ],
+        [
+          194.3,
+          316.74
+        ],
+        [
+          196.07,
+          317.55
+        ],
+        [
+          199.31,
+          320.15
+        ],
+        [
+          200.51,
+          322.66
+        ],
+        [
+          201.16,
+          323.25
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2062"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2065",
+      "x_mm": 213.62,
+      "y_mm": 325.43
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2065"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2065",
+      "color": "black",
+      "points_mm": [
+        [
+          213.62,
+          325.43
+        ],
+        [
+          210.42,
+          325.92
+        ],
+        [
+          206.34,
+          327.24
+        ],
+        [
+          201.88,
+          329.42
+        ],
+        [
+          198.04,
+          331.9
+        ],
+        [
+          194.27,
+          335.14
+        ],
+        [
+          192.4,
+          337.26
+        ],
+        [
+          190.8,
+          340.01
+        ],
+        [
+          189.88,
+          343.04
+        ],
+        [
+          187.75,
+          345.53
+        ],
+        [
+          186.71,
+          347.59
+        ],
+        [
+          186.31,
+          348.58
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2065"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2066",
+      "x_mm": 182.16,
+      "y_mm": 348.18
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2066"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2066",
+      "color": "black",
+      "points_mm": [
+        [
+          182.16,
+          348.18
+        ],
+        [
+          181.47,
+          348.51
+        ],
+        [
+          179.19,
+          348.58
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2066"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2067",
+      "x_mm": 174.64,
+      "y_mm": 348.78
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2067"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2067",
+      "color": "black",
+      "points_mm": [
+        [
+          174.64,
+          348.78
+        ],
+        [
+          175.15,
+          348.05
+        ],
+        [
+          175.23,
+          347.31
+        ],
+        [
+          174.05,
+          344.03
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2067"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2068",
+      "x_mm": 166.92,
+      "y_mm": 342.25
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2068"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2068",
+      "color": "black",
+      "points_mm": [
+        [
+          166.92,
+          342.25
+        ],
+        [
+          169.05,
+          340.59
+        ],
+        [
+          169.89,
+          338.88
+        ],
+        [
+          171.41,
+          337.8
+        ],
+        [
+          172.36,
+          336.56
+        ],
+        [
+          172.63,
+          335.31
+        ],
+        [
+          172.34,
+          333.84
+        ],
+        [
+          171.71,
+          332.21
+        ],
+        [
+          170.58,
+          330.74
+        ],
+        [
+          168.95,
+          329.39
+        ],
+        [
+          166.72,
+          328.2
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2068"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2069",
+      "x_mm": 160.0,
+      "y_mm": 340.07
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2069"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2069",
+      "color": "black",
+      "points_mm": [
+        [
+          160.0,
+          340.07
+        ],
+        [
+          158.78,
+          339.07
+        ],
+        [
+          157.23,
+          339.28
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2069"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2078",
+      "x_mm": 311.77,
+      "y_mm": 338.09
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2078"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2078",
+      "color": "black",
+      "points_mm": [
+        [
+          311.77,
+          338.09
+        ],
+        [
+          319.09,
+          339.87
+        ],
+        [
+          322.55,
+          341.85
+        ],
+        [
+          327.21,
+          343.83
+        ],
+        [
+          328.81,
+          343.33
+        ],
+        [
+          330.37,
+          342.25
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2078"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2079",
+      "x_mm": 330.18,
+      "y_mm": 340.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2079"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2079",
+      "color": "black",
+      "points_mm": [
+        [
+          330.18,
+          340.46
+        ],
+        [
+          331.2,
+          340.34
+        ],
+        [
+          333.01,
+          341.45
+        ],
+        [
+          334.53,
+          341.85
+        ],
+        [
+          335.91,
+          341.26
+        ],
+        [
+          337.3,
+          340.46
+        ],
+        [
+          338.29,
+          340.66
+        ],
+        [
+          342.05,
+          341.65
+        ],
+        [
+          343.42,
+          342.89
+        ],
+        [
+          343.83,
+          343.83
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2079"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2080",
+      "x_mm": 342.05,
+      "y_mm": 341.65
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2080"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2080",
+      "color": "black",
+      "points_mm": [
+        [
+          342.05,
+          341.65
+        ],
+        [
+          342.25,
+          340.07
+        ],
+        [
+          342.25,
+          339.08
+        ],
+        [
+          342.45,
+          336.71
+        ],
+        [
+          344.03,
+          333.74
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2080"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2081",
+      "x_mm": 339.67,
+      "y_mm": 336.7
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2081"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2081",
+      "color": "black",
+      "points_mm": [
+        [
+          339.67,
+          336.7
+        ],
+        [
+          337.49,
+          337.85
+        ],
+        [
+          336.51,
+          339.08
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2081"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2082",
+      "x_mm": 337.3,
+      "y_mm": 340.46
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2082"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2082",
+      "color": "black",
+      "points_mm": [
+        [
+          337.3,
+          340.46
+        ],
+        [
+          336.51,
+          339.08
+        ],
+        [
+          334.53,
+          338.68
+        ],
+        [
+          333.74,
+          339.47
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2082"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2083",
+      "x_mm": 331.76,
+      "y_mm": 343.43
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2083"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2083",
+      "color": "black",
+      "points_mm": [
+        [
+          331.76,
+          343.43
+        ],
+        [
+          329.85,
+          344.58
+        ],
+        [
+          327.21,
+          345.21
+        ],
+        [
+          326.02,
+          345.86
+        ],
+        [
+          325.1,
+          345.85
+        ],
+        [
+          320.98,
+          343.59
+        ],
+        [
+          319.62,
+          342.12
+        ],
+        [
+          319.09,
+          339.87
+        ],
+        [
+          319.43,
+          339.53
+        ],
+        [
+          319.49,
+          338.49
+        ],
+        [
+          320.49,
+          337.69
+        ],
+        [
+          321.47,
+          336.11
+        ],
+        [
+          324.93,
+          333.74
+        ],
+        [
+          326.2,
+          333.62
+        ],
+        [
+          328.4,
+          334.13
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2083"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2084",
+      "x_mm": 347.39,
+      "y_mm": 345.21
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2084"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2084",
+      "color": "black",
+      "points_mm": [
+        [
+          347.39,
+          345.21
+        ],
+        [
+          347.72,
+          346.29
+        ],
+        [
+          348.58,
+          345.21
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2084"
+    },
+    {
+      "command": "move_to",
+      "label": "line_art_line_2089",
+      "x_mm": 306.23,
+      "y_mm": 341.26
+    },
+    {
+      "command": "lower_tool",
+      "label": "line_art_line_2089"
+    },
+    {
+      "command": "paint_path",
+      "label": "line_art_line_2089",
+      "color": "black",
+      "points_mm": [
+        [
+          306.23,
+          341.26
+        ],
+        [
+          306.04,
+          342.14
+        ],
+        [
+          305.63,
+          342.37
+        ],
+        [
+          305.3,
+          342.12
+        ],
+        [
+          305.24,
+          341.26
+        ]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "line_art_line_2089"
+    }
+  ],
+  "debug": {
+    "num_commands": 8358,
+    "num_paint_path_commands": 2089,
+    "estimated_total_paint_distance_mm": 38043.0,
+    "num_traced_lines": 2089,
+    "num_select_tool_commands": 1,
+    "num_lift_tool_commands": 2089,
+    "num_lower_tool_commands": 2089,
+    "num_dip_paint_commands": 1,
+    "baseline_pen_up_travel_mm": 386845.05,
+    "optimized_pen_up_travel_mm": 10098.77,
+    "num_traced_lines_before_optimization": 7288,
+    "num_overlap_joins": 4592,
+    "num_short_lines_filtered": 607,
+    "num_traced_lines_after_optimization": 2089,
+    "smoothing_radius_mm": 1.2,
+    "effective_smoothing_radius_mm": 1.2,
+    "points_before_smoothing": 185754,
+    "points_after_smoothing_and_simplification": 19743
+  },
+  "validation": {
+    "passed": true,
+    "errors": [],
+    "warnings": []
+  }
+}

@@ -13,6 +13,27 @@ bool jointFallbackAllowed(const MotionOutcome &outcome)
            !outcome.execution_started && outcome.joint_fallback_eligible;
 }
 
+bool automaticPaintRecoveryAllowed(bool enabled, const std::string &command,
+                                   const MotionOutcome &outcome,
+                                   bool retreat_succeeded, bool jump_limited,
+                                   unsigned int attempts)
+{
+    return enabled && command == "paint_path" &&
+           outcome.kind == MotionKind::Painting &&
+           outcome.status == MotionStatus::PreSubmissionFailed &&
+           !outcome.execution_started && retreat_succeeded && jump_limited &&
+           attempts == 0;
+}
+
+bool pointInsideCanvas(double x_mm, double y_mm, double width_mm,
+                       double height_mm)
+{
+    return std::isfinite(x_mm) && std::isfinite(y_mm) &&
+           std::isfinite(width_mm) && std::isfinite(height_mm) &&
+           width_mm > 0.0 && height_mm > 0.0 && x_mm >= 0.0 &&
+           x_mm <= width_mm && y_mm >= 0.0 && y_mm <= height_mm;
+}
+
 const char *motionKindName(MotionKind kind)
 {
     switch (kind) {

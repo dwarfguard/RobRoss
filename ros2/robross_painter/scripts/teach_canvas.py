@@ -540,6 +540,8 @@ class TeachCanvas(Node):
                     "canvas_quat_xyzw": [
                         round(float(v), 6) for v in (qx, qy, qz, qw)
                     ],
+                    "taught_canvas_width_mm": round(width_m * 1000.0, 1),
+                    "taught_canvas_height_mm": round(height_m * 1000.0, 1),
                     "canvas_z_correction_coeffs": [
                         round(float(v), 8) for v in corr_coeffs
                     ],

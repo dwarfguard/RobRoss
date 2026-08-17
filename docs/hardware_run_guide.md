@@ -48,6 +48,21 @@ Run once in the first terminal. This creates one reusable environment file so ev
 uses the same robot, source tree, and evidence directory:
 
 ```bash
+cd ~/robross_aubo_ws
+source /opt/ros/humble/setup.bash
+
+colcon build \
+  --packages-select \
+    aubo_dashboard_msgs aubo_description aubo_msgs \
+    joint_trajectory_controller ros2_controllers_test_nodes \
+    aubo_ros2_driver aubo_moveit_config robross_painter \
+  --allow-overriding joint_trajectory_controller \
+  --cmake-clean-cache
+
+source install/setup.bash
+```
+
+```bash
 export PATH="/usr/bin:$PATH"
 cd ~/robross_aubo_ws
 source install/setup.bash
@@ -87,8 +102,9 @@ creates a same-session preflight receipt and monitors
 Use the same wrapper for MoveIt, `teach_nudge.launch.py`, and any physical
 `paint.launch.py`. The wrapper automatically injects the preflight and monitor
 paths for painter/nudge. The painter additionally requires
-`qualification_run:=true`, `require_qualified_build:=true`, the pinned driver
-and controller identities, an explicit canvas, and a provenance directory.
+`qualification_run:=true`, an explicit canvas, and a provenance directory.
+Pass `require_qualified_build:=true` with pinned driver and controller
+identities only when qualified-build enforcement is required.
 Install the slew-only host policy from `deployment/chrony/` first. A failed or
 stale receipt, stopped monitor, active competing synchronizer, `makestep`
 directive, disabled conformance check, or timing mismatch blocks motion startup.
@@ -235,6 +251,23 @@ ros2 launch robross_painter teach_nudge.launch.py aubo_type:=$AUBO_TYPE \
   tool_offset_rpy:="$TOOL_OFFSET_RPY"      # launch (not run): supplies the
                                            # robot model; needs Terminal 2's move_group
 ```
+
+For a 525 x 375 mm landscape sheet, add the expected physical dimensions and
+write a distinct calibration file:
+
+```bash
+ros2 run robross_painter teach_canvas.py --ros-args \
+  -p tool_offset_xyz:="$TOOL_OFFSET_XYZ" \
+  -p canvas_width_mm:=525.0 \
+  -p canvas_height_mm:=375.0 \
+  -p plane_bias_mm:=1.0 \
+  -p output_file:=$HOME/canvas_4k_landscape.yaml
+```
+
+Use the physical top-left corner as `(0, 0)`: canvas x runs along the 525 mm
+edge to the right and canvas y runs down the 375 mm edge. Spread the interior
+samples over the full larger sheet, not only over the artwork's occupied area.
+
 ```bash
    ros2 service call /teach_nudge/nudge_in std_srvs/srv/Trigger
    ros2 param set /teach_nudge nudge_step_mm 0.2   # finer steps for the last mm
@@ -270,6 +303,11 @@ ros2 service call /teach_canvas/save                std_srvs/srv/Trigger
 outright above `flatness_refuse_mm` (default 0.6 mm) — add interior samples or re-teach. Any
 warning → re-teach; don't rationalize.
 
+For the landscape profile, the corresponding dimension gate is approximately
+525 x 375 mm. The saved YAML records those measured dimensions. Paint launch
+warns, but does not abort, if they differ from the path JSON by more than 5 mm;
+any such warning is still an operational re-teach gate.
+
 ## Step 5 — Dry-run everything (`dry_run: true` in `~/hardware_a4.yaml`)
 
 Run the full artwork, test line, and curve card with this complete loop:
@@ -292,6 +330,13 @@ done
 `Cartesian path only X% feasible` in one canvas region → try a different `tool_spin_deg` or move
 the canvas; never lower `cartesian_jump_threshold`. A motion-guard rejection is a rejected plan,
 not a parameter-tuning prompt.
+
+For the 525 x 375 mm sheet, use `hardware_4k_landscape.yaml`, the taught
+`canvas_4k_landscape.yaml`, and the complete preadjusted path JSON in this same
+dry-run loop. The auto-sized backing is approximately 625 x 475 mm with the
+profile's 50 mm margin. All commands across the full landscape workspace must
+plan without collisions, partial Cartesian paths, or motion-guard rejection.
+Reposition the sheet if any region is unreachable; do not relax the guards.
 
 ## Step 5.5 - Qualify the reviewed ServoJ driver above the paper
 
@@ -448,9 +493,16 @@ sha256sum \
 cp $HOME/canvas_calibration.yaml $PHASE2_SESSION/contact_canvas_source.yaml
 cp $HOME/hardware_a4.yaml $PHASE2_SESSION/contact_hardware_source.yaml
 
-colcon build --packages-select aubo_description aubo_ros2_driver robross_painter
+colcon build \
+  --packages-select \
+    aubo_dashboard_msgs aubo_description aubo_msgs \
+    joint_trajectory_controller ros2_controllers_test_nodes \
+    aubo_ros2_driver aubo_moveit_config robross_painter \
+  --allow-overriding joint_trajectory_controller \
+  --cmake-clean-cache
 source install/setup.bash
-colcon test --packages-select aubo_ros2_driver robross_painter
+colcon test --packages-select \
+  joint_trajectory_controller aubo_ros2_driver robross_painter
 colcon test-result --verbose
 ```
 
@@ -550,14 +602,14 @@ it does not replace the current tracking fixtures.
 test the arm must move with `dry_run: false`, but the commanded drawing plane must be safely in
 front of the physical paper. Never use the contact canvas for this test.
 
-The following creates `$HOME/canvas_hover_10mm.yaml` by shifting the taught canvas origin 10 mm
+The following creates `$HOME/canvas_hover_20mm.yaml` by shifting the taught canvas origin 20 mm
 opposite canvas +Z. Canvas +Z points into the paper, so this moves the entire path out toward the
 robot while preserving canvas X/Y and orientation:
 
 ```bash
 CANVAS_IN=$HOME/canvas_calibration.yaml \
-CANVAS_OUT=$HOME/canvas_hover_10mm.yaml \
-HOVER_OFFSET_M=0.010 \
+CANVAS_OUT=$HOME/canvas_hover_20mm.yaml \
+HOVER_OFFSET_M=0.020 \
 python3 - <<'PY'
 import math
 import os
@@ -584,7 +636,7 @@ canvas_z = [
 hover_origin = [origin[i] - offset * canvas_z[i] for i in range(3)]
 params["canvas_origin_xyz"] = [round(v, 9) for v in hover_origin]
 target.write_text(
-    "# HOVER ONLY - 10 mm origin shift, never use for paper contact.\n"
+    "# HOVER ONLY - 20 mm origin shift, never use for paper contact.\n"
     + yaml.safe_dump(data, sort_keys=False)
 )
 print(f"canvas +Z: {canvas_z}")
@@ -617,39 +669,64 @@ print(f"dry_run={params['dry_run']}; wrote hover-only profile {path}")
 PY
 ```
 
-Open both generated files and verify the only intentional behavioral differences are the 10 mm
+Open both generated files and verify the only intentional behavioral differences are the 20 mm
 outward origin shift, durable `HOVER ONLY` warning, and `dry_run: false`. Because the taught
-contact origin is already 1 mm into the paper, this shift produces approximately 9 mm of
-physical paper clearance, not 10 mm. Keep velocity and acceleration scaling unchanged from the
-reviewed session profile. RViz moves the virtual backing with the hover canvas and therefore does
-not preserve the original physical paper plane; verify stationary clearance physically before
-running a path.
+contact origin is already 1 mm into the paper, this shift produces approximately 19 mm of
+physical paper clearance, not 20 mm. The 10 mm shift is collision-rejected by the current
+calibrated geometry because `foreArm_Link` intersects the canvas backing; do not disable the
+backing or weaken collision checks to reduce the offset. Keep velocity and acceleration scaling
+unchanged from the reviewed session profile. RViz moves the virtual backing with the hover canvas
+and therefore does not preserve the original physical paper plane; verify stationary clearance
+physically before running a path.
 
 **Gate:** the stationary pen remains at least several millimeters clear of the paper and backing,
 the shifted plane stays collision-free, and the operator has the e-stop. Label both generated
-files `HOVER ONLY`; never pass `canvas_hover_10mm.yaml` to a contact run.
+files `HOVER ONLY`; never pass `canvas_hover_20mm.yaml` to a contact run.
 
-Before real motion, execute every diagnostic fixture with fake hardware. Terminal 1:
+Before real motion, execute every diagnostic fixture with fake hardware on an isolated ROS domain.
+Terminal 1:
 
 ```bash
+export ROS_DOMAIN_ID=48
 ros2 launch aubo_ros2_driver aubo_control.launch.py \
   aubo_type:=$AUBO_TYPE use_fake_hardware:=true \
   controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008
 ```
 
-Terminal 2:
+The generic mock hardware does not run the physical Aubo plugin, so it cannot publish driver
+health. Terminal 2 publishes simulation-only health and refuses to run on ROS domain 0:
 
 ```bash
+export ROS_DOMAIN_ID=48
+export ROBROSS_FAKE_HEALTH=1
+ros2 run robross_painter publish_fake_driver_health.py
+```
+
+Never run this helper on the real hardware ROS domain. Terminal 3:
+
+```bash
+export ROS_DOMAIN_ID=48
 ros2 launch aubo_moveit_config aubo_moveit.launch.py aubo_type:=$AUBO_TYPE
 ```
 
-Terminal 3, repeat for all three fixtures in the order above:
+Terminal 4: seed mock hardware with the last passing collision-free start for this calibration.
+This action moves only the isolated mock robot:
+
+```bash
+export ROS_DOMAIN_ID=48
+ros2 action send_goal \
+  /joint_trajectory_controller/follow_joint_trajectory \
+  control_msgs/action/FollowJointTrajectory \
+  "{trajectory: {joint_names: [shoulder_joint, upperArm_joint, foreArm_joint, wrist1_joint, wrist2_joint, wrist3_joint], points: [{positions: [3.452645080, -0.392374537, 2.211873521, -1.039851994, 1.564281043, 0.313910858], time_from_start: {sec: 3}}]}}"
+```
+
+In the same terminal, repeat the launch below for all three fixtures in the order above:
 
 ```bash
 ros2 launch robross_painter paint.launch.py \
   aubo_type:=$AUBO_TYPE \
   calibration_file:=$HOME/hardware_hover_a4.yaml \
-  canvas_file:=$HOME/canvas_hover_10mm.yaml \
+  canvas_file:=$HOME/canvas_hover_20mm.yaml \
   paths_file:=$ROBROSS_REPO/output/arm_tracking_direction_test_paths.json
 ```
 
@@ -659,6 +736,16 @@ calibrated geometry and no collision, orientation, interpolation, or motion-guar
 Stop the fake driver and MoveIt before starting the recorded hover run.
 
 ### 5.5.5 Recorded hover run: 125 Hz controller with ServoJ `t=0.008 s`
+
+Stop every fake-hardware process, including the synthetic health publisher. In every terminal used
+for real hardware, return to the normal ROS domain and source the current session:
+
+```bash
+unset ROS_DOMAIN_ID ROBROSS_FAKE_HEALTH
+cd ~/robross_aubo_ws
+source install/setup.bash
+source $HOME/robross_hardware_session.env
+```
 
 Start the bag recorder before the driver so the bag captures the one-time `servoj_config` log.
 In a recording terminal:
@@ -693,9 +780,12 @@ test ! -e "$AUBO_SERVOJ_TELEMETRY_CSV.partial" || {
   echo "Hover partial telemetry output already exists; choose a new session"
   exit 1
 }
-ros2 launch aubo_ros2_driver aubo_control.launch.py \
-  aubo_type:=$AUBO_TYPE robot_ip:=$ROBOT_IP use_fake_hardware:=false \
-  controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008
+./src/RobRoss/start_hardware_stack.sh \
+  --session-dir "$PHASE2_SESSION" --session-id "$ROBROSS_SESSION_ID" -- \
+  ros2 launch aubo_ros2_driver aubo_control.launch.py \
+    aubo_type:=$AUBO_TYPE robot_ip:=$ROBOT_IP use_fake_hardware:=false \
+    controllers_file:=aubo_controllers_125hz.yaml servoj_time:=0.008 \
+    rtde_state_rate:=200 rtde_state_max_age:=0.05
 ```
 
 Start MoveIt in Terminal 2 as in Step 3. In another terminal, record the effective controller
@@ -711,7 +801,7 @@ ros2 param dump /joint_trajectory_controller > \
   $PHASE2_SESSION/hover_joint_trajectory_controller.yaml
 ros2 topic echo /joint_states --once --no-lost-messages > \
   $PHASE2_SESSION/hover_start_joint_states.yaml
-cp $HOME/canvas_hover_10mm.yaml $PHASE2_SESSION/hover_canvas.yaml
+cp $HOME/canvas_hover_20mm.yaml $PHASE2_SESSION/hover_canvas.yaml
 cp $HOME/hardware_hover_a4.yaml $PHASE2_SESSION/hover_hardware.yaml
 cp src/aubo_ros2_driver/aubo_ros2_driver/config/aubo_controllers_125hz.yaml \
   $PHASE2_SESSION/hover_controller_profile.yaml
@@ -748,10 +838,22 @@ for repeat in $(seq 1 "$HOVER_REPEATS"); do
     arm_tracking_direction_test_paths.json \
     arm_tracking_reversal_test_paths.json \
     arm_tracking_curve_test_paths.json; do
-    if ! ros2 launch robross_painter paint.launch.py \
+    read -r -p "Ready for real hover repeat $repeat, $fixture? Type yes: " ready
+    if [[ "$ready" != "yes" ]]; then
+      hover_failed=1
+      break 2
+    fi
+    if ! ./src/RobRoss/start_hardware_stack.sh \
+        --session-dir "$PHASE2_SESSION" \
+        --session-id "$ROBROSS_SESSION_ID" -- \
+        ros2 launch robross_painter paint.launch.py \
         aubo_type:=$AUBO_TYPE \
+        require_qualified_build:=true \
+        expected_driver_commit:=$EXPECTED_DRIVER_COMMIT \
+        expected_controller_repository:=$EXPECTED_CONTROLLER_REPOSITORY \
+        expected_controller_commit:=$EXPECTED_CONTROLLER_COMMIT \
         calibration_file:=$HOME/hardware_hover_a4.yaml \
-        canvas_file:=$HOME/canvas_hover_10mm.yaml \
+        canvas_file:=$HOME/canvas_hover_20mm.yaml \
         cartesian_failure_artifact_dir:=$PHASE2_SESSION/cartesian_failures \
         paths_file:=$ROBROSS_REPO/output/$fixture 2>&1 | \
         tee $PHASE2_SESSION/hover_repeat_${repeat}_${fixture%.json}.log; then
@@ -800,8 +902,8 @@ ros2 run robross_painter analyze_tracking_bag.py \
   --expected-servoj-t-s 0.008 \
   --expected-rtde-rate-hz 200 \
   --rtde-state-max-age-s 0.05 \
-  --canvas-file $PHASE2_SESSION/hover_canvas.yaml \
-  --calibration-file $PHASE2_SESSION/hover_hardware.yaml \
+  --canvas-file $HOME/canvas_hover_20mm.yaml \
+  --calibration-file $HOME/hardware_hover_a4.yaml \
   --plane-bias-mm 1.0 \
   --csv $PHASE2_SESSION/hover_tracking.csv \
   --json $PHASE2_SESSION/hover_remediation_report.json \

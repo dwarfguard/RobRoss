@@ -1,0 +1,69 @@
+# Real-arm dry-run template for a taught 525 x 375 mm landscape canvas.
+# The path JSON supplies the drawing dimensions; teach_canvas.py supplies the
+# measured pose and dimensions through canvas_file. Re-verify the tool geometry
+# and complete the staged hardware qualification before setting dry_run false.
+painting_executor:
+  ros__parameters:
+    # Fallback only. Real hardware must pass an explicitly taught canvas_file.
+    canvas_origin_xyz: [0.5985, 0.105, 0.15]
+    canvas_x_yaw_deg: -90.0
+
+    safe_clearance_m: 0.01
+    ground_enabled: false
+    ground_z_m: -0.005
+
+    # Auto-size to the 525 x 375 mm JSON canvas plus 50 mm on every side.
+    canvas_backing_enabled: true
+    canvas_backing_clearance_m: 0.005
+    canvas_backing_size_xy_m: [0.0, 0.0]
+    canvas_backing_margin_m: 0.05
+
+    # Seed measurements only. Recalibrate after any pen or claw change and
+    # re-teach the canvas because its corners are recorded in tip coordinates.
+    tool_offset_xyz: [0.001208, -0.06034, 0.090753]
+    tool_offset_rpy: [0.0, 0.0, 0.0]
+    tool_spin_deg: -90.0
+    claw_collision_size_xyz: [0.02, 0.06, 0.02]
+    claw_collision_offset_xyz: [0.0, -0.03, 0.0]
+
+    # Keep the conservative hardware limits. Reposition the canvas rather than
+    # relaxing a guard when any part of the larger workspace is unreachable.
+    velocity_scaling: 0.05
+    acceleration_scaling: 0.025
+    eef_step_m: 0.0002
+    cartesian_jump_threshold: 10.0
+    elbow_up_enabled: true
+    elbow_joint: foreArm_joint
+    elbow_up_min_deg: -5.0
+    elbow_up_max_deg: 175.0
+    guarded_joints: [shoulder_joint]
+    max_guarded_joint_goal_delta_deg: 120.0
+    max_guarded_joint_travel_deg: 150.0
+    max_guarded_joint_paint_travel_deg: 90.0
+    max_guarded_joint_step_deg: 45.0
+
+    cartesian_deviation_check_enabled: true
+    max_cartesian_deviation_mm: 2.0
+    cartesian_normal_deviation_check_enabled: true
+    max_cartesian_normal_deviation_mm: 0.5
+    cartesian_orientation_deviation_check_enabled: true
+    max_cartesian_orientation_deviation_deg: 2.0
+    execution_joint_error_check_enabled: true
+    max_execution_joint_error_deg: 2.0
+    execution_tip_error_check_enabled: true
+    max_execution_tip_error_mm: 2.0
+    execution_tip_orientation_error_check_enabled: true
+    max_execution_tip_orientation_error_deg: 1.0
+    totg_path_tolerance: 0.01
+    controller_sample_dt: 0.008
+
+    endpoint_settle_enabled: true
+    endpoint_settle_velocity_tolerance: 0.02
+    endpoint_settle_dwell: 0.04
+    endpoint_settle_timeout: 1.5
+    endpoint_settle_contact_timeout: 0.6
+    endpoint_settle_sample_max_age: 0.05
+    joint_states_topic: /joint_states
+    state_validity_service: /check_state_validity
+
+    dry_run: false

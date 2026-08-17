@@ -88,6 +88,7 @@ install(PROGRAMS scripts/teach_canvas.py scripts/teach_tcp.py
   scripts/analyze_tracking_bag.py
   scripts/host_time_preflight.py
   scripts/host_clock_monitor.py
+  scripts/publish_fake_driver_health.py
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch config

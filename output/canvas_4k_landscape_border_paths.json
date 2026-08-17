@@ -1,0 +1,54 @@
+{
+  "project": "R.O.B Ross",
+  "style": "canvas_4k_landscape_border",
+  "version": "0.1",
+  "units": "mm",
+  "canvas": {
+    "width_mm": 522.3,
+    "height_mm": 370.1,
+    "origin": "top-left"
+  },
+  "path_settings": {
+    "tool_width_mm": 1.0,
+    "stroke_overlap_ratio": 0.0,
+    "edge_inset_mm": 0.0
+  },
+  "commands": [
+    {
+      "command": "select_tool",
+      "label": "canvas_border",
+      "color": "black"
+    },
+    {
+      "command": "dip_paint",
+      "label": "canvas_border",
+      "color": "black"
+    },
+    {
+      "command": "move_to",
+      "label": "canvas_border",
+      "x_mm": 0.0,
+      "y_mm": 0.0
+    },
+    {
+      "command": "lower_tool",
+      "label": "canvas_border"
+    },
+    {
+      "command": "paint_path",
+      "label": "canvas_border",
+      "color": "black",
+      "points_mm": [
+        [0.0, 0.0],
+        [522.3, 0.0],
+        [522.3, 370.1],
+        [0.0, 370.1],
+        [0.0, 0.0]
+      ]
+    },
+    {
+      "command": "lift_tool",
+      "label": "canvas_border"
+    }
+  ]
+}

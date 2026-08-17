@@ -56,6 +56,41 @@ def test_capture_command_index_must_be_nonnegative(value):
         paint_launch.nonnegative_integer(value, "capture_command")
 
 
+@pytest.mark.parametrize("value", ["-0.1", "nan", "bad"])
+def test_canvas_dimension_tolerance_must_be_nonnegative(value):
+    with pytest.raises(RuntimeError, match="must be a non-negative number"):
+        paint_launch.nonnegative_number(value, "canvas_dimension_tolerance_mm")
+
+
+def test_load_path_canvas_dimensions_accepts_4k_landscape(tmp_path):
+    path = tmp_path / "paths.json"
+    path.write_text(
+        json.dumps({"canvas": {"width_mm": 525.0, "height_mm": 375.0}}),
+        encoding="utf-8",
+    )
+    assert paint_launch.load_path_canvas_dimensions(path) == (525.0, 375.0)
+
+
+def test_canvas_dimension_warning_only_exceeds_tolerance():
+    assert paint_launch.canvas_dimension_warnings(
+        (525.0, 375.0),
+        {"taught_canvas_width_mm": 523.0, "taught_canvas_height_mm": 379.0},
+        5.0,
+    ) == []
+    warnings = paint_launch.canvas_dimension_warnings(
+        (525.0, 375.0),
+        {"taught_canvas_width_mm": 518.0, "taught_canvas_height_mm": 381.0},
+        5.0,
+    )
+    assert len(warnings) == 2
+    assert "width" in warnings[0]
+    assert "height" in warnings[1]
+
+
+def test_canvas_dimension_warning_supports_legacy_calibration():
+    assert paint_launch.canvas_dimension_warnings((525.0, 375.0), {}, 5.0) == []
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [("true", True), ("ON", True), ("0", False), ("no", False)],
@@ -263,6 +298,42 @@ def test_provenance_manifest_is_structured_and_atomic(tmp_path, monkeypatch):
     assert not list(tmp_path.glob("*.tmp"))
 
 
+def test_provenance_manifest_marks_unqualified_build_as_engineering(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        paint_launch,
+        "get_package_prefix",
+        lambda package: str(tmp_path / "missing-prefix"),
+    )
+    monkeypatch.setattr(
+        paint_launch,
+        "git_identity",
+        lambda path: {"path": str(path), "revision": "a" * 40, "dirty": True},
+    )
+    input_path = tmp_path / "paths.json"
+    input_path.write_text("{}", encoding="utf-8")
+
+    destination = paint_launch.write_provenance_manifest(
+        tmp_path,
+        "session-engineering",
+        "aubo_i5_calibrated",
+        {"paths_file": str(input_path)},
+        qualified_parameters(),
+        '<robot name="aubo"><joint name="j1" type="revolute"/></robot>',
+        '<robot name="aubo"><group name="manipulator"><joint name="j1"/></group></robot>',
+        {"controller_update_rate_hz": 125},
+        {"status": "pass"},
+        {"status": "running"},
+        None,
+    )
+
+    manifest = json.loads(Path(destination).read_text(encoding="utf-8"))
+    assert manifest["status"] == "engineering"
+    assert manifest["qualified_build_identities"] is None
+    assert manifest["coverage"]["qualified_build_identity"] is False
+
+
 def test_canvas_requires_taught_pose(tmp_path):
     path = write_parameter_file(
         tmp_path / "canvas.yaml", {"canvas_origin_xyz": [0.5, 0.1, 0.2]}
@@ -306,6 +377,16 @@ def test_shipped_hardware_profile_is_safe_template():
     assert all(parameters[name] is True for name in paint_launch.QUALIFIED_CHECKS)
 
 
+def test_shipped_4k_landscape_profile_is_safe_template():
+    path = PACKAGE_ROOT / "config" / "hardware_4k_landscape.yaml"
+    parameters = yaml.safe_load(path.read_text(encoding="utf-8"))
+    parameters = parameters["painting_executor"]["ros__parameters"]
+
+    assert parameters["dry_run"] is True
+    assert parameters["canvas_backing_size_xy_m"] == [0.0, 0.0]
+    assert all(parameters[name] is True for name in paint_launch.QUALIFIED_CHECKS)
+
+
 def test_hardware_representative_profiles_share_tool_geometry():
     geometry_keys = (
         "tool_offset_xyz",
@@ -315,7 +396,12 @@ def test_hardware_representative_profiles_share_tool_geometry():
         "claw_collision_offset_xyz",
     )
     profiles = {}
-    for name in ("hardware_a4.yaml", "rviz_wall_a4.yaml", "rviz_taught_a4.yaml"):
+    for name in (
+        "hardware_a4.yaml",
+        "hardware_4k_landscape.yaml",
+        "rviz_wall_a4.yaml",
+        "rviz_taught_a4.yaml",
+    ):
         path = PACKAGE_ROOT / "config" / name
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         profiles[name] = data["painting_executor"]["ros__parameters"]
@@ -333,6 +419,7 @@ def test_shipped_profiles_use_controller_period_interpolation():
     # totg_resample_dt no longer exists.
     sample_periods = {
         "hardware_a4.yaml": 0.008,
+        "hardware_4k_landscape.yaml": 0.008,
         "demo_v1_rviz.yaml": 0.008,
         "rviz_taught_a4.yaml": 0.008,
         "rviz_wall_a4.yaml": 0.008,
@@ -357,3 +444,29 @@ def test_shipped_profiles_use_controller_period_interpolation():
         assert params["max_cartesian_normal_deviation_mm"] > 0.0, name
         assert params["max_execution_joint_error_deg"] == 2.0, name
         assert "totg_resample_dt" not in params, name
+
+
+def test_canvas_file_accepts_measured_dimensions(tmp_path):
+    path = write_parameter_file(
+        tmp_path / "canvas.yaml",
+        {
+            "canvas_origin_xyz": [0.4, 0.2, 0.6],
+            "canvas_quat_xyzw": [0.0, 0.0, 0.0, 1.0],
+            "taught_canvas_width_mm": 525.0,
+            "taught_canvas_height_mm": 375.0,
+        },
+    )
+    paint_launch.validate_canvas_file(path)
+
+
+def test_canvas_file_rejects_partial_measured_dimensions(tmp_path):
+    path = write_parameter_file(
+        tmp_path / "canvas.yaml",
+        {
+            "canvas_origin_xyz": [0.4, 0.2, 0.6],
+            "canvas_quat_xyzw": [0.0, 0.0, 0.0, 1.0],
+            "taught_canvas_width_mm": 525.0,
+        },
+    )
+    with pytest.raises(RuntimeError, match="both taught canvas dimensions"):
+        paint_launch.validate_canvas_file(path)

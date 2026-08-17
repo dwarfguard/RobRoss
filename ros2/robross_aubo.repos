@@ -2,4 +2,4 @@ repositories:
   aubo_ros2_driver:
     type: git
     url: https://github.com/dwarfguard/aubo_ros2_driver.git
-    version: robross-fixes
+    version: cfd70d5f716a962462c5b063be85b632a70355d5
